@@ -8,153 +8,195 @@
 //
 // wrapper so that it's OK if main() does not call exit().
 //
-void
-start()
+void start()
 {
-  extern int main();
-  main();
-  exit(0);
+    extern int main();
+    main();
+    exit(0);
 }
 
-char*
+char *
 strcpy(char *s, const char *t)
 {
-  char *os;
+    char *os;
 
-  os = s;
-  while((*s++ = *t++) != 0)
-    ;
-  return os;
+    os = s;
+    while ((*s++ = *t++) != 0)
+        ;
+    return os;
 }
 
-int
-strcmp(const char *p, const char *q)
+int strcmp(const char *p, const char *q)
 {
-  while(*p && *p == *q)
-    p++, q++;
-  return (uchar)*p - (uchar)*q;
+    while (*p && *p == *q)
+        p++, q++;
+    return (uchar)*p - (uchar)*q;
 }
 
-uint
-strlen(const char *s)
+uint strlen(const char *s)
 {
-  int n;
+    int n;
 
-  for(n = 0; s[n]; n++)
-    ;
-  return n;
+    for (n = 0; s[n]; n++)
+        ;
+    return n;
 }
 
-void*
+void *
 memset(void *dst, int c, uint n)
 {
-  char *cdst = (char *) dst;
-  int i;
-  for(i = 0; i < n; i++){
-    cdst[i] = c;
-  }
-  return dst;
+    char *cdst = (char *)dst;
+    int i;
+    for (i = 0; i < n; i++)
+    {
+        cdst[i] = c;
+    }
+    return dst;
 }
 
-char*
+char *
 strchr(const char *s, char c)
 {
-  for(; *s; s++)
-    if(*s == c)
-      return (char*)s;
-  return 0;
+    for (; *s; s++)
+        if (*s == c)
+            return (char *)s;
+    return 0;
 }
 
-char*
+char *
 gets(char *buf, int max)
 {
-  int i, cc;
-  char c;
+    int i, cc;
+    char c;
 
-  for(i=0; i+1 < max; ){
-    cc = read(0, &c, 1);
-    if(cc < 1)
-      break;
-    buf[i++] = c;
-    if(c == '\n' || c == '\r')
-      break;
-  }
-  buf[i] = '\0';
-  return buf;
+    for (i = 0; i + 1 < max;)
+    {
+        cc = read(0, &c, 1);
+        if (cc < 1)
+            break;
+        buf[i++] = c;
+        if (c == '\n' || c == '\r')
+            break;
+    }
+    buf[i] = '\0';
+    return buf;
 }
 
-int
-stat(const char *n, struct stat *st)
+int stat(const char *n, struct stat *st)
 {
-  int fd;
-  int r;
+    int fd;
+    int r;
 
-  fd = open(n, O_RDONLY);
-  if(fd < 0)
-    return -1;
-  r = fstat(fd, st);
-  close(fd);
-  return r;
+    fd = open(n, O_RDONLY);
+    if (fd < 0)
+        return -1;
+    r = fstat(fd, st);
+    close(fd);
+    return r;
 }
 
-int
-atoi(const char *s)
+// another more powerful function for atoi
+long strtol(const char *nptr, char **endptr, int base)
 {
-  int n;
-
-  n = 0;
-  while('0' <= *s && *s <= '9')
-    n = n*10 + *s++ - '0';
-  return n;
+    if (nptr == NULL)
+        return 0;
+    // skip the leading whitespace
+    while (*nptr == ' ' || *nptr == '\t')
+        nptr++;
+    int negative = 0;
+    if (nptr[0] == '-')
+    {
+        negative = 1;
+        nptr++;
+    }
+    // handle the prefix(0x for hex)
+    if (base == 16 && nptr[0] == '0' && (nptr[1] == 'x' || nptr[1] == 'X'))
+        nptr += 2;
+    long acc_ret = 0;
+    int val = 0;
+    while (nptr[0] != '\0')
+    {
+        if (nptr[0] >= '0' && nptr[0] <= '9')
+            val += (nptr[0] - '0');
+        else if (nptr[0] >= 'a' && nptr[0] <= 'z')
+            val += (10 + nptr[0] - 'a');
+        else if (nptr[0] >= 'A' && nptr[0] <= 'Z')
+            val += (10 + nptr[0] - 'A');
+        else
+            break;
+        if (val >= base)
+            break;
+        acc_ret += acc_ret * base + val;
+        nptr++;
+    }
+    if (endptr != NULL)
+        *endptr = (char *)nptr;
+    return negative ? -acc_ret : acc_ret;
 }
 
-void*
+int atoi(const char *s)
+{
+    // int n;
+
+    // n = 0;
+    // while('0' <= *s && *s <= '9')
+    //   n = n*10 + *s++ - '0';
+    // return n;
+    return strtol(s, NULL, 10);
+}
+
+void *
 memmove(void *vdst, const void *vsrc, int n)
 {
-  char *dst;
-  const char *src;
+    char *dst;
+    const char *src;
 
-  dst = vdst;
-  src = vsrc;
-  if (src > dst) {
-    while(n-- > 0)
-      *dst++ = *src++;
-  } else {
-    dst += n;
-    src += n;
-    while(n-- > 0)
-      *--dst = *--src;
-  }
-  return vdst;
+    dst = vdst;
+    src = vsrc;
+    if (src > dst)
+    {
+        while (n-- > 0)
+            *dst++ = *src++;
+    }
+    else
+    {
+        dst += n;
+        src += n;
+        while (n-- > 0)
+            *--dst = *--src;
+    }
+    return vdst;
 }
 
-int
-memcmp(const void *s1, const void *s2, uint n)
+int memcmp(const void *s1, const void *s2, uint n)
 {
-  const char *p1 = s1, *p2 = s2;
-  while (n-- > 0) {
-    if (*p1 != *p2) {
-      return *p1 - *p2;
+    const char *p1 = s1, *p2 = s2;
+    while (n-- > 0)
+    {
+        if (*p1 != *p2)
+        {
+            return *p1 - *p2;
+        }
+        p1++;
+        p2++;
     }
-    p1++;
-    p2++;
-  }
-  return 0;
+    return 0;
 }
 
 void *
 memcpy(void *dst, const void *src, uint n)
 {
-  return memmove(dst, src, n);
+    return memmove(dst, src, n);
 }
 
 char *
-sbrk(int n) {
-  return sys_sbrk(n, SBRK_EAGER);
+sbrk(int n)
+{
+    return sys_sbrk(n, SBRK_EAGER);
 }
 
 char *
-sbrklazy(int n) {
-  return sys_sbrk(n, SBRK_LAZY);
+sbrklazy(int n)
+{
+    return sys_sbrk(n, SBRK_LAZY);
 }
-

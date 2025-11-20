@@ -68,10 +68,10 @@ sys_pause(void)
   int n;
   uint ticks0;
 
-  argint(0, &n);
+  argint(0, &n);//Argument Retrieval: Get the sleep duration 'n' form the user stack.
   if(n < 0)
     n = 0;
-  acquire(&tickslock);
+  acquire(&tickslock);//Acquire Lock :Protect the global 'ticks' variables
   ticks0 = ticks;
   while(ticks - ticks0 < n){
     if(killed(myproc())){

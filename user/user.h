@@ -1,3 +1,4 @@
+#include "kernel/types.h"
 #define SBRK_ERROR ((char *)-1)
 
 struct stat;
@@ -34,6 +35,7 @@ int strcmp(const char*, const char*);
 char* gets(char*, int max);
 uint strlen(const char*);
 void* memset(void*, int, uint);
+long strtol(const char *nptr, char **endptr, int base);
 int atoi(const char*);
 int memcmp(const void *, const void *, uint);
 void *memcpy(void *, const void *, uint);
