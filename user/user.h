@@ -31,6 +31,7 @@ int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);
 void *memmove(void*, const void*, int);
 char* strchr(const char*, char c);
+int strncmp(const char *p, const char *q, uint n);
 int strcmp(const char*, const char*);
 char* gets(char*, int max);
 uint strlen(const char*);
@@ -41,7 +42,8 @@ int memcmp(const void *, const void *, uint);
 void *memcpy(void *, const void *, uint);
 char* sbrk(int);
 char* sbrklazy(int);
-
+void canonicalize_path(char *path);
+unsigned get_char_offset(const char *path, char c, int num);
 // printf.c
 void fprintf(int, const char*, ...) __attribute__ ((format (printf, 2, 3)));
 void printf(const char*, ...) __attribute__ ((format (printf, 1, 2)));

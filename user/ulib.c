@@ -26,6 +26,15 @@ strcpy(char *s, const char *t)
     return os;
 }
 
+int strncmp(const char *p, const char *q, uint n)
+{
+    while (n > 0 && *p && *p == *q)
+        n--, p++, q++;
+    if (n == 0)
+        return 0;
+    return (uchar)*p - (uchar)*q;
+}
+
 int strcmp(const char *p, const char *q)
 {
     while (*p && *p == *q)
@@ -199,4 +208,85 @@ char *
 sbrklazy(int n)
 {
     return sys_sbrk(n, SBRK_LAZY);
+}
+
+static unsigned find_prev_slash(char *path, unsigned dst_idx){
+    if(dst_idx==0){
+        fprintf(2, "%s", "Error in find_prev_slash!(Can't backtrack the given path)\n");
+        exit(1);
+    }
+    int new_dst_idx=dst_idx-1;
+    while(new_dst_idx>=0){
+        if(path[new_dst_idx]=='/')    return new_dst_idx;
+        new_dst_idx--;
+    }
+    return 0;//the top level
+}
+
+void canonicalize_path(char *path){//Use In-place Backtracking(Two pointer)
+    //explain and expand the path(Make sure the parameter is not the only!)
+    if(path==NULL)  return;
+    unsigned src_idx=0,dst_idx=0;
+    int component_start=0, component_len=0;
+    int is_absolute=0;
+    if(path[0]=='/'){
+        src_idx++;
+        path[dst_idx++]= '/';   //skip the leading '/' protect the absolute path
+        is_absolute=1;
+    }
+    while(path[src_idx]!='\0'){
+        while(path[src_idx]=='/')   src_idx++;
+        component_start=src_idx;
+        while(path[src_idx]!='\0' && path[src_idx]!='/')    src_idx++;
+        component_len=src_idx-component_start;
+        //Analyze the component
+        if(component_len==0)    break;  //End of string
+        else if(component_len==1){
+            if(path[component_start]=='.')  continue;
+            if(dst_idx!=0 && !(is_absolute==1 && dst_idx==1))  path[dst_idx++]='/';
+            path[dst_idx++]=path[component_start];
+        }
+        else if(component_len==2){
+            if(strncmp(&path[component_start], "..", 2)==0)  dst_idx=find_prev_slash(path, dst_idx);
+            else{
+                if(dst_idx!=0 && !(is_absolute==1 && dst_idx==1))  path[dst_idx++]='/';
+                path[dst_idx++]=path[component_start];path[dst_idx++]=path[component_start+1];
+            }
+        }
+        else{
+            if(dst_idx!=0 && !(is_absolute==1 && dst_idx==1))  path[dst_idx++]='/';
+            memcpy(&path[dst_idx], &path[component_start], component_len);
+            dst_idx+=component_len;
+        }
+    }
+    if(dst_idx==0)  path[dst_idx++]='.';
+    path[dst_idx]='\0';
+}
+
+unsigned get_char_offset(const char *path, char c, int num){
+    //while type is 1 return the first, type is -1 return the last
+    if(path==NULL){
+        fprintf(2, "Error!Invalid input in get_basename_offset!");
+        exit(1);
+    }
+    if(num==-1){
+        //find the last one, search from the end
+        unsigned len=strlen(path);
+        unsigned cur_idx=len;
+        while(cur_idx>0){
+            cur_idx--;
+            if(path[cur_idx]==c)    return cur_idx;
+        }
+        return len; //not found
+    }
+    unsigned ret=0, cur_idx=0;
+    while(path[cur_idx]!='\0'){
+        if(path[cur_idx]==c){
+            ret=cur_idx;
+            if(num==1) return ret;
+            else    num--;
+        }
+        cur_idx++;
+    }
+    return ret;
 }
