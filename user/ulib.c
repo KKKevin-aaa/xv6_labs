@@ -211,16 +211,12 @@ sbrklazy(int n)
 }
 
 static unsigned find_prev_slash(char *path, unsigned dst_idx){
-    if(dst_idx==0){
-        fprintf(2, "%s", "Error in find_prev_slash!(Can't backtrack the given path)\n");
-        exit(1);
-    }
     int new_dst_idx=dst_idx-1;
     while(new_dst_idx>=0){
         if(path[new_dst_idx]=='/')    return new_dst_idx;
         new_dst_idx--;
     }
-    return 0;//the top level
+    return (path[0]=='/')?1:0;//the top level, return 1 for absolute path
 }
 
 void canonicalize_path(char *path){//Use In-place Backtracking(Two pointer)
@@ -266,7 +262,8 @@ void canonicalize_path(char *path){//Use In-place Backtracking(Two pointer)
 unsigned get_char_offset(const char *path, char c, int num){
     //while type is 1 return the first, type is -1 return the last
     if(path==NULL){
-        fprintf(2, "Error!Invalid input in get_basename_offset!");
+        char *error_msg="Panic: Invliad input while get basename_offset!\n";
+        write(2, error_msg, strlen(error_msg)); //Invoke syscall directly
         exit(1);
     }
     if(num==-1){
@@ -277,7 +274,7 @@ unsigned get_char_offset(const char *path, char c, int num){
             cur_idx--;
             if(path[cur_idx]==c)    return cur_idx;
         }
-        return len; //not found
+        return (unsigned)-1; //not found
     }
     unsigned ret=0, cur_idx=0;
     while(path[cur_idx]!='\0'){
@@ -288,5 +285,5 @@ unsigned get_char_offset(const char *path, char c, int num){
         }
         cur_idx++;
     }
-    return ret;
+    return (unsigned)-1;
 }

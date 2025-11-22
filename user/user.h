@@ -47,7 +47,6 @@ unsigned get_char_offset(const char *path, char c, int num);
 // printf.c
 void fprintf(int, const char*, ...) __attribute__ ((format (printf, 2, 3)));
 void printf(const char*, ...) __attribute__ ((format (printf, 1, 2)));
-
 // umalloc.c
 void* malloc(uint);
 void free(void*);

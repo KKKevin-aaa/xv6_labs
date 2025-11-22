@@ -9,9 +9,10 @@ int main(int argc, char *argv[]){
     else{
         for(int i=1;i<=argc-1;i++){
             canonicalize_path(argv[i]);
-            unsigned offset=get_char_offset(argv[i], '/', -1);
-            argv[i][offset]='\0';
-            fprintf(1, "%s\n", argv[i]);
+            unsigned start_idx=get_char_offset(argv[i], '/', -1);
+            unsigned end_idx=get_char_offset(argv[i], '.', -1);
+            if(end_idx!=(unsigned)-1)   argv[i][end_idx]='\0';
+            fprintf(1, "%s\n", &argv[i][start_idx+1]);
         }
     }
     exit(0);
