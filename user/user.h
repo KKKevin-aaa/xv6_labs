@@ -4,14 +4,44 @@
 struct stat;
 
 // system calls
+//Create a new process(duplicate from current process)
+//Returns: 0 in valid, PID in parent, -1 on error(Can tell parent from child)
 int fork(void);
+
+//Terminate the current process with the specified exit status.
+//@status:the exit status code to passed to the parent.
 int exit(int) __attribute__((noreturn));
-int wait(int*);
-int pipe(int*);
-int write(int, const void*, int);
-int read(int, void*, int);
+
+// status is output parameter,record the exit status of the child process.Return the pid of the terminated child process.
+// And then parent will recycle the process resources.
+int wait(int* status);
+
+// Create a pipei(for inter-process communcations)
+// @fds:Array of two integers, fds[0] for read, fds[1] for write
+// Returns: 0 on success, -1 on error
+int pipe(int* fds);
+
+// Write data to a file descriptor
+// @fd:file descriptor to write to
+// @buf:buffer contianing data to write
+// @n :number of bytes actually written, -1 on error
+int write(int fd, const void* buf, int n);
+
+// Read data from a file descriptor
+// @fd:file descriptor to read from
+// @buf:buffer contianing data to write
+// @n :number of bytes actually read, 0 on EOF, -1 on error
+int read(int fd, void* buf, int n);
+
+// Close a file descriptor
+// return: 0 for success, -1 on error
 int close(int);
-int kill(int);
+
+// Send a signal to terminate a specific process
+// @pid: the process id to terminate
+// return 0 on success, -1 on error
+int kill(int pid);
+
 int exec(const char*, char**);
 int open(const char*, int);
 int mknod(const char*, short, short);
