@@ -143,7 +143,7 @@ $K/%.o: $K/%.S
 tags: $(OBJS)
 	etags kernel/*.S kernel/*.c
 
-ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
+ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o $U/regexp.o
 
 ifeq ($(LAB),lock)
 ULIB += $U/statistics.o
@@ -200,6 +200,7 @@ UPROGS=\
 	$U/_find\
 	$U/_dirname\
 	$U/_basename\
+	$U/_uptime\
 	
 
 

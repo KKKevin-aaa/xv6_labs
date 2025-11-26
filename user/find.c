@@ -7,7 +7,7 @@
 //A simple version:that only support find dirpath filepath(must be basename)
 //Since we don't support the predicates, so the only invalid input must be one dirpath and one name
 #define MAX_BUFFER_SIZE 128
-static char new_path[MAXARG]={NULL};
+static char new_path[MAXARG]={'\0'};
 static char new_arg_area[MAX_BUFFER_SIZE]={0};  //Use the flat memory to store the argv and its value
 static char *new_argv[MAXARG]={NULL};
 static unsigned new_argc =0;    //record the result(for the potenital exec)
@@ -49,7 +49,8 @@ void Given_path_find(char *path, char *name){
         case T_DEVICE:case T_FILE:
             //extract to get basename, then compare
             start_idx=get_char_offset(path, '/', -1);
-            if(strcmp(path+(start_idx+1), name)==0){
+            if(regex_match(path+(start_idx+1), name)==1){
+                printf("regex match successfully in given_path_find\n");
                 //Keep searching
                 if(need_record==0){
                     fprintf(1, "%s\n", path);
@@ -67,10 +68,11 @@ void Given_path_find(char *path, char *name){
                 }
             }
             break;
-        default:exit(1);break;    
+        default:exit(1);break;
     }
     close(fd);
 }
+
 int main(int argc, char *argv[]){
     if(argc<3){
         fprintf(2,"Find :invalid input,please check again!\n");
@@ -85,11 +87,14 @@ int main(int argc, char *argv[]){
         old_arg_idx++;
     }
     if(need_record==1){
-        memmove(new_path, argv[old_arg_idx], strlen(argv[old_arg_idx]+1));
-        old_arg_idx++;
+        old_arg_idx++;  //skip the -exec
         unsigned added_len=strlen(argv[old_arg_idx])+1;
+        memmove(new_path, argv[old_arg_idx], added_len);  
+        //One copy for kernel to locate the executeable binary(to call open() to get the fd/inode)
+        //And one copy for argv[0] in exec(identity:make program know which path it is loaded from)
         while(old_arg_idx<argc){
             if(cur_idx+added_len<MAX_BUFFER_SIZE && argc<MAXARG){
+                // printf("going to move %s to new argv\n", argv[old_arg_idx]);
                 memmove(&new_arg_area[cur_idx], argv[old_arg_idx], added_len);
                 new_argv[new_argc++]=&new_arg_area[cur_idx];
                 cur_idx+=added_len;
@@ -99,6 +104,7 @@ int main(int argc, char *argv[]){
                 exit(1);
             }
             old_arg_idx++;
+            added_len=strlen(argv[old_arg_idx])+1;
         }
     }
     char *path=argv[1];
@@ -107,7 +113,10 @@ int main(int argc, char *argv[]){
     if(need_record==1){
         int pid;
         pid = fork();
-        if (pid == -1)  panic("fork");
+        if (pid == -1){
+            fprintf(2, "Error: in find while trying to fork a new process!\n");
+            exit(1);
+        }   //one call, two returns
         if(pid==0)  exec(new_path, new_argv);   //Must be child process
         else    wait(NULL); //Parent wait for the child process
     }

@@ -1,0 +1,35 @@
+---
+Language:        Cpp
+BasedOnStyle:    Google
+
+# 1. 强制 { 不换行 (你之前的要求)
+BreakBeforeBraces: Attach
+
+# 2. 【核心修改】允许短的 if 语句在同一行
+# Never: 永远换行 (默认)
+# WithoutElse: 只有没有 else 的时候允许在同一行
+# Always: 只要长度允许，强制放在同一行 (这就是你要的效果)
+AllowShortIfStatementsOnASingleLine: Always
+
+# 3. 同理，允许短的 while/for 循环在同一行 (建议也加上)
+# 例如: while(*s++) ;
+AllowShortLoopsOnASingleLine: true
+
+# 缩进设置
+IndentWidth:     4
+TabWidth:        4
+UseTab:          Never
+
+# 指针位置
+PointerAlignment: Right
+
+# Controls the line breaking behavior after the function return type
+# Options: 
+#   None     - 永远不断行 (Never break) -> 这是你想要的 (This is what you want)
+#   All      - 所有函数都断行 (Break for all functions)
+#   TopLevel - 仅在顶层函数断行 (Break only for top-level functions)
+AlwaysBreakAfterReturnType: None
+
+# 行宽限制 (超过这个长度还是会被强制换行)
+ColumnLimit:     100
+...

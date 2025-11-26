@@ -3,7 +3,7 @@
 #include "kernel/types.h"
 #include "user/user.h"
 #include "kernel/fcntl.h"
-
+#include "kernel/stat.h"
 // Parsed command representation
 #define EXEC 1
 #define REDIR 2
@@ -15,22 +15,19 @@
 
 //Base structure(all command first member is type,
 //which allow us to cast into cmd structure to check its type)
-struct cmd
-{
+struct cmd{
     int type;
 };
 
 //e.g. echo hello
-struct execcmd
-{
+struct execcmd{
     int type;
     char *argv[MAXARGS];    //parameter start pointer(pointer to existing buf)
     char *eargv[MAXARGS];   //pararmeter end pointer(pointer to existing buf in main)
 };
 
 //e.g echo hello > x
-struct redircmd
-{
+struct redircmd{
     int type;
     struct cmd *cmd;    //sub command(redirected command)
     char *file; //file name start pointer
@@ -40,30 +37,27 @@ struct redircmd
 };
 
 // e.g. ls  | wc
-struct pipecmd
-{
+struct pipecmd{
     int type;
     struct cmd *left;   //left side command in pipe
     struct cmd *right;  //right side command in pipe
 };
 
 //e.g. cd a; ls
-struct listcmd
-{
+struct listcmd{
     int type;
     struct cmd *left;   //left side command in list
     struct cmd *right;  //right side command in list
 };
 
-struct backcmd
-{
+struct backcmd{
     int type;
     struct cmd *cmd;    //command to be run in background
 };
 
 int fork1(void); // Fork but panics on failure.
 void panic(char *);
-struct cmd *parsecmd(char *);
+struct cmd *parsecmd_main(char *);
 void runcmd(struct cmd *) __attribute__((noreturn));
 
 // Execute cmd.  Never returns.
@@ -94,7 +88,7 @@ void runcmd(struct cmd *cmd)
 
     case REDIR:
         rcmd = (struct redircmd *)cmd;
-        close(rcmd->fd);    //close the substituted file descriptor
+        close(rcmd->fd);    //close the  file descriptor would be substituted
         if (open(rcmd->file, rcmd->mode) < 0)   //Reopen the file, which will be assigned the lowest unused fd number
         {   
             fprintf(2, "open %s failed\n", rcmd->file);
@@ -145,10 +139,33 @@ void runcmd(struct cmd *cmd)
     }
     exit(0);
 }
+void process_escape(char *buffer){ //Deal with ANSI escape sequences
+    int tmp_result[1024];
+    int cur_len=0;
+    int logic_ptr=0, actual_ptr=0;
+    while(buffer[actual_ptr]!='\n' && buffer[actual_ptr+1]!='\0'){
+        if(buffer[actual_ptr]==0x1b && buffer[actual_ptr+1]=='['){
+            if(buffer[actual_ptr+1]=='D' && logic_ptr>0)    logic_ptr--;
+            else if(buffer[actual_ptr+1]=='C' && logic_ptr<cur_len)  logic_ptr++;
+            continue;
+        }
+        if(cur_len<sizeof(tmp_result)-1){
+            memmove(tmp_result+logic_ptr+1, tmp_result+logic_ptr, cur_len-logic_ptr);
+            tmp_result[logic_ptr]=buffer[actual_ptr];
+            logic_ptr++;cur_len++;
+        }
+        actual_ptr++;
+    }
+    tmp_result[logic_ptr]='\0'; //null-terminated
+    memcpy((void *)buffer, (const void *)tmp_result, cur_len);
+}
+
 // Reads a line of input from stdin into a buffer. Prints the prompt "$ " and returns -1 if EOF (Ctrl+D) is encountered
 int getcmd(char *buf, int nbuf)
 {
-    write(2, "$ ", 2);
+    struct stat fd0_state;
+    fstat(0, &fd0_state);
+    if(fd0_state.type!=T_FILE) write(2, "$ ", 2);  //from regular file(not character device)
     memset(buf, 0, nbuf);
     gets(buf, nbuf);
     if (buf[0] == 0) // EOF
@@ -174,11 +191,10 @@ int main(void)
     // Read and run input commands.
     while (getcmd(buf, sizeof(buf)) >= 0)
     {
+        // printf("current buf is %s\n", buf);
         char *cmd = buf;
-        while (*cmd == ' ' || *cmd == '\t')
-            cmd++;
-        if (*cmd == '\n') // is a blank command
-            continue;
+        while (*cmd == ' ' || *cmd == '\t') cmd++;
+        if (*cmd == '\n') continue; // is a blank command
         if (cmd[0] == 'c' && cmd[1] == 'd' && cmd[2] == ' ')    //Bultin command: change directory
         {
             // Chdir must be called by the parent, not the child.
@@ -189,7 +205,7 @@ int main(void)
         else
         {   //child process to run other commands
             if (fork1() == 0)
-                runcmd(parsecmd(cmd));
+                runcmd(parsecmd_main(cmd));
             wait(0);    //Wait for the child process to finish and avoid zombie process
         }
     }
@@ -215,8 +231,9 @@ int fork1(void)
 // PAGEBREAK!
 //  Constructors
 //Creates a basic command node (EXEC). Allocates memory and zeroes it out
+
 struct cmd *
-execcmd(void)
+make_exec_cmd(void)
 {
     struct execcmd *cmd;
 
@@ -227,7 +244,7 @@ execcmd(void)
 }
 //Creates a redirection node (REDIR). Records the filename, open mode (read/write), and the file descriptor to be replaced.
 struct cmd *
-redircmd(struct cmd *subcmd, char *file, char *efile, int mode, int fd)
+make_redirections_cmd(struct cmd *subcmd, char *file, char *efile, int mode, int fd)
 {
     struct redircmd *cmd;
 
@@ -243,7 +260,7 @@ redircmd(struct cmd *subcmd, char *file, char *efile, int mode, int fd)
 }
 // Creates a pipe node (PIPE). Connects a left command and a right command
 struct cmd *
-pipecmd(struct cmd *left, struct cmd *right)
+make_pipe_cmd(struct cmd *left, struct cmd *right)
 {
     struct pipecmd *cmd;
 
@@ -256,7 +273,7 @@ pipecmd(struct cmd *left, struct cmd *right)
 }
 //Creates a list node (LIST). Handles the semicolon ;, indicating sequential execution of left and right commands
 struct cmd *
-listcmd(struct cmd *left, struct cmd *right)
+make_list_cmd(struct cmd *left, struct cmd *right)
 {
     struct listcmd *cmd;
 
@@ -269,7 +286,7 @@ listcmd(struct cmd *left, struct cmd *right)
 }
 //Creates a background node (BACK). Handles &, indicating the sub-command runs in the background (no wait)
 struct cmd *
-backcmd(struct cmd *subcmd)
+make_back_cmd(struct cmd *subcmd)
 {
     struct backcmd *cmd;
 
@@ -285,18 +302,16 @@ backcmd(struct cmd *subcmd)
 char whitespace[] = " \t\r\n\v";
 char symbols[] = "<|>&;()";
 // Lexer. Skips whitespace, extracts the next token (symbol or argument), and advances the parsing pointer
-int gettoken(char **ps, char *es, char **q, char **eq)
-{   //current parsiing position ps, end of boundary ed; and start position of word token q, end position of word token eq
-    char *s;
-    int ret;
+int gettoken(char **pointer_to_cursor, char *end_of_input, char **token_start, char **token_end)
+{   //current parsiing position pointer_to_cursor, end of boundary ed; and start position of word token q, end position of word token eq
+    char *cursor=*pointer_to_cursor;
+    int token_type;
 
-    s = *ps;
-    while (s < es && strchr(whitespace, *s))
-        s++;
-    if (q)
-        *q = s;
-    ret = *s;
-    switch (*s)
+    while (cursor < end_of_input && strchr(whitespace, *cursor))    cursor++;
+    if (token_start)
+        *token_start = cursor;
+    token_type = *cursor;
+    switch (*cursor)
     {
         case 0: //the end character of the string
             break;
@@ -307,62 +322,58 @@ int gettoken(char **ps, char *es, char **q, char **eq)
         case ';':
         case '&':
         case '<':
-            s++;
+            cursor++;
             break;
         //Double character token
         case '>':
-            s++;
-            if (*s == '>')
-            {
-                ret = '+';  //double > means append redirection
-                s++;
+            cursor++;
+            if (*cursor == '>'){
+                token_type = '+';  //double > means append redirection
+                cursor++;
             }
             break;
         //Normal word token
         default:
-            ret = 'a';  //a for argument
-            while (s < es && !strchr(whitespace, *s) && !strchr(symbols, *s))
-                s++;
+            token_type = 'a';  //a for argument
+            while (cursor < end_of_input && !strchr(whitespace, *cursor) && !strchr(symbols, *cursor))
+                cursor++;
             break;
     }
-    if (eq)
-        *eq = s;    //If caller need end pointer, record it!
+    if (token_end)
+        *token_end = cursor;    //If caller need end pointer, record it!
 
-    while (s < es && strchr(whitespace, *s))    //Skip trailing whitespace
-        s++;
-    *ps = s;
-    return ret;
+    while (cursor < end_of_input && strchr(whitespace, *cursor))    //Skip trailing whitespace
+        cursor++;
+    *pointer_to_cursor = cursor;
+    return token_type;
 }
 //Lookahead function. Skips whitespace and checks if the next character belongs to the specified set, 
 //advancing the parsing pointer, returning 1 if it does and 0 otherwise
-int peek(char **ps, char *es, char *toks)
+int peek(char **pointer_to_cursor, char *end_of_input, char *delimiters)
 {   
-    char *s;
-
-    s = *ps;
-    while (s < es && strchr(whitespace, *s))
-        s++;
-    *ps = s;
-    return *s && strchr(toks, *s);  //Make sure s is not at the end and current char is in toks
+    char *cursor=*pointer_to_cursor;
+    while (cursor < end_of_input && strchr(whitespace, *cursor))    cursor++;
+    *pointer_to_cursor = cursor;
+    return *cursor && strchr(delimiters, *cursor);  //Make sure s is not at the end and current char is in delimiters
 }
 
-struct cmd *parseline(char **, char *);
-struct cmd *parsepipe(char **, char *);
-struct cmd *parseexec(char **, char *);
+struct cmd *parse_line(char **, char *);
+struct cmd *parse_pipe(char **, char *);
+struct cmd *parse_exec(char **, char *);
 struct cmd *nulterminate(struct cmd *);
 
 struct cmd *
-parsecmd(char *s)
+parsecmd_main(char *string)
 {
-    char *es;
+    char *end_of_input;
     struct cmd *cmd;
 
-    es = s + strlen(s);
-    cmd = parseline(&s, es);
-    peek(&s, es, "");
-    if (s != es)    //If s havn't reached the end, there must be some syntax error
+    end_of_input = string + strlen(string);
+    cmd = parse_line(&string, end_of_input);
+    peek(&string, end_of_input, "");
+    if (string != end_of_input)    //If s havn't reached the end, there must be some syntax error
     {
-        fprintf(2, "leftovers: %s\n", s);
+        fprintf(2, "leftovers: %s\n", string);
         panic("syntax");
     }
     nulterminate(cmd);  //Zero copy!
@@ -370,59 +381,56 @@ parsecmd(char *s)
 }
 //Deal with ; and &, construct the horizontal command tree
 struct cmd *
-parseline(char **ps, char *es)
+parse_line(char **pointer_to_cursor, char *end_of_input)
 {
     struct cmd *cmd;
 
-    cmd = parsepipe(ps, es);
-    while (peek(ps, es, "&"))
+    cmd = parse_pipe(pointer_to_cursor, end_of_input);
+    while (peek(pointer_to_cursor, end_of_input, "&"))
     {
-        gettoken(ps, es, 0, 0);
-        cmd = backcmd(cmd); //Wrap the existing command into a backcmd
+        gettoken(pointer_to_cursor, end_of_input, 0, 0);
+        cmd = make_back_cmd(cmd); //Wrap the existing command into a backcmd
     }
-    if (peek(ps, es, ";"))
+    if (peek(pointer_to_cursor, end_of_input, ";"))
     {   //Recursively call parseline to parse the right side of the list command, and use LIST cmd type to connect them
-        gettoken(ps, es, 0, 0);
-        cmd = listcmd(cmd, parseline(ps, es));
+        gettoken(pointer_to_cursor, end_of_input, 0, 0);
+        cmd = make_list_cmd(cmd, parse_line(pointer_to_cursor, end_of_input));
     }
     return cmd;
 }
 //Deal with | operator, construct the vertical command tree
 struct cmd *
-parsepipe(char **ps, char *es)
-{
+parse_pipe(char **pointer_to_cursor, char *end_of_input){
     struct cmd *cmd;
-
-    cmd = parseexec(ps, es);
-    if (peek(ps, es, "|"))
-    {
-        gettoken(ps, es, 0, 0);
-        cmd = pipecmd(cmd, parsepipe(ps, es));
+    cmd = parse_exec(pointer_to_cursor, end_of_input);
+    if (peek(pointer_to_cursor, end_of_input, "|")){
+        gettoken(pointer_to_cursor, end_of_input, 0, 0);
+        cmd = make_pipe_cmd(cmd, parse_pipe(pointer_to_cursor, end_of_input));
     }
     return cmd;
 }
 //Deal with redirection operators <>
 struct cmd *
-parseredirs(struct cmd *cmd, char **ps, char *es)
+parse_redirections(struct cmd *cmd, char **pointer_to_cursor, char *end_of_input)
 {
-    int tok;
-    char *q, *eq;
+    int token_type;
+    char *token_start, *token_end;
 
-    while (peek(ps, es, "<>"))
+    while (peek(pointer_to_cursor, end_of_input, "<>"))
     {
-        tok = gettoken(ps, es, 0, 0);
-        if (gettoken(ps, es, &q, &eq) != 'a')
+        token_type = gettoken(pointer_to_cursor, end_of_input, 0, 0);
+        if (gettoken(pointer_to_cursor, end_of_input, &token_start, &token_end) != 'a')
             panic("missing file for redirection");  //after < or > there must be a file name/Argument
-        switch (tok)
+        switch (token_type)
         {
         case '<'://Change the stdin to read from file(keyboard by default)
-            cmd = redircmd(cmd, q, eq, O_RDONLY, 0);
+            cmd = make_redirections_cmd(cmd, token_start, token_end, O_RDONLY, 0);
             break;
         case '>'://Change the stdout to write to file(screen by default)
-            cmd = redircmd(cmd, q, eq, O_WRONLY | O_CREATE | O_TRUNC, 1);
+            cmd = make_redirections_cmd(cmd, token_start, token_end, O_WRONLY | O_CREATE | O_TRUNC, 1);
             break;
         case '+': // >>
-            cmd = redircmd(cmd, q, eq, O_WRONLY | O_CREATE, 1);
+            cmd = make_redirections_cmd(cmd, token_start, token_end, O_WRONLY | O_CREATE, 1);
             break;
         }
     }
@@ -430,49 +438,55 @@ parseredirs(struct cmd *cmd, char **ps, char *es)
 }
 
 struct cmd *
-parseblock(char **ps, char *es)
+parse_block(char **pointer_to_cursor, char *end_of_input)
 {
     struct cmd *cmd;
 
-    if (!peek(ps, es, "("))
+    if (!peek(pointer_to_cursor, end_of_input, "("))
         panic("parseblock");
-    gettoken(ps, es, 0, 0);
-    cmd = parseline(ps, es);
-    if (!peek(ps, es, ")"))
+    gettoken(pointer_to_cursor, end_of_input, 0, 0);
+    cmd = parse_line(pointer_to_cursor, end_of_input);
+    if (!peek(pointer_to_cursor, end_of_input, ")"))
         panic("syntax - missing )");
-    gettoken(ps, es, 0, 0);
-    cmd = parseredirs(cmd, ps, es);
+    gettoken(pointer_to_cursor, end_of_input, 0, 0);
+    cmd = parse_redirections(cmd, pointer_to_cursor, end_of_input);
     return cmd;
 }
 //Lowest level parser. Parses simple commands, parenthesized sub-commands, and redirections(Atomic commands)
 struct cmd *
-parseexec(char **ps, char *es)
+parse_exec(char **pointer_to_cursor, char *end_of_input)
 {
-    char *q, *eq;
-    int tok, argc;
+    char *token_start, *token_end;
+    int token_type, argc;
     struct execcmd *cmd;
     struct cmd *ret;
 
-    if (peek(ps, es, "("))
-        return parseblock(ps, es);
+    if (peek(pointer_to_cursor, end_of_input, "("))
+        return parse_block(pointer_to_cursor, end_of_input);
 
-    ret = execcmd();
+    ret = make_exec_cmd();
     cmd = (struct execcmd *)ret;    //create variable and cast to execcmd structure
 
     argc = 0;
-    ret = parseredirs(ret, ps, es);
-    while (!peek(ps, es, "|)&;"))   //check if next token is not special symbol
+    ret = parse_redirections(ret, pointer_to_cursor, end_of_input);
+    while (!peek(pointer_to_cursor, end_of_input, "|)&;"))   //check if next token is not special symbol
     {
-        if ((tok = gettoken(ps, es, &q, &eq)) == 0)
+        if ((token_type = gettoken(pointer_to_cursor, end_of_input, &token_start, &token_end)) == 0)
             break;
-        if (tok != 'a')
-            panic("syntax");    //should be argument
-        cmd->argv[argc] = q;
-        cmd->eargv[argc] = eq;  //record the start and end pointer of the argument
+        if (token_type != 'a')  panic("syntax");    //should be argument
+        if(*token_start=='"' && *token_end=='"'){
+            printf("in sh.c, we meet the \"\"\n");
+            cmd->argv[argc]=token_start+1;
+            cmd->argv[argc]=token_end-1;
+        }
+        else{
+            cmd->argv[argc] = token_start;
+            cmd->eargv[argc] = token_end;  //record the start and end pointer of the argument
+        }
         argc++;
         if (argc >= MAXARGS)
             panic("too many args");
-        ret = parseredirs(ret, ps, es); //after each argument, there may be redirection operators
+        ret = parse_redirections(ret, pointer_to_cursor, end_of_input); //after each argument, there may be redirection operators
     }
     cmd->argv[argc] = 0;
     cmd->eargv[argc] = 0;
