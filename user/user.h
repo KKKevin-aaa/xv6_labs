@@ -160,6 +160,11 @@ int pause(int ticks);
  */
 int uptime(void);
 
+/**
+ * some description for ioctl
+ */
+int ioctl(int fd, int req, uint64 arg);
+
 //==============================================================================
 // ulib.c (User Library)
 //==============================================================================

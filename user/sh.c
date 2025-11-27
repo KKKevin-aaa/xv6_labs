@@ -4,6 +4,7 @@
 #include "user/user.h"
 #include "kernel/fcntl.h"
 #include "kernel/stat.h"
+#include "kernel/ioctl.h"
 // Parsed command representation
 #define EXEC 1
 #define REDIR 2
@@ -12,7 +13,12 @@
 #define BACK 5
 
 #define MAXARGS 10
-
+#define CONTROL_KEY(x) ((x) - '@')
+#define CHAR_BUF_SIZE 100
+static int global_char_buf[CHAR_BUF_SIZE];
+static int cur_state=STATE_NORMAL;
+static int cursor_idx=0, commit_idx=0, editor_idx=0, read_idx=0;
+static char backspace[3]="\b \b";
 //Base structure(all command first member is type,
 //which allow us to cast into cmd structure to check its type)
 struct cmd{
@@ -159,6 +165,91 @@ void process_escape(char *buffer){ //Deal with ANSI escape sequences
     tmp_result[logic_ptr]='\0'; //null-terminated
     memcpy((void *)buffer, (const void *)tmp_result, cur_len);
 }
+void process_char_InRawMode(char *buf, int nbuf){
+    int remain_size=CHAR_BUF_SIZE-editor_idx;
+    char got_char='\0';
+    read(0, global_char_buf, remain_size);
+    while(got_char!='\n'){
+        if (got_char == '\033'){
+            cur_state = STATE_ESC;continue;
+        }
+        else if (got_char == '[' && cur_state == STATE_ESC){
+            cur_state = STATE_CSI;continue;
+        }
+        if (cur_state == STATE_CSI) {
+            if (got_char == 'D' && cursor_idx > 0) {
+                cursor_idx--;
+                write(1, '\b', 1);
+            }
+            else if(got_char=='C' && cursor_idx < editor_idx){
+                write(1, buf[cursor_idx++], 1);
+            }
+            cur_state=STATE_NORMAL; //reset
+            continue;
+        }
+        switch (got_char) {
+            case CONTROL_KEY('P'):  // Print process list, include all process statement
+                procdump();         //(control+P, 0x16 in ASCII)
+                break;
+            case CONTROL_KEY('U'):  // Kill line.(Control+U:0x15)
+                // Delete backwards until we hit the commit boundary or a newline
+                while (editor_idx>0) {
+                    editor_idx--;
+                    write(1, backspace, 3);  // Bytes by bytes
+                    cursor_idx=commit_idx;
+                }
+                break;
+            case CONTROL_KEY('H'):  // Backspace(control+H:0x08)
+            case '\x7f':            // Delete key
+                if (cursor_idx >0 ) {
+                    uint tail_len=editor_idx-cursor_idx;
+                    char *buf=buf;
+                    for(uint i=0;i<tail_len;i++){
+                        buf[cursor_idx+i-1]=buf[cursor_idx+i];
+                    }
+                    editor_idx--;cursor_idx--;
+                    //send the update "string" to output device
+                    write(1, buf[cursor_idx], tail_len);
+                    write(1, backspace, 3);
+                    write(1, '\b', tail_len);
+                }
+                break;
+            default:  // Normal input handling
+                got_char = (got_char == '\r') ? '\n' : got_char;
+                if(got_char=='\n' || got_char==CONTROL_KEY('D')){
+                    //commit the data
+                    write(1, got_char, 1);
+                    buf[editor_idx%nbuf]='\n';
+                    editor_idx++;
+                    commit_idx = editor_idx;
+                    cursor_idx = editor_idx;
+                    // Wake up the reader(for reader, it will sleep if
+                    // readIdx==commitIdx)
+                    continue;
+                }
+                else if(got_char!=0 || editor_idx-read_idx<nbuf){ //make sure the input char validation
+                    uint num = editor_idx - cursor_idx;
+                    for(uint i=editor_idx;i>=cursor_idx+1;i--){   //shift right
+                        uint dst_idx=i%nbuf;
+                        uint src_idx=(i-1)%nbuf;
+                        buf[dst_idx]=buf[src_idx];
+                    }
+                    buf[cursor_idx % nbuf]=got_char;
+                    //send the update "string" to output device
+
+                    for(uint i=0;i<num+1;i++)    
+                        write(1, buf[(i+cursor_idx)%nbuf], 1);
+                    for(uint i=0;i<num;i++)  
+                        write(1, '\b', 1);
+                    editor_idx++;cursor_idx++;
+                }
+                break;
+        }
+        remain_size=CHAR_BUF_SIZE-editor_idx%CHAR_BUF_SIZE;
+        read(0, global_char_buf, remain_size);  //keep reading until meet newline
+    }
+    for()
+}
 
 // Reads a line of input from stdin into a buffer. Prints the prompt "$ " and returns -1 if EOF (Ctrl+D) is encountered
 int getcmd(char *buf, int nbuf)
@@ -167,7 +258,14 @@ int getcmd(char *buf, int nbuf)
     fstat(0, &fd0_state);
     if(fd0_state.type!=T_FILE) write(2, "$ ", 2);  //from regular file(not character device)
     memset(buf, 0, nbuf);
-    gets(buf, nbuf);
+    int cur_mode;
+    if(ioctl(0, CONSOLE_GET_MODE, &cur_mode)<0) 
+        return -1;
+    if(cur_mode==CONSOLE_MODE_CANONICAL)
+        gets(buf, nbuf);
+    else if(cur_mode==CONSOLE_MODE_RAW)   //Process the character directly and control echoing
+        process_char_InRawMode(buf, nbuf);
+    else    return -1;  //Not supported mode
     if (buf[0] == 0) // EOF
         return -1;
     return 0;
