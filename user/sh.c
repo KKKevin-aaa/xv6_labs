@@ -5,6 +5,7 @@
 #include "kernel/fcntl.h"
 #include "kernel/stat.h"
 #include "kernel/ioctl.h"
+#include <stdarg.h>
 // Parsed command representation
 #define EXEC 1
 #define REDIR 2
@@ -16,7 +17,7 @@
 #define CONTROL_KEY(x) ((x) - '@')
 #define CHAR_BUF_SIZE 100
 static int global_char_buf[CHAR_BUF_SIZE];
-static int cur_state=STATE_NORMAL;
+static int cur_state=STATE_NORMAL, cur_global_idx=0;
 static int cursor_idx=0, commit_idx=0, editor_idx=0, read_idx=0;
 static char backspace[3]="\b \b";
 //Base structure(all command first member is type,
@@ -165,6 +166,26 @@ void process_escape(char *buffer){ //Deal with ANSI escape sequences
     tmp_result[logic_ptr]='\0'; //null-terminated
     memcpy((void *)buffer, (const void *)tmp_result, cur_len);
 }
+void aggregate_context_and_output(int count, ...){
+    va_list args_iter;
+    va_start(args_iter, count);
+    char *temp_ptr=0;int length=0, read_size=0, free_size=0;
+    cur_global_idx=0;
+    memset(global_char_buf, 0, CHAR_BUF_SIZE);
+    for(int i=0;i<count;i++){
+        temp_ptr=va_arg(args_iter, char *);
+        length=va_arg(args_iter, int);
+        while(length>0){
+            if(cur_global_idx+length>CHAR_BUF_SIZE){
+                //cut into smaller part
+                free_size=CHAR_BUF_SIZE-cur_global_idx;
+                memmove(global_char_buf+cur_global_idx, temp_ptr+read_size, free_size);
+                length-=free_size;
+                read_size+=free_size;
+            }
+        }
+    }
+}
 void process_char_InRawMode(char *buf, int nbuf){
     int remain_size=CHAR_BUF_SIZE-editor_idx;
     char got_char='\0';
@@ -193,11 +214,22 @@ void process_char_InRawMode(char *buf, int nbuf){
                 break;
             case CONTROL_KEY('U'):  // Kill line.(Control+U:0x15)
                 // Delete backwards until we hit the commit boundary or a newline
+                cur_global_idx=0;memset(global_char_buf, 0, CHAR_BUF_SIZE);
+                uint8 have_recorded=0;
                 while (editor_idx>0) {
-                    editor_idx--;
-                    write(1, backspace, 3);  // Bytes by bytes
-                    cursor_idx=commit_idx;
+                    if(cur_global_idx+3<=CHAR_BUF_SIZE){
+                        if(have_recorded==0)
+                            memcpy(global_char_buf+cur_global_idx, backspace, 3);
+                        editor_idx--;
+                    }
+                    else{
+                        write(1, global_char_buf, cur_global_idx);
+                        cur_global_idx=0;
+                    }
+                    cur_global_idx+=3;
                 }
+                cursor_idx=0;
+                write(1, global_char_buf, cur_global_idx);  // Bytes by bytes
                 break;
             case CONTROL_KEY('H'):  // Backspace(control+H:0x08)
             case '\x7f':            // Delete key
@@ -209,6 +241,10 @@ void process_char_InRawMode(char *buf, int nbuf){
                     }
                     editor_idx--;cursor_idx--;
                     //send the update "string" to output device
+                    //Aggregate context, output via one syscall
+                    cur_global_idx=0;memset(global_char_buf, 0, CHAR_BUF_SIZE);
+                    while(tail_len!=0)
+                    memcpy(global_char_buf+cur_global_idx, buf+cursor_idx, tail_len);
                     write(1, buf[cursor_idx], tail_len);
                     write(1, backspace, 3);
                     write(1, '\b', tail_len);
