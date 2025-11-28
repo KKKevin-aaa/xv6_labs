@@ -128,7 +128,7 @@ void runcmd(struct cmd *cmd)
             panic("pipe");
         if (fork1() == 0)
         {
-            close(1);   //close the stardand output
+            close(1);   //close the stardard output
             dup(p[1]);  //dup the write end of pipe to fd 1
             close(p[0]);    //Left child process: no need for read end of pipe
             close(p[1]);
@@ -182,33 +182,40 @@ void aggregate_context_and_output(int element_num, ...){
     memset(accum_buf, 0, CHAR_BUF_SIZE);
     char *temp_ptr=0;
     int length=0, have_read=0, free_size=0, count=0;//Determine if multiple repeatitions are necessary!
-    int accmu_idx=0;
+    int accmu_idx=0, copy_length=0;
     memset(accum_buf, 0, CHAR_BUF_SIZE);
     for(int i=0;i<element_num;i++){
         temp_ptr=va_arg(args_iter, char *);
+        if(temp_ptr==NULL){
+            fprintf(2, "Error happened in reading para form aggr...\n");
+        }
+        have_read=0;
         length=va_arg(args_iter, int);
+        copy_length=length;
         count=va_arg(args_iter, int);
         while(count >0){
-            while(length>0){
-                //cut into smaller part if necessary
+            while(length>0){//cut into smaller part if necessary
                 free_size=(accmu_idx+length>CHAR_BUF_SIZE)?(CHAR_BUF_SIZE-accmu_idx):length;
                 memmove(accum_buf+accmu_idx, temp_ptr+have_read, free_size);
                 length-=free_size;
                 have_read+=free_size;accmu_idx+=free_size;
                 if(accmu_idx>=CHAR_BUF_SIZE){
-                    write(1, accum_buf, CHAR_BUF_SIZE);
+                    if(write(1, accum_buf, CHAR_BUF_SIZE)!=CHAR_BUF_SIZE){
+                        fprintf(2, "Error happened in write(in sh.c aggre...)\n");
+                    }
                     accmu_idx=0;
                 }
             }
-            have_read=0;free_size=0;length=0;
-            count--;
+            length=copy_length; //reset the length to continue the next loop
+            count--;have_read=0;
         }
     }
     write(1, accum_buf, accmu_idx);
 }
 void save_draft_command(char *buf, int editor_idx){
     // Only save draft if we are currently at the latest line (not viewing history)
-    if(history_view_idx != history_idx) return;
+    // exclude the newline(\n) character , just for look
+    if(history_view_idx != history_idx || editor_idx==0 || buf[0]=='\0') return;
     if(editor_idx>CHAR_BUF_SIZE){
         fprintf(2, "Error in record current command!\n");
         exit(1);
@@ -218,22 +225,23 @@ void save_draft_command(char *buf, int editor_idx){
     command_buf[history_view_idx%MAX_COMMAND].editor_idx=editor_idx;
 }
 void commit_cur_command(char *buf, int editor_idx){
-    if(editor_idx>CHAR_BUF_SIZE){
+    if(editor_idx>CHAR_BUF_SIZE || editor_idx==0){
         fprintf(2, "Error in record current command!\n");
         exit(1);
     }
     memset(command_buf[history_idx%MAX_COMMAND].saved_buf, 0, CHAR_BUF_SIZE);
-    memmove(command_buf[history_idx%MAX_COMMAND].saved_buf, buf, editor_idx);
-    command_buf[history_idx%MAX_COMMAND].editor_idx=editor_idx;
+    int move_size=(editor_idx==CHAR_BUF_SIZE)?CHAR_BUF_SIZE:(editor_idx-1);
+    memmove(command_buf[history_idx%MAX_COMMAND].saved_buf, buf, move_size);
+    command_buf[history_idx%MAX_COMMAND].editor_idx=move_size;
     history_idx++;
     history_view_idx=history_idx;   //update the view index
 }
-void load_prev_command(char *buf, int *editor){
+void load_prev_command(char *buf, int *editor_idx){
     if(history_view_idx>0){
         history_view_idx--;
-        *editor=command_buf[history_view_idx%MAX_COMMAND].editor_idx;
+        *editor_idx=command_buf[history_view_idx%MAX_COMMAND].editor_idx;
         memset(buf, 0, CHAR_BUF_SIZE);
-        memmove(buf, command_buf[history_view_idx%MAX_COMMAND].saved_buf, *editor);
+        memmove(buf, command_buf[history_view_idx%MAX_COMMAND].saved_buf, *editor_idx);
     }
 }
 void load_next_command(char *buf, int *editor){
@@ -246,7 +254,9 @@ void load_next_command(char *buf, int *editor){
 }
 void process_char_InRawMode(char *buf, int nbuf){
     history_view_idx=history_idx;
-    int editor_idx=0, cursor_idx=0, continue_flag=1, normal_tmp=0;
+    int editor_idx=0; // Index where the next character will be appended (Total length of the command buffer)
+    int cursor_idx=0; // Current position of the cursor within the command buffer (0 <= cursor_idx <= editor_idx)
+    int continue_flag=1, normal_tmp=0;
     int remain_size=CHAR_BUF_SIZE-fetch_read_idx;
     if(remain_size>0 && (normal_tmp=read(0, fetch_buf, remain_size))<0){
         fprintf(2, "Read error in shell!\n");
@@ -274,8 +284,9 @@ void process_char_InRawMode(char *buf, int nbuf){
                     cursor_idx++;
                 }
                 else if(fetch_char=='A' && history_view_idx>0){
-                    if(history_idx==history_view_idx)
+                    if(history_idx==history_view_idx){
                         save_draft_command(buf, editor_idx);//Draft saving
+                    }
                     //clear the screen
                     aggregate_context_and_output(1, backspace, 3, editor_idx);
                     load_prev_command(buf, &editor_idx);
@@ -298,23 +309,46 @@ void process_char_InRawMode(char *buf, int nbuf){
                     break;
                 case CONTROL_KEY('U'):{ // Kill line.(Control+U:0x15)
                     // Delete backwards until we hit the commit boundary or a newline
-                    aggregate_context_and_output(1, backspace, 3, editor_idx);
+                    aggregate_context_and_output(2, buf+cursor_idx, editor_idx-cursor_idx, 1, \
+                        backspace, 3, editor_idx);
                     editor_idx=0;cursor_idx=0;
                     break;
                 }
                 case CONTROL_KEY('H'): // Backspace(control+H:0x08)
                 case '\x7f': {           // Delete key
-                    if (cursor_idx >0 ) {
-                        uint tail_len=editor_idx-cursor_idx;
-                        for(uint i=0;i<tail_len;i++){
-                            buf[cursor_idx+i-1]=buf[cursor_idx+i];
+                    if (cursor_idx > 0) {
+                        // editor_idx: Index where the next character will be appended (Total length of the command buffer)
+                        // cursor_idx: Current position of the cursor within the command buffer (0 <= cursor_idx <= editor_idx)
+                        uint tail_len = editor_idx - cursor_idx;
+                        for(uint i=0; i<tail_len; i++){
+                            buf[cursor_idx+i-1] = buf[cursor_idx+i];
                         }
-                        editor_idx--;cursor_idx--;
-                        //send the update "string" to output device
-                        //Aggregate context, output via one syscall
-                        aggregate_context_and_output(3, buf+cursor_idx, tail_len, 1, backspace, 3, 1, \
-                            &single_backspace, 1, tail_len);
+                        editor_idx--; cursor_idx--;
+                        buf[editor_idx]=0;
+                        // Output update
+                        // 1. Move cursor back 1 step (\b)
+                        // 2. Print the shifted tail
+                        // 3. Print space to erase the last character
+                        // 4. Move cursor back to correct position
+                        aggregate_context_and_output(4, 
+                            &single_backspace, 1, 1,              // 1. \b
+                            buf+cursor_idx, tail_len, 1,          // 2. tail
+                            backspace+1, 2, 1,                    // 3. " \b" (space then backspace)
+                            &single_backspace, 1, tail_len        // 4. \b * tail_len
+                        );
                     }
+                    break;
+                }
+                case CONTROL_KEY('T'):{ // Debug: Dump history
+                    fprintf(2, "\n--- History Debug ---\n");
+                    fprintf(2, "idx: %d, view_idx: %d\n", history_idx, history_view_idx);
+                    for(int i=0; i<MAX_COMMAND; i++){
+                        fprintf(2, "[%d] %s\n", i, command_buf[i].saved_buf);
+                    }
+                    fprintf(2, "---------------------\n$ ");
+                    aggregate_context_and_output(2, buf, editor_idx, 1, &single_backspace, 1, editor_idx-cursor_idx);
+                    // write(1, buf, editor_idx);
+                    // for(int i=0; i<editor_idx-cursor_idx; i++) write(1, "\b", 1);
                     break;
                 }
                 default:{  // Normal input handling
@@ -327,6 +361,10 @@ void process_char_InRawMode(char *buf, int nbuf){
                         break;  //commit the data and quit !!!
                     }
                     else if(fetch_char!=0){ //make sure the input char validation
+                        if(editor_idx >= CHAR_BUF_SIZE - 1){
+                            fprintf(2, "Command too long!\n");
+                            continue;
+                        }
                         uint num = editor_idx - cursor_idx;
                         for(uint i=editor_idx;i>=cursor_idx+1;i--){   //shift right
                             buf[i]=buf[i-1];
