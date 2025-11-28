@@ -2,6 +2,7 @@
 #define CONSOLE_SET_MODE 0x2    // Example ioctl request to set console mode
 #define CONSOLE_GET_ECHO 0x3    // Example ioctl request to clear the console screen
 #define CONSOLE_SET_ECHO 0x4  // Example ioctl request to set cursor position
+#define CONSOLE_DUMP_PROC 0x5   // Dump process list
 
 //Mode value
 #define CONSOLE_MODE_CANONICAL 0

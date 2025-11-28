@@ -32,4 +32,6 @@ AlwaysBreakAfterReturnType: None
 
 # 行宽限制 (超过这个长度还是会被强制换行)
 ColumnLimit:     100
+
+SortIncludes: false
 ...

@@ -16,10 +16,20 @@
 #define MAXARGS 10
 #define CONTROL_KEY(x) ((x) - '@')
 #define CHAR_BUF_SIZE 100
-static int global_char_buf[CHAR_BUF_SIZE];
-static int cur_state=STATE_NORMAL, cur_global_idx=0;
-static int cursor_idx=0, commit_idx=0, editor_idx=0, read_idx=0;
+#define MAX_COMMAND 10
+
+static char fetch_buf[CHAR_BUF_SIZE];
+static char accum_buf[CHAR_BUF_SIZE];    //for accumulation buffer
+enum CURRENT_STATE cur_state=STATE_NORMAL;
+static int fetch_process_idx=0, fetch_read_idx=0;
 static char backspace[3]="\b \b";
+static char single_backspace='\b';
+typedef struct command_stat{
+    int editor_idx;
+    char saved_buf[CHAR_BUF_SIZE];
+}command_stat;
+static command_stat command_buf[MAX_COMMAND];
+static int history_idx=0, history_view_idx=-1;
 //Base structure(all command first member is type,
 //which allow us to cast into cmd structure to check its type)
 struct cmd{
@@ -166,125 +176,193 @@ void process_escape(char *buffer){ //Deal with ANSI escape sequences
     tmp_result[logic_ptr]='\0'; //null-terminated
     memcpy((void *)buffer, (const void *)tmp_result, cur_len);
 }
-void aggregate_context_and_output(int count, ...){
+void aggregate_context_and_output(int element_num, ...){
     va_list args_iter;
-    va_start(args_iter, count);
-    char *temp_ptr=0;int length=0, read_size=0, free_size=0;
-    cur_global_idx=0;
-    memset(global_char_buf, 0, CHAR_BUF_SIZE);
-    for(int i=0;i<count;i++){
+    va_start(args_iter, element_num);
+    memset(accum_buf, 0, CHAR_BUF_SIZE);
+    char *temp_ptr=0;
+    int length=0, have_read=0, free_size=0, count=0;//Determine if multiple repeatitions are necessary!
+    int accmu_idx=0;
+    memset(accum_buf, 0, CHAR_BUF_SIZE);
+    for(int i=0;i<element_num;i++){
         temp_ptr=va_arg(args_iter, char *);
         length=va_arg(args_iter, int);
-        while(length>0){
-            if(cur_global_idx+length>CHAR_BUF_SIZE){
-                //cut into smaller part
-                free_size=CHAR_BUF_SIZE-cur_global_idx;
-                memmove(global_char_buf+cur_global_idx, temp_ptr+read_size, free_size);
+        count=va_arg(args_iter, int);
+        while(count >0){
+            while(length>0){
+                //cut into smaller part if necessary
+                free_size=(accmu_idx+length>CHAR_BUF_SIZE)?(CHAR_BUF_SIZE-accmu_idx):length;
+                memmove(accum_buf+accmu_idx, temp_ptr+have_read, free_size);
                 length-=free_size;
-                read_size+=free_size;
+                have_read+=free_size;accmu_idx+=free_size;
+                if(accmu_idx>=CHAR_BUF_SIZE){
+                    write(1, accum_buf, CHAR_BUF_SIZE);
+                    accmu_idx=0;
+                }
             }
+            have_read=0;free_size=0;length=0;
+            count--;
         }
+    }
+    write(1, accum_buf, accmu_idx);
+}
+void save_draft_command(char *buf, int editor_idx){
+    // Only save draft if we are currently at the latest line (not viewing history)
+    if(history_view_idx != history_idx) return;
+    if(editor_idx>CHAR_BUF_SIZE){
+        fprintf(2, "Error in record current command!\n");
+        exit(1);
+    }
+    memset(command_buf[history_view_idx%MAX_COMMAND].saved_buf, 0, CHAR_BUF_SIZE);
+    memmove(command_buf[history_view_idx%MAX_COMMAND].saved_buf, buf, editor_idx);
+    command_buf[history_view_idx%MAX_COMMAND].editor_idx=editor_idx;
+}
+void commit_cur_command(char *buf, int editor_idx){
+    if(editor_idx>CHAR_BUF_SIZE){
+        fprintf(2, "Error in record current command!\n");
+        exit(1);
+    }
+    memset(command_buf[history_idx%MAX_COMMAND].saved_buf, 0, CHAR_BUF_SIZE);
+    memmove(command_buf[history_idx%MAX_COMMAND].saved_buf, buf, editor_idx);
+    command_buf[history_idx%MAX_COMMAND].editor_idx=editor_idx;
+    history_idx++;
+    history_view_idx=history_idx;   //update the view index
+}
+void load_prev_command(char *buf, int *editor){
+    if(history_view_idx>0){
+        history_view_idx--;
+        *editor=command_buf[history_view_idx%MAX_COMMAND].editor_idx;
+        memset(buf, 0, CHAR_BUF_SIZE);
+        memmove(buf, command_buf[history_view_idx%MAX_COMMAND].saved_buf, *editor);
+    }
+}
+void load_next_command(char *buf, int *editor){
+    if(history_view_idx<history_idx){
+        history_view_idx++;
+        *editor=command_buf[history_view_idx%MAX_COMMAND].editor_idx;
+        memset(buf, 0, CHAR_BUF_SIZE);
+        memmove(buf, command_buf[history_view_idx%MAX_COMMAND].saved_buf, *editor);
     }
 }
 void process_char_InRawMode(char *buf, int nbuf){
-    int remain_size=CHAR_BUF_SIZE-editor_idx;
-    char got_char='\0';
-    read(0, global_char_buf, remain_size);
-    while(got_char!='\n'){
-        if (got_char == '\033'){
-            cur_state = STATE_ESC;continue;
-        }
-        else if (got_char == '[' && cur_state == STATE_ESC){
-            cur_state = STATE_CSI;continue;
-        }
-        if (cur_state == STATE_CSI) {
-            if (got_char == 'D' && cursor_idx > 0) {
-                cursor_idx--;
-                write(1, '\b', 1);
-            }
-            else if(got_char=='C' && cursor_idx < editor_idx){
-                write(1, buf[cursor_idx++], 1);
-            }
-            cur_state=STATE_NORMAL; //reset
-            continue;
-        }
-        switch (got_char) {
-            case CONTROL_KEY('P'):  // Print process list, include all process statement
-                procdump();         //(control+P, 0x16 in ASCII)
-                break;
-            case CONTROL_KEY('U'):  // Kill line.(Control+U:0x15)
-                // Delete backwards until we hit the commit boundary or a newline
-                cur_global_idx=0;memset(global_char_buf, 0, CHAR_BUF_SIZE);
-                uint8 have_recorded=0;
-                while (editor_idx>0) {
-                    if(cur_global_idx+3<=CHAR_BUF_SIZE){
-                        if(have_recorded==0)
-                            memcpy(global_char_buf+cur_global_idx, backspace, 3);
-                        editor_idx--;
-                    }
-                    else{
-                        write(1, global_char_buf, cur_global_idx);
-                        cur_global_idx=0;
-                    }
-                    cur_global_idx+=3;
-                }
-                cursor_idx=0;
-                write(1, global_char_buf, cur_global_idx);  // Bytes by bytes
-                break;
-            case CONTROL_KEY('H'):  // Backspace(control+H:0x08)
-            case '\x7f':            // Delete key
-                if (cursor_idx >0 ) {
-                    uint tail_len=editor_idx-cursor_idx;
-                    char *buf=buf;
-                    for(uint i=0;i<tail_len;i++){
-                        buf[cursor_idx+i-1]=buf[cursor_idx+i];
-                    }
-                    editor_idx--;cursor_idx--;
-                    //send the update "string" to output device
-                    //Aggregate context, output via one syscall
-                    cur_global_idx=0;memset(global_char_buf, 0, CHAR_BUF_SIZE);
-                    while(tail_len!=0)
-                    memcpy(global_char_buf+cur_global_idx, buf+cursor_idx, tail_len);
-                    write(1, buf[cursor_idx], tail_len);
-                    write(1, backspace, 3);
-                    write(1, '\b', tail_len);
-                }
-                break;
-            default:  // Normal input handling
-                got_char = (got_char == '\r') ? '\n' : got_char;
-                if(got_char=='\n' || got_char==CONTROL_KEY('D')){
-                    //commit the data
-                    write(1, got_char, 1);
-                    buf[editor_idx%nbuf]='\n';
-                    editor_idx++;
-                    commit_idx = editor_idx;
-                    cursor_idx = editor_idx;
-                    // Wake up the reader(for reader, it will sleep if
-                    // readIdx==commitIdx)
-                    continue;
-                }
-                else if(got_char!=0 || editor_idx-read_idx<nbuf){ //make sure the input char validation
-                    uint num = editor_idx - cursor_idx;
-                    for(uint i=editor_idx;i>=cursor_idx+1;i--){   //shift right
-                        uint dst_idx=i%nbuf;
-                        uint src_idx=(i-1)%nbuf;
-                        buf[dst_idx]=buf[src_idx];
-                    }
-                    buf[cursor_idx % nbuf]=got_char;
-                    //send the update "string" to output device
-
-                    for(uint i=0;i<num+1;i++)    
-                        write(1, buf[(i+cursor_idx)%nbuf], 1);
-                    for(uint i=0;i<num;i++)  
-                        write(1, '\b', 1);
-                    editor_idx++;cursor_idx++;
-                }
-                break;
-        }
-        remain_size=CHAR_BUF_SIZE-editor_idx%CHAR_BUF_SIZE;
-        read(0, global_char_buf, remain_size);  //keep reading until meet newline
+    history_view_idx=history_idx;
+    int editor_idx=0, cursor_idx=0, continue_flag=1, normal_tmp=0;
+    int remain_size=CHAR_BUF_SIZE-fetch_read_idx;
+    if(remain_size>0 && (normal_tmp=read(0, fetch_buf, remain_size))<0){
+        fprintf(2, "Read error in shell!\n");
+        exit(1);
     }
-    for()
+    fetch_read_idx+=normal_tmp;
+    char fetch_char='a';    //non-zero initialization
+    while(1){
+        while(fetch_process_idx<fetch_read_idx&&fetch_char!='\0'){
+            fetch_char=fetch_buf[fetch_process_idx++];
+            if (fetch_char == '\033'){
+                cur_state = STATE_ESC;continue;
+            }
+            else if (fetch_char == '[' && cur_state == STATE_ESC){
+                cur_state = STATE_CSI;continue;
+            }
+            if (cur_state == STATE_CSI) {
+                cur_state=STATE_NORMAL; //reset
+                if (fetch_char == 'D' && cursor_idx > 0) {
+                    cursor_idx--;
+                    write(1, "\b", 1);
+                }
+                else if(fetch_char=='C' && cursor_idx < editor_idx){
+                    write(1, buf+cursor_idx, 1);
+                    cursor_idx++;
+                }
+                else if(fetch_char=='A' && history_view_idx>0){
+                    if(history_idx==history_view_idx)
+                        save_draft_command(buf, editor_idx);//Draft saving
+                    //clear the screen
+                    aggregate_context_and_output(1, backspace, 3, editor_idx);
+                    load_prev_command(buf, &editor_idx);
+                    cursor_idx=editor_idx;
+                    aggregate_context_and_output(1, buf, editor_idx, 1);
+                }
+                else if(fetch_char=='B' && history_view_idx<history_idx){
+                    // No need to save draft when moving down from history
+                    // History is read-only, edits are discarded
+                    aggregate_context_and_output(1, backspace, 3, editor_idx);
+                    load_next_command(buf, &editor_idx);
+                    cursor_idx=editor_idx;
+                    aggregate_context_and_output(1, buf, editor_idx, 1);
+                }
+                continue;
+            }
+            switch (fetch_char) {
+                case CONTROL_KEY('P'):  // Print process list, include all process statement
+                    ioctl(0, CONSOLE_DUMP_PROC, 0);         //(control+P, 0x16 in ASCII)
+                    break;
+                case CONTROL_KEY('U'):{ // Kill line.(Control+U:0x15)
+                    // Delete backwards until we hit the commit boundary or a newline
+                    aggregate_context_and_output(1, backspace, 3, editor_idx);
+                    editor_idx=0;cursor_idx=0;
+                    break;
+                }
+                case CONTROL_KEY('H'): // Backspace(control+H:0x08)
+                case '\x7f': {           // Delete key
+                    if (cursor_idx >0 ) {
+                        uint tail_len=editor_idx-cursor_idx;
+                        for(uint i=0;i<tail_len;i++){
+                            buf[cursor_idx+i-1]=buf[cursor_idx+i];
+                        }
+                        editor_idx--;cursor_idx--;
+                        //send the update "string" to output device
+                        //Aggregate context, output via one syscall
+                        aggregate_context_and_output(3, buf+cursor_idx, tail_len, 1, backspace, 3, 1, \
+                            &single_backspace, 1, tail_len);
+                    }
+                    break;
+                }
+                default:{  // Normal input handling
+                    fetch_char = (fetch_char == '\r') ? '\n' : fetch_char;
+                    if(fetch_char=='\n' || fetch_char==CONTROL_KEY('D')){
+                        write(1, &fetch_char, 1);
+                        buf[editor_idx]='\n';
+                        editor_idx++;cursor_idx++;
+                        continue_flag=0;
+                        break;  //commit the data and quit !!!
+                    }
+                    else if(fetch_char!=0){ //make sure the input char validation
+                        uint num = editor_idx - cursor_idx;
+                        for(uint i=editor_idx;i>=cursor_idx+1;i--){   //shift right
+                            buf[i]=buf[i-1];
+                        }
+                        buf[cursor_idx]=fetch_char;
+                        //send the update "string" to output device
+                        aggregate_context_and_output(2, buf+cursor_idx, num+1, 1, &single_backspace, 1, num);
+                        editor_idx++;cursor_idx++;
+                    }
+                    break;
+                }
+            }
+        }
+        if(continue_flag==1){
+            // Shift unconsumed data to the beginning to make room
+            if(fetch_process_idx > 0){
+                memmove(fetch_buf, fetch_buf+fetch_process_idx, fetch_read_idx-fetch_process_idx);
+                fetch_read_idx -= fetch_process_idx;
+                fetch_process_idx = 0;
+            }
+            remain_size=CHAR_BUF_SIZE-fetch_read_idx;
+            if(remain_size==0)  break;
+            while((normal_tmp=read(0, fetch_buf+fetch_read_idx, remain_size))==0);  //keep reading until meet newline
+            fetch_read_idx+=normal_tmp;
+        }
+        else{   //move the unread data forward
+            memmove(fetch_buf, fetch_buf+fetch_process_idx, fetch_read_idx-fetch_process_idx);
+            fetch_read_idx-=fetch_process_idx;
+            fetch_process_idx=0;
+            commit_cur_command(buf, editor_idx);
+            return;
+        }
+    }
+    //overflow, return buffer don't end with newline
+    fetch_process_idx=0;fetch_read_idx=0;   //reset the statement
+    commit_cur_command(buf, CHAR_BUF_SIZE);
 }
 
 // Reads a line of input from stdin into a buffer. Prints the prompt "$ " and returns -1 if EOF (Ctrl+D) is encountered
@@ -295,7 +373,7 @@ int getcmd(char *buf, int nbuf)
     if(fd0_state.type!=T_FILE) write(2, "$ ", 2);  //from regular file(not character device)
     memset(buf, 0, nbuf);
     int cur_mode;
-    if(ioctl(0, CONSOLE_GET_MODE, &cur_mode)<0) 
+    if(ioctl(0, CONSOLE_GET_MODE, (uint64)&cur_mode)<0) 
         return -1;
     if(cur_mode==CONSOLE_MODE_CANONICAL)
         gets(buf, nbuf);

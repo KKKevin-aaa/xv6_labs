@@ -14,7 +14,6 @@
 #define BACKSPACE 0x100
 #define CONTROL_KEY(x) ((x) - '@')
 
-enum CURRENT_STATE { STATE_NORMAL, STATE_ESC, STATE_CSI };
 static enum CURRENT_STATE cur_state=STATE_NORMAL;
 //
 // Send one character to the UART.
@@ -141,26 +140,30 @@ int console_read(int is_to_user_space, uint64 dest_address, int max_bytes_to_rea
 // The console input interrupt handler.
 //
 void consoleintr(int input_char) {
-    if(console_buf.mode!=CONSOLE_MODE_RAW 
-        && console_buf.mode!=CONSOLE_MODE_CANONICAL){
+    acquire(&console_buf.lock);
+    if(console_buf.mode!=CONSOLE_MODE_RAW && console_buf.mode!=CONSOLE_MODE_CANONICAL){
         //Invalid mode, force to canonical mode
         console_buf.mode=CONSOLE_MODE_CANONICAL;
     }
     if(console_buf.mode==CONSOLE_MODE_RAW){
-        acquire(&console_buf.lock);
-        console_buf.buf_data[console_buf.editor_idx % INPUT_BUF_SIZE]=input_char;
-        console_buf.editor_idx++;
-        console_buf.commit_idx=console_buf.editor_idx;
-        wakeup(&console_buf.reader_idx);
+        if(console_buf.editor_idx-console_buf.reader_idx<INPUT_BUF_SIZE){
+            console_buf.buf_data[console_buf.editor_idx % INPUT_BUF_SIZE]=input_char;
+            console_buf.editor_idx++;
+            console_buf.commit_idx=console_buf.editor_idx;
+            wakeup(&console_buf.reader_idx);
+        }
         release(&console_buf.lock);
     }
     else{
-        acquire(&console_buf.lock);
         if (input_char == '\033'){
-            cur_state = STATE_ESC;goto CONSOLE_END;
+            cur_state = STATE_ESC;
+            release(&console_buf.lock);
+            return;
         }
         else if (input_char == '[' && cur_state == STATE_ESC){
-            cur_state = STATE_CSI;goto CONSOLE_END;
+            cur_state = STATE_CSI;
+            release(&console_buf.lock);
+            return;
         }
         if (cur_state == STATE_CSI) {
             if (input_char == 'D' && console_buf.cursor_idx > console_buf.commit_idx) {
@@ -173,13 +176,14 @@ void consoleintr(int input_char) {
                 consputc(console_buf.buf_data[rewrite_idx]);
             }
             cur_state=STATE_NORMAL; //reset
-            goto CONSOLE_END;
+            release(&console_buf.lock);
+            return;
         }
         switch (input_char) {
             case CONTROL_KEY('P'):  // Print process list, include all process statement
                 procdump();         //(control+P, 0x16 in ASCII)
                 break;
-            case CONTROL_KEY('U'):  // Kill line.(Control+U:0x15)
+            case CONTROL_KEY('U'):{  // Kill line.(Control+U:0x15)
                 // Delete backwards until we hit the commit boundary or a newline
                 while (console_buf.editor_idx != console_buf.commit_idx &&
                     console_buf.buf_data[(console_buf.editor_idx - 1) % INPUT_BUF_SIZE] != '\n') {
@@ -188,8 +192,9 @@ void consoleintr(int input_char) {
                     console_buf.cursor_idx=console_buf.commit_idx;
                 }
                 break;
+            }
             case CONTROL_KEY('H'):  // Backspace(control+H:0x08)
-            case '\x7f':            // Delete key
+            case '\x7f':{            // Delete key
                 if (console_buf.cursor_idx != console_buf.commit_idx) {
                     // consputc('\b');
                     uint tail_len=console_buf.editor_idx-console_buf.cursor_idx;
@@ -206,7 +211,8 @@ void consoleintr(int input_char) {
                     for(uint i=0;i<tail_len;i++)  consputc('\b');
                 }
                 break;
-            default:  // Normal input handling
+            }
+            default:{  // Normal input handling
                 input_char = (input_char == '\r') ? '\n' : input_char;
                 if(input_char=='\n' || input_char==CONTROL_KEY('D')){
                     //commit the data
@@ -218,7 +224,6 @@ void consoleintr(int input_char) {
                     // Wake up the reader(for reader, it will sleep if
                     // readIdx==commitIdx)
                     wakeup(&console_buf.reader_idx);
-                    goto CONSOLE_END;
                 }
                 else if(input_char!=0 || console_buf.editor_idx-console_buf.reader_idx<INPUT_BUF_SIZE){ //make sure the input char validation
                     uint num = console_buf.editor_idx - console_buf.cursor_idx;
@@ -241,10 +246,11 @@ void consoleintr(int input_char) {
                     }
                 }
                 break;
+            }
         }
-    CONSOLE_END:
         release(&console_buf.lock);
     }
+
 }
 
 int console_ioctl(int requset, uint64 user_addr){
@@ -286,6 +292,9 @@ int console_ioctl(int requset, uint64 user_addr){
             acquire(&console_buf.lock);
             console_buf.echo=temp_value;
             release(&console_buf.lock);
+            break;
+        case CONSOLE_DUMP_PROC:
+            procdump();
             break;
         default:return -1;break;
     }
