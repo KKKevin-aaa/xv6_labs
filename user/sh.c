@@ -271,7 +271,7 @@ void aggregate_context_and_output(int element_num, ...){
             count--;have_read=0;
         }
     }
-    write(1, accum_buf, accmu_idx);
+    write(2, accum_buf, accmu_idx);
 }
 void save_draft_command(char *buf, int editor_idx){
     // Only save draft if we are currently at the latest line (not viewing history)
@@ -332,7 +332,7 @@ void complete_command(char *buf, char *token_start, int token_len, int *editor_i
     char dirpath[CHAR_BUF_SIZE];
     char found_buf[CHAR_BUF_SIZE]; //only record the prev command,to distinguish if this is the only result
     //if it's the only result, that just output and don't save
-    int found_idx=0;
+    int found_idx=0, total_match_count=0;
     memset(full_filepath, 0, CHAR_BUF_SIZE);memset(dirpath, 0, CHAR_BUF_SIZE);
     memset(found_buf, 0, CHAR_BUF_SIZE);
     char open_fail[]="Shell complete command failed:can't open\n";
@@ -342,6 +342,7 @@ void complete_command(char *buf, char *token_start, int token_len, int *editor_i
             have_prefix=0;
             memcpy(dirpath, token_start, i+1);
             token_start=token_start+i+1;
+            token_len=token_len-(i+1);  //Extract the latter half of the path and update parameters
             dirpath[i+1]='\0';  //Null-terminated
             break;
         }
@@ -382,14 +383,14 @@ void complete_command(char *buf, char *token_start, int token_len, int *editor_i
         }
         //try to compare
         if(strncmp(token_start, cur_de.name, token_len)==0){
-            if(strlen(cur_de.name)==token_len)  return; //Exact match:nothing to autocomplete
-            if(found_idx==0){
+            if(strlen(cur_de.name)==token_len)  continue; //Exact match:nothing to autocomplete
+            if(total_match_count==0){
                 is_unique=1;
             }
             else    is_unique=0;
             if(found_idx+strlen(cur_de.name)+1>=CHAR_BUF_SIZE){   //Stop finding, 'Casue no more data to store and consume it
                 if(need_adjust_cursor==1){   //the first time to output result, move backward the cursor
-                    aggregate_context_and_output(3, token_start+token_len, *editor_idx-*cursor_idx, 1, \
+                    aggregate_context_and_output(3, token_start+token_len, (int)(*editor_idx-*cursor_idx), 1, \
                         "\n", 1, 1, found_buf, found_idx, 1);
                     need_adjust_cursor=0;   // toggle_flag
                 }
@@ -401,34 +402,37 @@ void complete_command(char *buf, char *token_start, int token_len, int *editor_i
             }
             strcpy(found_buf+found_idx, cur_de.name);
             found_idx+=strlen(cur_de.name);
+            total_match_count+=strlen(cur_de.name);
             found_buf[found_idx++]='\n';
         }
         close(sub_fd);
     }
     if(is_unique==1){
-        aggregate_context_and_output(3, found_buf+token_len, strlen(found_buf)-1-token_len, 1, \
-            buf+*cursor_idx, *editor_idx-*cursor_idx, 1, &single_backspace, 1, *editor_idx-*cursor_idx); 
+        aggregate_context_and_output(1, found_buf+token_len, (int)(strlen(found_buf)-1-token_len), 1);
+        aggregate_context_and_output(1,    buf+*cursor_idx, *editor_idx-*cursor_idx, 1);
+        aggregate_context_and_output(1,    "\b", 1, *editor_idx-*cursor_idx); 
             //skip the last character '\n'
         if(*editor_idx+strlen(found_buf)-1>CHAR_BUF_SIZE){
             fprintf(2, "\ncan't handle such situation!\n");
             exit(1);
         }
-        else{
-            memmove(buf+*editor_idx+strlen(found_buf)-token_len-1, buf+*cursor_idx, *editor_idx-*cursor_idx);
-            memmove(buf+*cursor_idx, found_buf+token_len, strlen(found_buf)-1-token_len);
-        }
+        memmove(buf+*editor_idx+strlen(found_buf)-token_len-1, buf+*cursor_idx, *editor_idx-*cursor_idx);
+        memmove(buf+*cursor_idx, found_buf+token_len, strlen(found_buf)-1-token_len);
         //update params
         *editor_idx+=(strlen(found_buf)-1-token_len);
-        *cursor_idx=*editor_idx;
+        *cursor_idx+=(strlen(found_buf)-1-token_len);
     }
-    else if(found_idx!=0){
+    else if(found_idx!=0){  //Multiple matches detected:apply new logic to complete
         if(need_adjust_cursor==1){
-            aggregate_context_and_output(3, found_buf, strlen(found_buf)-1-token_len, 1, \
-                prefix_str, strlen(prefix_str), 1, buf, *editor_idx, 1);
+            aggregate_context_and_output(4, "\n", 1, 1,
+                found_buf, strlen(found_buf)-1, 1,
+                prefix_str, strlen(prefix_str), 1, 
+                buf, *editor_idx, 1);
         }
         else{
-            aggregate_context_and_output(3, found_buf, strlen(found_buf)-1, 1, \
-            prefix_str, strlen(prefix_str), 1, buf, *editor_idx, 1);
+            aggregate_context_and_output(3, found_buf, strlen(found_buf)-1, 1,
+                prefix_str, strlen(prefix_str), 1, 
+                buf, *editor_idx, 1);
         }
     }
     close(fd);
@@ -461,10 +465,10 @@ void process_char_InRawMode(char *buf, int nbuf){
                 cur_state=STATE_NORMAL; //reset
                 if (fetch_char == 'D' && cursor_idx > 0) {
                     cursor_idx--;
-                    write(1, "\b", 1);
+                    write(2, "\b", 1);
                 }
                 else if(fetch_char=='C' && cursor_idx < editor_idx){
-                    write(1, buf+cursor_idx, 1);
+                    write(2, buf+cursor_idx, 1);
                     cursor_idx++;
                 }
                 else if(fetch_char=='A' && history_view_idx>0){
@@ -530,8 +534,6 @@ void process_char_InRawMode(char *buf, int nbuf){
                     }
                     fprintf(2, "---------------------\n$ ");
                     aggregate_context_and_output(2, buf, editor_idx, 1, &single_backspace, 1, editor_idx-cursor_idx);
-                    // write(1, buf, editor_idx);
-                    // for(int i=0; i<editor_idx-cursor_idx; i++) write(1, "\b", 1);
                     break;
                 }
                 case CONTROL_KEY('L'):{     //Clear the Screen (ASCII 12) must done by uart
@@ -580,7 +582,7 @@ void process_char_InRawMode(char *buf, int nbuf){
                 default:{  // Normal input handling
                     fetch_char = (fetch_char == '\r') ? '\n' : fetch_char;
                     if(fetch_char=='\n' || fetch_char==CONTROL_KEY('D')){
-                        write(1, &fetch_char, 1);
+                        write(2, &fetch_char, 1);
                         buf[editor_idx]='\n';
                         editor_idx++;cursor_idx++;
                         continue_flag=0;
@@ -597,7 +599,7 @@ void process_char_InRawMode(char *buf, int nbuf){
                         }
                         buf[cursor_idx]=fetch_char;
                         //send the update "string" to output device
-                        aggregate_context_and_output(2, buf+cursor_idx, num+1, 1, &single_backspace, 1, num);
+                        aggregate_context_and_output(2, buf+cursor_idx, num+1, 1, "\b", 1, num);
                         editor_idx++;cursor_idx++;
                     }
                     break;
