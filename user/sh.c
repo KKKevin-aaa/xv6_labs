@@ -5,6 +5,7 @@
 #include "kernel/fcntl.h"
 #include "kernel/stat.h"
 #include "kernel/ioctl.h"
+#include "kernel/fs.h"
 #include <stdarg.h>
 // Parsed command representation
 #define EXEC 1
@@ -22,8 +23,11 @@ static char fetch_buf[CHAR_BUF_SIZE];
 static char accum_buf[CHAR_BUF_SIZE];    //for accumulation buffer
 enum CURRENT_STATE cur_state=STATE_NORMAL;
 static int fetch_process_idx=0, fetch_read_idx=0;
-static char backspace[3]="\b \b";
+static char backspace[]="\b \b";
 static char single_backspace='\b';
+static char clear_str[]="\033[2J\033[H$ ";
+static char specific_symbols[]="@~$";
+static char prefix_str[]="\n$ ";
 typedef struct command_stat{
     int editor_idx;
     char saved_buf[CHAR_BUF_SIZE];
@@ -156,6 +160,63 @@ void runcmd(struct cmd *cmd)
     }
     exit(0);
 }
+char whitespace[] = " \t\r\n\v";
+char symbols[] = "<|>&;()";
+// Lexer. Skips whitespace, extracts the next token (symbol or argument), and advances the parsing pointer
+int gettoken(char **pointer_to_cursor, char *end_of_input, char **token_start, char **token_end)
+{   //current parsiing position pointer_to_cursor, end of boundary ed; and start position of word token q, end position of word token eq
+    char *cursor=*pointer_to_cursor;
+    int token_type;
+
+    while (cursor < end_of_input && strchr(whitespace, *cursor))    cursor++;
+    if (token_start)
+        *token_start = cursor;
+    token_type = *cursor;
+    switch (*cursor)
+    {
+        case 0: //the end character of the string
+            break;
+        //Signle character tokens
+        case '|':
+        case '(':
+        case ')':
+        case ';':
+        case '&':
+        case '<':
+            cursor++;
+            break;
+        //Double character token
+        case '>':
+            cursor++;
+            if (*cursor == '>'){
+                token_type = '+';  //double > means append redirection
+                cursor++;
+            }
+            break;
+        //Normal word token
+        default:
+            token_type = 'a';  //a for argument
+            while (cursor < end_of_input && !strchr(whitespace, *cursor) && !strchr(symbols, *cursor))
+                cursor++;
+            break;
+    }
+    if (token_end)
+        *token_end = cursor;    //If caller need end pointer, record it!
+
+    while (cursor < end_of_input && strchr(whitespace, *cursor))    //Skip trailing whitespace
+        cursor++;
+    *pointer_to_cursor = cursor;
+    return token_type;
+}
+//Lookahead function. Skips whitespace and checks if the next character belongs to the specified set, 
+//advancing the parsing pointer, returning 1 if it does and 0 otherwise
+int peek(char **pointer_to_cursor, char *end_of_input, char *delimiters)
+{   
+    char *cursor=*pointer_to_cursor;
+    while (cursor < end_of_input && strchr(whitespace, *cursor))    cursor++;
+    *pointer_to_cursor = cursor;
+    return *cursor && strchr(delimiters, *cursor);  //Make sure s is not at the end and current char is in delimiters
+}
 void process_escape(char *buffer){ //Deal with ANSI escape sequences
     int tmp_result[1024];
     int cur_len=0;
@@ -200,7 +261,7 @@ void aggregate_context_and_output(int element_num, ...){
                 length-=free_size;
                 have_read+=free_size;accmu_idx+=free_size;
                 if(accmu_idx>=CHAR_BUF_SIZE){
-                    if(write(1, accum_buf, CHAR_BUF_SIZE)!=CHAR_BUF_SIZE){
+                    if(write(2, accum_buf, CHAR_BUF_SIZE)!=CHAR_BUF_SIZE){
                         fprintf(2, "Error happened in write(in sh.c aggre...)\n");
                     }
                     accmu_idx=0;
@@ -252,6 +313,129 @@ void load_next_command(char *buf, int *editor){
         memmove(buf, command_buf[history_view_idx%MAX_COMMAND].saved_buf, *editor);
     }
 }
+void complete_dollar_sign(char *buf, char *token_start, int token_len, int *editor_idx, int *cursor_idx){
+    // if(*token_start!=) // TODO: Implement dollar sign completion
+}
+void complete_tlide(char *buf, char *token_start, int token_len, int *editor_idx, int *cursor_idx){
+
+}
+void complete_at(char *buf, char *token ,int token_len, int *editor_idx, int *cursor_idx){
+
+}
+void complete_command(char *buf, char *token_start, int token_len, int *editor_idx, int *cursor_idx){
+    // TODO: Implement command completion
+    int fd, sub_fd, have_prefix=1, is_unique=0;
+    int need_adjust_cursor=1;   //Perform a one-time check for the first memory region saturation
+    struct dirent cur_de;
+    struct stat cur_st;
+    char full_filepath[CHAR_BUF_SIZE];//Make sure buffer size is bigger than the max commnad size
+    char dirpath[CHAR_BUF_SIZE];
+    char found_buf[CHAR_BUF_SIZE]; //only record the prev command,to distinguish if this is the only result
+    //if it's the only result, that just output and don't save
+    int found_idx=0;
+    memset(full_filepath, 0, CHAR_BUF_SIZE);memset(dirpath, 0, CHAR_BUF_SIZE);
+    memset(found_buf, 0, CHAR_BUF_SIZE);
+    char open_fail[]="Shell complete command failed:can't open\n";
+    for(int i=token_len-1;i>=0;i--){
+        if(token_start[i]=='/'){
+            if(i==token_len-1)  return; //No more infomation available to reference
+            have_prefix=0;
+            memcpy(dirpath, token_start, i+1);
+            token_start=token_start+i+1;
+            dirpath[i+1]='\0';  //Null-terminated
+            break;
+        }
+    }
+    if(have_prefix==1){
+        strcpy(dirpath, "/");   //NULL-terminated
+    }
+    if((fd=open(dirpath, O_RDONLY))<0){ //open the dirpath, search the all executable file
+        if(strlen(found_buf)!=0){
+            aggregate_context_and_output(6, token_start+token_len, *editor_idx-*cursor_idx, 1, \
+                "\n", 1, 1, open_fail, strlen(open_fail), 1, found_buf, strlen(found_buf)-1, 1, \
+                prefix_str, strlen(prefix_str), 1, buf, *editor_idx, 1);
+            }
+        else{
+            aggregate_context_and_output(5, token_start+token_len, *editor_idx-*cursor_idx, 1, \
+                "\n", 1, 1, open_fail, strlen(open_fail), 1, \
+                prefix_str, strlen(prefix_str), 1, buf, *editor_idx, 1);
+            }
+        return; //do nothing
+    }
+    if(fstat(fd, &cur_st)<0 || cur_st.type!=T_DIR){
+        close(fd);
+        return;
+    }
+    while(read(fd, &cur_de, sizeof(cur_de))==sizeof(cur_de)){   //Automatically the offset
+        if(strcmp(cur_de.name, "..")==0 || strcmp(cur_de.name, ".")==0) continue;
+        //concanate 
+        if(cur_de.inum==0)  continue;
+        memset(full_filepath, '\0', CHAR_BUF_SIZE);
+        strcpy(full_filepath, dirpath);
+        if(strlen(dirpath)+strlen(cur_de.name)>=CHAR_BUF_SIZE){
+            continue;
+        }
+        strcpy(full_filepath+strlen(dirpath), cur_de.name);   //null-terminated
+        if((sub_fd=open(full_filepath, O_RDONLY))<0 || fstat(sub_fd, &cur_st)<0 || cur_st.type!=T_FILE){
+            close(sub_fd);
+            continue;
+        }
+        //try to compare
+        if(strncmp(token_start, cur_de.name, token_len)==0){
+            if(strlen(cur_de.name)==token_len)  return; //Exact match:nothing to autocomplete
+            if(found_idx==0){
+                is_unique=1;
+            }
+            else    is_unique=0;
+            if(found_idx+strlen(cur_de.name)+1>=CHAR_BUF_SIZE){   //Stop finding, 'Casue no more data to store and consume it
+                if(need_adjust_cursor==1){   //the first time to output result, move backward the cursor
+                    aggregate_context_and_output(3, token_start+token_len, *editor_idx-*cursor_idx, 1, \
+                        "\n", 1, 1, found_buf, found_idx, 1);
+                    need_adjust_cursor=0;   // toggle_flag
+                }
+                else{
+                    aggregate_context_and_output(1, found_buf, found_idx ,1);
+                }
+                memset(found_buf, 0, CHAR_BUF_SIZE);
+                found_idx=0;
+            }
+            strcpy(found_buf+found_idx, cur_de.name);
+            found_idx+=strlen(cur_de.name);
+            found_buf[found_idx++]='\n';
+        }
+        close(sub_fd);
+    }
+    if(is_unique==1){
+        aggregate_context_and_output(3, found_buf+token_len, strlen(found_buf)-1-token_len, 1, \
+            buf+*cursor_idx, *editor_idx-*cursor_idx, 1, &single_backspace, 1, *editor_idx-*cursor_idx); 
+            //skip the last character '\n'
+        if(*editor_idx+strlen(found_buf)-1>CHAR_BUF_SIZE){
+            fprintf(2, "\ncan't handle such situation!\n");
+            exit(1);
+        }
+        else{
+            memmove(buf+*editor_idx+strlen(found_buf)-token_len-1, buf+*cursor_idx, *editor_idx-*cursor_idx);
+            memmove(buf+*cursor_idx, found_buf+token_len, strlen(found_buf)-1-token_len);
+        }
+        //update params
+        *editor_idx+=(strlen(found_buf)-1-token_len);
+        *cursor_idx=*editor_idx;
+    }
+    else if(found_idx!=0){
+        if(need_adjust_cursor==1){
+            aggregate_context_and_output(3, found_buf, strlen(found_buf)-1-token_len, 1, \
+                prefix_str, strlen(prefix_str), 1, buf, *editor_idx, 1);
+        }
+        else{
+            aggregate_context_and_output(3, found_buf, strlen(found_buf)-1, 1, \
+            prefix_str, strlen(prefix_str), 1, buf, *editor_idx, 1);
+        }
+    }
+    close(fd);
+}
+void complete_file(char *buf, char *token_start, int token_len, int *editor_idx, int *cursor_idx){
+    // TODO: Implement file completion
+}
 void process_char_InRawMode(char *buf, int nbuf){
     history_view_idx=history_idx;
     int editor_idx=0; // Index where the next character will be appended (Total length of the command buffer)
@@ -288,7 +472,7 @@ void process_char_InRawMode(char *buf, int nbuf){
                         save_draft_command(buf, editor_idx);//Draft saving
                     }
                     //clear the screen
-                    aggregate_context_and_output(1, backspace, 3, editor_idx);
+                    aggregate_context_and_output(1, backspace, sizeof(backspace)-1, editor_idx);
                     load_prev_command(buf, &editor_idx);
                     cursor_idx=editor_idx;
                     aggregate_context_and_output(1, buf, editor_idx, 1);
@@ -296,7 +480,7 @@ void process_char_InRawMode(char *buf, int nbuf){
                 else if(fetch_char=='B' && history_view_idx<history_idx){
                     // No need to save draft when moving down from history
                     // History is read-only, edits are discarded
-                    aggregate_context_and_output(1, backspace, 3, editor_idx);
+                    aggregate_context_and_output(1, backspace, sizeof(backspace)-1, editor_idx);
                     load_next_command(buf, &editor_idx);
                     cursor_idx=editor_idx;
                     aggregate_context_and_output(1, buf, editor_idx, 1);
@@ -310,7 +494,7 @@ void process_char_InRawMode(char *buf, int nbuf){
                 case CONTROL_KEY('U'):{ // Kill line.(Control+U:0x15)
                     // Delete backwards until we hit the commit boundary or a newline
                     aggregate_context_and_output(2, buf+cursor_idx, editor_idx-cursor_idx, 1, \
-                        backspace, 3, editor_idx);
+                        backspace, sizeof(backspace)-1, editor_idx);
                     editor_idx=0;cursor_idx=0;
                     break;
                 }
@@ -333,15 +517,14 @@ void process_char_InRawMode(char *buf, int nbuf){
                         aggregate_context_and_output(4, 
                             &single_backspace, 1, 1,              // 1. \b
                             buf+cursor_idx, tail_len, 1,          // 2. tail
-                            backspace+1, 2, 1,                    // 3. " \b" (space then backspace)
+                            backspace+1, sizeof(backspace)-1-1, 1,                    // 3. " \b" (space then backspace)
                             &single_backspace, 1, tail_len        // 4. \b * tail_len
                         );
                     }
                     break;
                 }
                 case CONTROL_KEY('T'):{ // Debug: Dump history
-                    fprintf(2, "\n--- History Debug ---\n");
-                    fprintf(2, "idx: %d, view_idx: %d\n", history_idx, history_view_idx);
+                    fprintf(2, "\n\033[1;33m=== SHELL HISTORY (%d/%d) ===\033[0m\n", history_view_idx, history_idx);
                     for(int i=0; i<MAX_COMMAND; i++){
                         fprintf(2, "[%d] %s\n", i, command_buf[i].saved_buf);
                     }
@@ -349,6 +532,49 @@ void process_char_InRawMode(char *buf, int nbuf){
                     aggregate_context_and_output(2, buf, editor_idx, 1, &single_backspace, 1, editor_idx-cursor_idx);
                     // write(1, buf, editor_idx);
                     // for(int i=0; i<editor_idx-cursor_idx; i++) write(1, "\b", 1);
+                    break;
+                }
+                case CONTROL_KEY('L'):{     //Clear the Screen (ASCII 12) must done by uart
+                    aggregate_context_and_output(3, clear_str, sizeof(clear_str)-1, 1, \
+                        buf, editor_idx, 1, &single_backspace, 1, editor_idx-cursor_idx);
+                    break;
+                }
+                case '\t':{ //extract the partial_token and try to find the matched complete command 
+                    int token_start=cursor_idx;
+                    while(token_start>=1 && strchr(whitespace, buf[token_start-1])==NULL){
+                        token_start--;
+                    }
+                    if(token_start==cursor_idx)   break;  //do nothing
+                    int token_start_copy=token_start;
+                    //maybe the token include some specific symbols, check first for the highest privilege
+                    while(token_start_copy<cursor_idx && strchr(whitespace, buf[token_start_copy])==NULL \
+                        && strchr(specific_symbols, buf[token_start_copy])==NULL){
+                            token_start_copy++;
+                    }
+                    int token_len=cursor_idx-token_start;
+                    if(buf[token_start_copy]=='$')
+                        complete_dollar_sign(buf, buf+token_start_copy, token_len, &editor_idx, &cursor_idx);
+                    else if(buf[token_start_copy]=='~')
+                        complete_tlide(buf, buf+token_start_copy, token_len, &editor_idx, &cursor_idx);
+                    else if(buf[token_start_copy]=='@')
+                        complete_at(buf, buf+token_start_copy, token_len, &editor_idx, &cursor_idx);
+                    else if(buf[token_start]!='\0'){
+                        //maybe the token include '@', check first for the highest privilege
+                        int is_command=0;
+                        if(token_start==0)
+                            is_command=1;
+                        else{
+                            int prev=token_start-1;
+                            while(prev>=0 && buf[prev]==' ')    prev--;
+                            if(prev<0) is_command=1; // Fixed: Handle indented commands
+                            else if(buf[prev]==';' || buf[prev]=='|' || buf[prev]=='&')
+                                is_command=1;
+                        }
+                        if(is_command==1)
+                            complete_command(buf, buf+token_start, token_len, &editor_idx, &cursor_idx);
+                        else
+                            complete_file(buf, buf+token_start, token_len, &editor_idx, &cursor_idx);
+                    }
                     break;
                 }
                 default:{  // Normal input handling
@@ -548,64 +774,6 @@ make_back_cmd(struct cmd *subcmd)
 }
 // PAGEBREAK!
 //  Parsing
-
-char whitespace[] = " \t\r\n\v";
-char symbols[] = "<|>&;()";
-// Lexer. Skips whitespace, extracts the next token (symbol or argument), and advances the parsing pointer
-int gettoken(char **pointer_to_cursor, char *end_of_input, char **token_start, char **token_end)
-{   //current parsiing position pointer_to_cursor, end of boundary ed; and start position of word token q, end position of word token eq
-    char *cursor=*pointer_to_cursor;
-    int token_type;
-
-    while (cursor < end_of_input && strchr(whitespace, *cursor))    cursor++;
-    if (token_start)
-        *token_start = cursor;
-    token_type = *cursor;
-    switch (*cursor)
-    {
-        case 0: //the end character of the string
-            break;
-        //Signle character tokens
-        case '|':
-        case '(':
-        case ')':
-        case ';':
-        case '&':
-        case '<':
-            cursor++;
-            break;
-        //Double character token
-        case '>':
-            cursor++;
-            if (*cursor == '>'){
-                token_type = '+';  //double > means append redirection
-                cursor++;
-            }
-            break;
-        //Normal word token
-        default:
-            token_type = 'a';  //a for argument
-            while (cursor < end_of_input && !strchr(whitespace, *cursor) && !strchr(symbols, *cursor))
-                cursor++;
-            break;
-    }
-    if (token_end)
-        *token_end = cursor;    //If caller need end pointer, record it!
-
-    while (cursor < end_of_input && strchr(whitespace, *cursor))    //Skip trailing whitespace
-        cursor++;
-    *pointer_to_cursor = cursor;
-    return token_type;
-}
-//Lookahead function. Skips whitespace and checks if the next character belongs to the specified set, 
-//advancing the parsing pointer, returning 1 if it does and 0 otherwise
-int peek(char **pointer_to_cursor, char *end_of_input, char *delimiters)
-{   
-    char *cursor=*pointer_to_cursor;
-    while (cursor < end_of_input && strchr(whitespace, *cursor))    cursor++;
-    *pointer_to_cursor = cursor;
-    return *cursor && strchr(delimiters, *cursor);  //Make sure s is not at the end and current char is in delimiters
-}
 
 struct cmd *parse_line(char **, char *);
 struct cmd *parse_pipe(char **, char *);
