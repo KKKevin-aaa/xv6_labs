@@ -16,7 +16,7 @@
 
 #define MAXARGS 10
 #define CONTROL_KEY(x) ((x) - '@')
-#define CHAR_BUF_SIZE 100
+#define CHAR_BUF_SIZE 512
 #define MAX_COMMAND 10
 
 static char fetch_buf[CHAR_BUF_SIZE];
@@ -26,14 +26,26 @@ static int fetch_process_idx = 0, fetch_read_idx = 0;
 static char backspace[] = "\b \b";
 // static char single_backspace='\b';
 static char clear_str[] = "\033[2J\033[H$ ";
-static char specific_symbols[] = "@~$";
+static unsigned char specific_symbols[256]={0};
 static char prefix_str[] = "\n$ ";
+// char whitespace[] = " \t\r\n\v";
+// char symbols[] = "<|>&;()";
+static unsigned char whitespace[256]={0};
+static unsigned char symbols[256]={0};
 typedef struct command_stat {
-    int editor_idx;
     char saved_buf[CHAR_BUF_SIZE];
+    int capacity;
+    int size;
 } command_stat;
 static command_stat command_buf[MAX_COMMAND];
 static int history_idx = 0, history_view_idx = -1;
+typedef struct gapbuf{
+    char *buf;
+    int capacity, gap_start, gap_end; 
+    // Indacate the boundary of the gap,which is unreachable for existing elements
+}gapbuf_t;
+#define GF_CNT_LEN(gf) (int)((gf).capacity - (gf).gap_end -1 + (gf).gap_start )
+#define GF_TAIL_LEN(gf) (int)((gf).capacity - (gf).gap_end -1 )
 // Base structure(all command first member is type,
 // which allow us to cast into cmd structure to check its type)
 struct cmd {
@@ -157,8 +169,27 @@ void runcmd(struct cmd *cmd) {
     }
     exit(0);
 }
-char whitespace[] = " \t\r\n\v";
-char symbols[] = "<|>&;()";
+/**
+ * @brief Initialize the lookup table.
+ * * @param buf          Pointer to the lookup table memory. 
+ * @param buf_capacity The physical size of the buffer (usually 256 for ASCII). 
+ * @param target_chars The null-terminated string containing characters to mark. 
+ */
+void init_Lookup_table(unsigned char *buf, unsigned int buf_capacity,const char *target_chars){
+    //Make sure target_chars are null-terminated
+    if(buf==NULL || target_chars==NULL) return;
+    memset(buf, 0, buf_capacity);
+    for(const char *p=target_chars; *p!='\0'; p++){
+        unsigned char index=(unsigned char)*p;
+        if(index<buf_capacity)
+            buf[index]=1;
+        else{
+            printf("Error: Character %c (%d) is out of buffer range %u\n", 
+                   *p, index, buf_capacity);
+            exit(1);
+        }
+    }
+}
 // Lexer. Skips whitespace, extracts the next token (symbol or argument), and advances the parsing
 // pointer
 int gettoken(
@@ -168,7 +199,7 @@ int gettoken(
     char *cursor = *pointer_to_cursor;
     int token_type;
 
-    while (cursor < end_of_input && strchr(whitespace, *cursor)) cursor++;
+    while (cursor < end_of_input && whitespace[(unsigned char)*cursor]) cursor++;
     if (token_start) *token_start = cursor;
     token_type = *cursor;
     switch (*cursor) {
@@ -194,14 +225,13 @@ int gettoken(
         // Normal word token
         default:
             token_type = 'a';  // a for argument
-            while (cursor < end_of_input && !strchr(whitespace, *cursor) &&
-                   !strchr(symbols, *cursor))
+            while (cursor < end_of_input && !whitespace[(unsigned char)*cursor] && !symbols[(unsigned char)*cursor])
                 cursor++;
             break;
     }
     if (token_end) *token_end = cursor;  // If caller need end pointer, record it!
 
-    while (cursor < end_of_input && strchr(whitespace, *cursor))  // Skip trailing whitespace
+    while (cursor < end_of_input && whitespace[(unsigned char)*cursor])  // Skip trailing whitespace
         cursor++;
     *pointer_to_cursor = cursor;
     return token_type;
@@ -210,9 +240,9 @@ int gettoken(
 // set, advancing the parsing pointer, returning 1 if it does and 0 otherwise
 int peek(char **pointer_to_cursor, char *end_of_input, char *delimiters) {
     char *cursor = *pointer_to_cursor;
-    while (cursor < end_of_input && strchr(whitespace, *cursor)) cursor++;
+    while (cursor < end_of_input && whitespace[(unsigned char)*cursor]) cursor++;
     *pointer_to_cursor = cursor;
-    return *cursor &&
+    return *cursor && 
            strchr(delimiters,
                   *cursor);  // Make sure s is not at the end and current char is in delimiters
 }
@@ -278,51 +308,59 @@ void aggregate_context_and_output(int element_num, ...) {
     }
     write(2, accum_buf, accmu_idx);
 }
-void save_draft_command(char *buf, int editor_idx) {
+void save_draft_command(gapbuf_t *gf) {
     // Only save draft if we are currently at the latest line (not viewing history)
     // exclude the newline(\n) character , just for look
-    if (history_view_idx != history_idx || editor_idx == 0 || buf[0] == '\0') return;
-    if (editor_idx > CHAR_BUF_SIZE) {
+    if (history_view_idx != history_idx || GF_CNT_LEN(*gf) == 0 || gf->buf == NULL) return;
+    if (GF_CNT_LEN(*gf) > CHAR_BUF_SIZE || gf->capacity!=CHAR_BUF_SIZE) {
         fprintf(2, "Error in record current command!\n");
         exit(1);
     }
     memset(command_buf[history_view_idx % MAX_COMMAND].saved_buf, 0, CHAR_BUF_SIZE);
-    memmove(command_buf[history_view_idx % MAX_COMMAND].saved_buf, buf, editor_idx);
-    command_buf[history_view_idx % MAX_COMMAND].editor_idx = editor_idx;
+    memmove(command_buf[history_view_idx % MAX_COMMAND].saved_buf, gf->buf, gf->gap_start);
+    memmove(command_buf[history_view_idx% MAX_COMMAND].saved_buf+gf->gap_start, gf->buf+gf->gap_end+1, GF_TAIL_LEN(*gf));
+    command_buf[history_view_idx % MAX_COMMAND].size=GF_CNT_LEN(*gf);
 }
-void commit_cur_command(char *buf, int editor_idx) {
-    if (editor_idx > CHAR_BUF_SIZE || editor_idx == 0) {
+void commit_cur_command(gapbuf_t *gf) {
+    //Final stage:the obtaining the concatenated string
+    if (GF_CNT_LEN(*gf) > CHAR_BUF_SIZE || GF_CNT_LEN(*gf)==0 || gf->capacity!=CHAR_BUF_SIZE) {
         fprintf(2, "Error in record current command!\n");
         exit(1);
     }
     memset(command_buf[history_idx % MAX_COMMAND].saved_buf, 0, CHAR_BUF_SIZE);
-    int move_size = (editor_idx == CHAR_BUF_SIZE) ? CHAR_BUF_SIZE : (editor_idx - 1);
-    memmove(command_buf[history_idx % MAX_COMMAND].saved_buf, buf, move_size);
-    command_buf[history_idx % MAX_COMMAND].editor_idx = move_size;
+    memmove(command_buf[history_view_idx % MAX_COMMAND].saved_buf, gf->buf, GF_CNT_LEN(*gf));
+    command_buf[history_view_idx % MAX_COMMAND].size=GF_CNT_LEN(*gf);
     history_idx++;
     history_view_idx = history_idx;  // update the view index
 }
 
-void load_prev_command(char *buf, int *editor_idx) {
+void load_prev_command(gapbuf_t *gf) {
     if (history_view_idx > 0) {
         history_view_idx--;
-        *editor_idx = command_buf[history_view_idx % MAX_COMMAND].editor_idx;
-        memset(buf, 0, CHAR_BUF_SIZE);
-        memmove(buf, command_buf[history_view_idx % MAX_COMMAND].saved_buf, *editor_idx);
+        memset(gf->buf, 0, CHAR_BUF_SIZE);
+        command_stat *tmp=&command_buf[history_view_idx%MAX_COMMAND];
+        memmove(gf->buf, tmp->saved_buf, tmp->size);
+        gf->gap_start=tmp->size;
+        gf->gap_end=gf->capacity-1;
     }
 }
-void load_next_command(char *buf, int *editor) {
+void load_next_command(gapbuf_t *gf) {
     if (history_view_idx < history_idx) {
         history_view_idx++;
-        *editor = command_buf[history_view_idx % MAX_COMMAND].editor_idx;
-        memset(buf, 0, CHAR_BUF_SIZE);
-        memmove(buf, command_buf[history_view_idx % MAX_COMMAND].saved_buf, *editor);
+        memset(gf->buf, 0, CHAR_BUF_SIZE);
+        command_stat *tmp=&command_buf[history_view_idx%MAX_COMMAND];
+        memmove(gf->buf, tmp->saved_buf, tmp->size);
+        gf->gap_start=tmp->size;
+        gf->gap_end=gf->capacity-1;
     }
 }
-void complete_generic(char *buf, char *token_start, int token_len, int *editor_idx, int *cursor_idx,
+void complete_generic(gapbuf_t *gf, char *token_start, int token_len,
                       char *defualt_path, int enable_dots, char *suffix) {
     // TODO: Implement command completion
+    // The pointer to the first member is numerically equivalent to the pointer to the struct itself.
+    if(!token_start || token_len<=0)    return;
     int fd, sub_fd, have_prefix = 1, is_unique = 0;
+    int suffix_len=strlen(suffix);
     int need_adjust_cursor = 1;  // Perform a one-time check for the first memory region saturation
     struct dirent cur_de;
     struct stat cur_st;
@@ -336,6 +374,7 @@ void complete_generic(char *buf, char *token_start, int token_len, int *editor_i
     memset(dirpath, 0, CHAR_BUF_SIZE);
     memset(found_buf, 0, CHAR_BUF_SIZE);
     char open_fail[] = "Shell complete command failed:can't open\n";
+    int open_fail_len=strlen(open_fail), prefix_str_len=strlen(prefix_str);
     for (int i = token_len - 1; i >= 0; i--) {
         if (token_start[i] == '/') {
             // if(i==token_len-1)  return; //No more infomation available to reference
@@ -351,19 +390,23 @@ void complete_generic(char *buf, char *token_start, int token_len, int *editor_i
     if (have_prefix == 1) {
         strcpy(dirpath, defualt_path);  // NULL-terminated
     }
+    int dirpath_len = strlen(dirpath);
     if ((fd = open(dirpath, O_RDONLY)) < 0) {  // open the dirpath, search the all executable file
-        if (strlen(found_buf) != 0) {
-            aggregate_context_and_output(6, token_start + token_len, *editor_idx - *cursor_idx, 1,
+        if (found_idx != 0) {
+            aggregate_context_and_output(7, token_start + token_len, GF_TAIL_LEN(*gf), 1,
                                          "\n", 1, 1, 
-                                         open_fail, (int)strlen(open_fail), 1,
-                                         found_buf, (int)(strlen(found_buf) - 1), 
-                                         1, prefix_str, (int)strlen(prefix_str), 1, 
-                                         buf, *editor_idx, 1);
+                                         open_fail, open_fail_len, 1,
+                                         found_buf, (int)(found_idx - 1), 
+                                         1, prefix_str, prefix_str_len, 1, 
+                                         gf->buf, gf->gap_start, 1,
+                                         gf->buf+gf->gap_end+1, GF_TAIL_LEN(*gf), 1);
         } else {
-            aggregate_context_and_output(5, token_start + token_len, *editor_idx - *cursor_idx, 1,
-                                         "\n", 1, 1, open_fail, (int)strlen(open_fail), 1,
-                                         prefix_str, (int)strlen(prefix_str), 1, buf, *editor_idx,
-                                         1);
+            aggregate_context_and_output(6, token_start + token_len, GF_TAIL_LEN(*gf), 1,
+                                         "\n", 1, 1, 
+                                         open_fail, open_fail_len, 1,
+                                         prefix_str, prefix_str_len, 1,
+                                         gf->buf, gf->gap_start, 1,
+                                         gf->buf+gf->gap_end+1, GF_TAIL_LEN(*gf), 1);
         }
         return;  // do nothing
     }
@@ -374,23 +417,25 @@ void complete_generic(char *buf, char *token_start, int token_len, int *editor_i
     while (read(fd, &cur_de, sizeof(cur_de)) == sizeof(cur_de)) {  // Automatically the offset
         if(cur_de.inum==0)
             continue;
-        if(!editor_idx && (strcmp(cur_de.name, "..")==0 || strcmp(cur_de.name, ".")==0))
+        int cur_de_len = strlen(cur_de.name);
+        if(!enable_dots && (strcmp(cur_de.name, "..")==0 || strcmp(cur_de.name, ".")==0))
             continue;
         // concanate
         memset(full_filepath, '\0', CHAR_BUF_SIZE);
-        strcpy(full_filepath, dirpath);
-        if (strlen(dirpath) + strlen(cur_de.name) >= CHAR_BUF_SIZE) {
+        memcpy(full_filepath, dirpath, dirpath_len);
+        if (dirpath_len + cur_de_len >= CHAR_BUF_SIZE) {
             continue;
         }
-        strcpy(full_filepath + strlen(dirpath), cur_de.name);  // null-terminated
-        if ((sub_fd = open(full_filepath, O_RDONLY)) < 0 || fstat(sub_fd, &cur_st) < 0 ||
-            cur_st.type == T_DEVICE) {
+        strcpy(full_filepath + dirpath_len, cur_de.name);  // null-terminated
+        if ((sub_fd = open(full_filepath, O_RDONLY)) < 0)
+            continue;
+        if(fstat(sub_fd, &cur_st) < 0 || cur_st.type == T_DEVICE) {
             close(sub_fd);
             continue;
         }
         // try to compare
         if (strncmp(token_start, cur_de.name, token_len) == 0) {
-            if (strlen(cur_de.name) == token_len) {
+            if (cur_de_len == token_len) {
                 close(sub_fd);
                 continue;  // Exact match:nothing to autocomplete
             }
@@ -398,12 +443,12 @@ void complete_generic(char *buf, char *token_start, int token_len, int *editor_i
                 is_unique = 1;
             } else
                 is_unique = 0;
-            if (found_idx + strlen(cur_de.name) + 1 + strlen(suffix) >= CHAR_BUF_SIZE) {
+            if (found_idx + cur_de_len + 1 + suffix_len >= CHAR_BUF_SIZE) {
                 // Stop finding, 'Casue no more data to store and consume it
                 if (need_adjust_cursor == 1) {
                     // the first time to output result, move backward the cursor
                     aggregate_context_and_output(3, token_start + token_len,
-                                                 (int)(*editor_idx - *cursor_idx), 1, 
+                                                 GF_TAIL_LEN(*gf), 1, 
                                                  "\n", 1, 1,
                                                  found_buf, found_idx, 1);
                     need_adjust_cursor = 0;  // toggle_flag
@@ -414,72 +459,68 @@ void complete_generic(char *buf, char *token_start, int token_len, int *editor_i
                 found_idx = 0;
             }
             strcpy(found_buf + found_idx, cur_de.name);
-            found_idx += strlen(cur_de.name);
+            found_idx += cur_de_len;
             strcpy(found_buf + found_idx, suffix);
-            found_idx += strlen(suffix);
-            total_match_count += strlen(cur_de.name) + 1 + strlen(suffix);
+            found_idx += suffix_len;
+            total_match_count += cur_de_len + 1 + suffix_len;
             found_buf[found_idx++] = '\n';
         }
         close(sub_fd);
     }
     if (is_unique == 1) {
         aggregate_context_and_output(1, found_buf + token_len,
-                                     (int)(strlen(found_buf) - 1 - token_len), 1);
-        aggregate_context_and_output(1, buf + *cursor_idx, *editor_idx - *cursor_idx, 1);
-        aggregate_context_and_output(1, "\b", 1, *editor_idx - *cursor_idx);
+                                     (int)(found_idx - 1 - token_len), 1);
+        aggregate_context_and_output(1, gf->buf+gf->gap_end+1, GF_TAIL_LEN(*gf), 1);
+        aggregate_context_and_output(1, "\b", 1, GF_TAIL_LEN(*gf));
         // skip the last character '\n'
-        if (*editor_idx + strlen(found_buf) - 1 > CHAR_BUF_SIZE) {
+        if (GF_CNT_LEN(*gf) + found_idx - 1 > CHAR_BUF_SIZE) {
             fprintf(2, "\ncan't handle such situation!\n");
             exit(1);
         }
-        int extra_len = strlen(found_buf) - token_len - 1;
-        memmove(buf + *cursor_idx + extra_len, buf + *cursor_idx, *editor_idx - *cursor_idx);
-        memmove(buf + *cursor_idx, found_buf + token_len, extra_len);
+        int extra_len = found_idx - token_len - 1;
+        memmove(gf->buf + gf->gap_start, found_buf + token_len, extra_len);
+        gf->gap_start+=extra_len;
         // update params
-        *editor_idx += (strlen(found_buf) - 1 - token_len);
-        *cursor_idx += (strlen(found_buf) - 1 - token_len);
     } else if (found_idx != 0) {  // Multiple matches detected:apply new logic to complete
         if (need_adjust_cursor == 1) {
-            aggregate_context_and_output(4, "\n", 1, 1, found_buf, 
-                                        (int)(strlen(found_buf) - 1), 1,
-                                         prefix_str, (int)strlen(prefix_str), 1, 
-                                         buf, *editor_idx, 1);
+            aggregate_context_and_output(5, "\n", 1, 1, 
+                                        found_buf, (int)(found_idx - 1), 1,
+                                         prefix_str, prefix_str_len, 1, 
+                                         gf->buf, gf->gap_start, 1,
+                                        gf->buf+gf->gap_end+1, GF_TAIL_LEN(*gf), 1);
         } else {
-            aggregate_context_and_output(3, found_buf, (int)(strlen(found_buf) - 1), 1, 
-                                            prefix_str, (int)strlen(prefix_str), 1, 
-                                            buf, *editor_idx, 1);
+            aggregate_context_and_output(4, found_buf, (int)(found_idx - 1), 1, 
+                                            prefix_str, prefix_str_len, 1, 
+                                            gf->buf, gf->gap_start, 1,
+                                            gf->buf+gf->gap_end+1, GF_TAIL_LEN(*gf), 1);
         }
     }
     close(fd);
 }
 
-void complete_dollar_sign(char *buf, char *token_start, int token_len, int *editor_idx,
-                          int *cursor_idx) {
+void complete_dollar_sign(gapbuf_t *gf, char *token_start, int token_len) {
     // if(*token_start!=) // TODO: Implement dollar sign completion
 }
-void complete_tlide(char *buf, char *token_start, int token_len, int *editor_idx, int *cursor_idx) {
+void complete_tlide(gapbuf_t *gf, char *token_start, int token_len) {
 
 }
-void complete_at(char *buf, char *token, int token_len, int *editor_idx, int *cursor_idx) {}
-void complete_command(char *buf, char *token_start, int token_len, int *editor_idx,
-                      int *cursor_idx) {
+void complete_at(gapbuf_t *gf, char *token, int token_len) {}
+void complete_command(gapbuf_t *gf, char *token_start, int token_len) {
     char default_path[] = "/";
-    complete_generic(buf, token_start, token_len, editor_idx, cursor_idx, default_path, 0, "");
+    complete_generic(gf, token_start, token_len, default_path, 0, "");
 }
-void complete_file(char *buf, char *token_start, int token_len, int *editor_idx, int *cursor_idx) {
+void complete_file(gapbuf_t *gf, char *token_start, int token_len) {
     char default_path[] = "./";
     char suffix[] = "/";
-    complete_generic(buf, token_start, token_len, editor_idx, cursor_idx, default_path, 1, suffix);
+    complete_generic(gf, token_start, token_len, default_path, 1, suffix);
 }
 
-void process_char_InRawMode(char *buf, int nbuf) {
+static void process_char_InRawMode(char *buf, int nbuf) {
     history_view_idx = history_idx;
     memset(buf, '\0', nbuf);
     memset(fetch_buf, '\0', CHAR_BUF_SIZE);
-    int editor_idx =
-        0;  // Index where the next character will be appended (Total length of the command buffer)
-    int cursor_idx = 0;  // Current position of the cursor within the command buffer (0 <=
-                         // cursor_idx <= editor_idx)
+    gapbuf_t raw_input={.buf=buf, .capacity=nbuf, .gap_start=0, .gap_end=nbuf-1};
+    // Index where the next character will be appended (Total length of the command buffer)
     int continue_flag = 1, normal_tmp = 0;
     int remain_size = CHAR_BUF_SIZE - fetch_read_idx;
     if (remain_size > 0 && (normal_tmp = read(0, fetch_buf, remain_size)) < 0) {
@@ -488,8 +529,8 @@ void process_char_InRawMode(char *buf, int nbuf) {
     }
     fetch_read_idx += normal_tmp;
     char fetch_char = 'a';  // non-zero initialization
-    while (1) {
-        while (fetch_process_idx < fetch_read_idx && fetch_char != '\0') {
+    for (;;) {
+        while (fetch_process_idx < fetch_read_idx) {
             fetch_char = fetch_buf[fetch_process_idx++];
             if (fetch_char == '\033') {
                 cur_state = STATE_ESC;
@@ -500,36 +541,50 @@ void process_char_InRawMode(char *buf, int nbuf) {
             }
             if (cur_state == STATE_CSI) {
                 cur_state = STATE_NORMAL;  // reset
-                if (fetch_char == 'D' && cursor_idx > 0) {
-                    cursor_idx--;
-                    write(2, "\b", 1);
-                } else if (fetch_char == 'C' && cursor_idx < editor_idx) {
-                    write(2, buf + cursor_idx, 1);
-                    cursor_idx++;
+                if (fetch_char == 'D' && raw_input.gap_start > 0) {  //move left
+                    if(raw_input.gap_start>0){
+                        write(2, "\b", 1);
+                        raw_input.buf[raw_input.gap_end]=raw_input.buf[raw_input.gap_start-1];
+                        raw_input.gap_start--;
+                        raw_input.gap_end--;
+                    }
+                } else if (fetch_char == 'C' && raw_input.gap_start < GF_CNT_LEN(raw_input)) {  //move right
+                    if(raw_input.gap_end<raw_input.capacity-1){
+                        write(2, raw_input.buf + raw_input.gap_end+1, 1);
+                        raw_input.buf[raw_input.gap_start]=raw_input.buf[raw_input.gap_end+1];
+                        raw_input.gap_start++;
+                        raw_input.gap_end++;
+                    }
                 } else if (fetch_char == 'A' && history_view_idx > 0) {
                     if (history_idx == history_view_idx) {
-                        save_draft_command(buf, editor_idx);  // Draft saving
+                        save_draft_command(&raw_input);  // Draft saving
                     }
                     // clear the screen
-                    aggregate_context_and_output(1, backspace, (int)(sizeof(backspace) - 1),
-                                                 editor_idx);
-                    load_prev_command(buf, &editor_idx);
-                    cursor_idx = editor_idx;
-                    aggregate_context_and_output(1, buf, editor_idx, 1);
+                    int tmpA_len=GF_CNT_LEN(raw_input);
+                    load_prev_command(&raw_input);
+                    aggregate_context_and_output(2, backspace, (int)(sizeof(backspace)-1), tmpA_len, 
+                                                raw_input.buf, GF_CNT_LEN(raw_input), 1);
                 } else if (fetch_char == 'B' && history_view_idx < history_idx) {
                     // No need to save draft when moving down from history
-                    // History is read-only, edits are discarded
-                    aggregate_context_and_output(1, backspace, (int)(sizeof(backspace) - 1),
-                                                 editor_idx);
-                    load_next_command(buf, &editor_idx);
-                    cursor_idx = editor_idx;
-                    aggregate_context_and_output(1, buf, editor_idx, 1);
-                } else if (fetch_char == 'H' && cursor_idx > 0) {  // HOME
-                    aggregate_context_and_output(1, "\b", 1, cursor_idx);
-                    cursor_idx = 0;
-                } else if (fetch_char == 'F' && cursor_idx < editor_idx) {
-                    aggregate_context_and_output(1, buf + cursor_idx, editor_idx - cursor_idx, 1);
-                    cursor_idx = editor_idx;
+                    // History is read-only, editions are discarded
+                    int tmpB_len=GF_CNT_LEN(raw_input);
+                    load_next_command(&raw_input);
+                    aggregate_context_and_output(2, backspace, (int)(sizeof(backspace)-1) ,tmpB_len,
+                                                raw_input.buf, GF_CNT_LEN(raw_input), 1);
+                } else if (fetch_char == 'H' && raw_input.gap_start > 0) {  // HOME
+                    aggregate_context_and_output(1, "\b", 1, raw_input.gap_start);
+                    for(int i=raw_input.gap_start-1;i>=0;i--){
+                        raw_input.buf[raw_input.gap_end]=raw_input.buf[i];
+                        raw_input.gap_end--;
+                    }
+                    raw_input.gap_start=0;
+                } else if (fetch_char == 'F' && raw_input.gap_start < GF_CNT_LEN(raw_input)) { //End
+                    aggregate_context_and_output(1, raw_input.buf + raw_input.gap_end+1, GF_TAIL_LEN(raw_input), 1);
+                    for(int i=raw_input.gap_end+1;i<raw_input.capacity-1;i++){
+                        raw_input.buf[raw_input.gap_start]=raw_input.buf[i];
+                        raw_input.gap_start++;
+                    }
+                    raw_input.gap_end=raw_input.capacity-1;
                 }
                 continue;
             }
@@ -539,37 +594,30 @@ void process_char_InRawMode(char *buf, int nbuf) {
                     break;
                 case CONTROL_KEY('U'): {  // Kill line.(Control+U:0x15)
                     // Delete backwards until we hit the commit boundary or a newline
-                    aggregate_context_and_output(2, buf + cursor_idx, editor_idx - cursor_idx, 1,
-                                                 backspace, (int)(sizeof(backspace) - 1),
-                                                 editor_idx);
-                    editor_idx = 0;
-                    cursor_idx = 0;
+                    aggregate_context_and_output(2, raw_input.buf + raw_input.gap_end+1, GF_TAIL_LEN(raw_input), 1,
+                                                 backspace, (int)(sizeof(backspace) - 1), GF_CNT_LEN(raw_input));
+                    raw_input.gap_start=0;raw_input.gap_end=raw_input.capacity-1;
+                    //reset state parameters
                     break;
                 }
                 case CONTROL_KEY('H'):  // Backspace(control+H:0x08)
                 case '\x7f': {          // Delete key
-                    if (cursor_idx > 0) {
-                        // editor_idx: Index where the next character will be appended (Total length
-                        // of the command buffer) cursor_idx: Current position of the cursor within
-                        // the command buffer (0 <= cursor_idx <= editor_idx)
-                        uint tail_len = editor_idx - cursor_idx;
-                        for (uint i = 0; i < tail_len; i++) {
-                            buf[cursor_idx + i - 1] = buf[cursor_idx + i];
-                        }
-                        editor_idx--;
-                        cursor_idx--;
-                        buf[editor_idx] = 0;
+                    if (raw_input.gap_start > 0) {
+                        // GF_CNT_LEN(raw_input): Index where the next character will be appended (Total length
+                        // of the command buffer) raw_input.gap_start: Current position of the cursor within
+                        // the command buffer (0 <= raw_input.gap_start <= GF_CNT_LEN(raw_input))
+                        // uint tail_len = raw_input.capacity-1 -raw_input.gap_end;
+                        raw_input.gap_start--;
                         // Output update
                         // 1. Move cursor back 1 step (\b)
                         // 2. Print the shifted tail
                         // 3. Print space to erase the last character
                         // 4. Move cursor back to correct position
                         aggregate_context_and_output(4, "\b", 1, 1,                  // 1. \b
-                                                     buf + cursor_idx, tail_len, 1,  // 2. tail
-                                                     backspace + 1,
-                                                     (int)(sizeof(backspace) - 1 - 1),
+                                                     raw_input.buf + raw_input.gap_end+1, GF_TAIL_LEN(raw_input), 1,  // 2. tail
+                                                     backspace + 1, (int)(sizeof(backspace) - 1 - 1),
                                                      1,  // 3. " \b" (space then backspace)
-                                                     "\b", 1, tail_len  // 4. \b * tail_len
+                                                     "\b", 1, GF_TAIL_LEN(raw_input)  // 4. \b * tail_len
                         );
                     }
                     break;
@@ -581,154 +629,154 @@ void process_char_InRawMode(char *buf, int nbuf) {
                         fprintf(2, "[%d] %s\n", i, command_buf[i].saved_buf);
                     }
                     fprintf(2, "---------------------\n$ ");
-                    aggregate_context_and_output(2, buf, editor_idx, 1, "\b", 1,
-                                                 editor_idx - cursor_idx);
                     break;
                 }
                 case CONTROL_KEY('L'): {  // Clear the Screen (ASCII 12) must done by uart
-                    aggregate_context_and_output(3, clear_str, (int)(sizeof(clear_str) - 1), 1, buf,
-                                                 editor_idx, 1, "\b", 1, editor_idx - cursor_idx);
+                    aggregate_context_and_output(3, clear_str, (int)(sizeof(clear_str) - 1), 1, 
+                                                raw_input.buf, raw_input.gap_start, 1,
+                                                raw_input.buf+raw_input.gap_end+1, GF_TAIL_LEN(raw_input), 1,
+                                                "\b", 1, GF_TAIL_LEN(raw_input));
+                    raw_input.gap_start=0;raw_input.gap_end=raw_input.capacity-1;
                     break;
                 }
                 case '\t': {  // extract the partial_token and try to find the matched complete
                               // command
-                    int token_start = cursor_idx;
-                    while (token_start >= 1 && strchr(whitespace, buf[token_start - 1]) == NULL) {
+                    int token_start = raw_input.gap_start;
+                    while (token_start >= 1 && !whitespace[(unsigned char)raw_input.buf[token_start-1]]) {
                         token_start--;
                     }
-                    if (token_start == cursor_idx) break;  // do nothing
+                    if (token_start == raw_input.gap_start) break;  // do nothing
                     int token_start_copy = token_start;
                     // maybe the token include some specific symbols, check first for the highest
                     // privilege
-                    while (token_start_copy < cursor_idx &&
-                           strchr(whitespace, buf[token_start_copy]) == NULL &&
-                           strchr(specific_symbols, buf[token_start_copy]) == NULL) {
+                        while (token_start_copy < raw_input.gap_start && !whitespace[(unsigned char)raw_input.buf[token_start_copy]] 
+                            && !specific_symbols[(unsigned char)raw_input.buf[token_start_copy]]) {
                         token_start_copy++;
                     }
-                    int token_len = cursor_idx - token_start;
-                    if (buf[token_start_copy] == '$')
-                        complete_dollar_sign(buf, buf + token_start_copy, token_len, &editor_idx,
-                                             &cursor_idx);
-                    else if (buf[token_start_copy] == '~')
-                        complete_tlide(buf, buf + token_start_copy, token_len, &editor_idx,
-                                       &cursor_idx);
-                    else if (buf[token_start_copy] == '@')
-                        complete_at(buf, buf + token_start_copy, token_len, &editor_idx,
-                                    &cursor_idx);
-                    else if (buf[token_start] != '\0') {
+                    int token_len = raw_input.gap_start - token_start;
+                    if (raw_input.buf[token_start_copy] == '$')
+                        complete_dollar_sign(&raw_input, raw_input.buf + token_start_copy, token_len);
+                    else if (raw_input.buf[token_start_copy] == '~')
+                        complete_tlide(&raw_input, raw_input.buf + token_start_copy, token_len);
+                    else if (raw_input.buf[token_start_copy] == '@')
+                        complete_at(&raw_input, raw_input.buf + token_start_copy, token_len);
+                    else if (raw_input.buf[token_start] != '\0') {
                         // maybe the token include '@', check first for the highest privilege
                         int is_command = 0;
                         if (token_start == 0) is_command = 1;
                         else {
                             int prev = token_start - 1;
-                            while (prev >= 0 && buf[prev] == ' ') prev--;
+                            while (prev >= 0 && raw_input.buf[prev] == ' ') prev--;
                             if (prev < 0) is_command = 1;  // Fixed: Handle indented commands
-                            else if (buf[prev] == ';' || buf[prev] == '|' || buf[prev] == '&')
+                            else if (raw_input.buf[prev] == ';' || raw_input.buf[prev] == '|' || raw_input.buf[prev] == '&')
                                 is_command = 1;
                         }
                         if (is_command == 1)
-                            complete_command(buf, buf + token_start, token_len, &editor_idx,
-                                             &cursor_idx);
+                            complete_command(&raw_input, raw_input.buf + token_start, token_len);
                         else
-                            complete_file(buf, buf + token_start, token_len, &editor_idx,
-                                          &cursor_idx);
+                            complete_file(&raw_input, raw_input.buf + token_start, token_len);
                     }
                     break;
                 }
                 default: {  // Normal input handling
                     fetch_char = (fetch_char == '\r') ? '\n' : fetch_char;
                     if (fetch_char == '\n' || fetch_char == CONTROL_KEY('D')) {
-                        write(2, &fetch_char, 1);
-                        buf[editor_idx] = '\n';
-                        editor_idx++;
-                        cursor_idx++;
+                        aggregate_context_and_output(2, raw_input.buf+raw_input.gap_end+1, GF_TAIL_LEN(raw_input), 1,
+                                                        &fetch_char, 1, 1);
+                        //Automatically add to the end when a newline occurs
                         continue_flag = 0;
                         break;                     // commit the data and quit !!!
-                    } else if (fetch_char != 0) {  // make sure the input char validation
-                        if (editor_idx >= CHAR_BUF_SIZE - 1) {
+                    } else if (fetch_char != '\0') {  // make sure the input char validation
+                        if (raw_input.gap_start>raw_input.gap_end) {
                             fprintf(2, "Command too long!\n");
                             continue;
                         }
-                        uint num = editor_idx - cursor_idx;
-                        for (uint i = editor_idx; i >= cursor_idx + 1; i--) {  // shift right
-                            buf[i] = buf[i - 1];
-                        }
-                        buf[cursor_idx] = fetch_char;
+                        raw_input.buf[raw_input.gap_start] = fetch_char;
+                        raw_input.gap_start++;
                         // send the update "string" to output device
-                        aggregate_context_and_output(2, buf + cursor_idx, num + 1, 1, "\b", 1, num);
-                        editor_idx++;
-                        cursor_idx++;
+                        aggregate_context_and_output(3, &fetch_char, 1, 1,
+                                    raw_input.buf + raw_input.gap_end+1, GF_TAIL_LEN(raw_input), 1, 
+                                    "\b", 1, GF_TAIL_LEN(raw_input));
                     }
                     break;
                 }
             }
         }
         if (continue_flag == 1) {
-            // Shift unconsumed data to the beginning to make room
-            if (fetch_process_idx > 0 || fetch_read_idx > fetch_process_idx) {
-                if (fetch_read_idx < fetch_process_idx) {
-                    fprintf(2, "FATAL: Index corruption! read_idx=%d, proc_idx=%d\n",
-                            fetch_read_idx, fetch_process_idx);
-                    exit(1);
-                }
-                memmove(fetch_buf, fetch_buf + fetch_process_idx,
-                        fetch_read_idx - fetch_process_idx);
-                fetch_read_idx -= fetch_process_idx;
-                fetch_process_idx = 0;
-            }
-            remain_size = CHAR_BUF_SIZE - fetch_read_idx;
+            // Loop exited normally;we guarantee all data has been consumed
+            fetch_process_idx=0;
+            remain_size=raw_input.gap_end - raw_input.gap_start +1;
             if (remain_size == 0) break;
             while (1) {
-                normal_tmp = read(0, fetch_buf + fetch_read_idx, remain_size);
+                normal_tmp = read(0, fetch_buf, remain_size);
                 if (normal_tmp < 0) {
                     fprintf(2, "Read error: %d\n", normal_tmp);
                     exit(1);
                 }
                 if (normal_tmp > 0) break;
                 // if normal_tmp == 0 (EOF), we should probably exit or break
-                if (normal_tmp == 0) {
-                    // Handle EOF gracefully if needed, or just break to avoid infinite loop
-                    // For now, let's treat it as no data and break if we want to avoid spinning
-                    // But original code spun on 0. Let's keep spinning but check for -1.
-                    continue;
-                }
             }
-            fetch_read_idx += normal_tmp;
-        } else {  // move the unread data forward
+            fetch_read_idx = normal_tmp;
+        } else {  // Received newline, save the data that hasn't been fully read!
             memmove(fetch_buf, fetch_buf + fetch_process_idx, fetch_read_idx - fetch_process_idx);
+            // Executed only once, efficiency is not a concern
             fetch_read_idx -= fetch_process_idx;
             fetch_process_idx = 0;
-            commit_cur_command(buf, editor_idx);
+            //Implement concatenation within the gapbuf_t to obtain a contiguous string
+            if(raw_input.gap_end<raw_input.capacity-1){
+                memmove(raw_input.buf+raw_input.gap_start, raw_input.buf+raw_input.gap_end+1, 
+                    GF_TAIL_LEN(raw_input));
+                raw_input.gap_start+=GF_TAIL_LEN(raw_input);
+                raw_input.gap_end=raw_input.capacity-1;
+            }
+            commit_cur_command(&raw_input);
+            raw_input.buf[GF_CNT_LEN(raw_input)]='\n';
             return;
         }
     }
     // overflow, return buffer don't end with newline
     fetch_process_idx = 0;
     fetch_read_idx = 0;  // reset the statement
-    commit_cur_command(buf, CHAR_BUF_SIZE);
+    if(raw_input.gap_end<raw_input.capacity-1){
+        memmove(raw_input.buf+raw_input.gap_start, raw_input.buf+raw_input.gap_end+1,
+            GF_TAIL_LEN(raw_input));
+        raw_input.gap_start+=GF_CNT_LEN(raw_input);
+        raw_input.gap_end=raw_input.capacity-1;
+    }
+    commit_cur_command(&raw_input);
 }
+
 
 // Reads a line of input from stdin into a buffer. Prints the prompt "$ " and returns -1 if EOF
 // (Ctrl+D) is encountered
 int getcmd(char *buf, int nbuf) {
     struct stat fd0_state;
     fstat(0, &fd0_state);
-    if (fd0_state.type != T_FILE) write(2, "$ ", 2);  // from regular file(not character device)
     memset(buf, 0, nbuf);
-    int cur_mode;
-    if (ioctl(0, CONSOLE_GET_MODE, (uint64)&cur_mode) < 0) return -1;
-    if (cur_mode == CONSOLE_MODE_CANONICAL) gets(buf, nbuf);
-    else if (cur_mode == CONSOLE_MODE_RAW)  // Process the character directly and control echoing
-        process_char_InRawMode(buf, nbuf);
+    if (fd0_state.type != T_FILE) write(2, "$ ", 2);  // from regular file(not character device)
+    if(fd0_state.type==T_DEVICE){
+        int cur_mode;
+        if (ioctl(0, CONSOLE_GET_MODE, (uint64)&cur_mode) < 0) return -1;
+        if (cur_mode == CONSOLE_MODE_CANONICAL) gets(buf, nbuf);
+        else if (cur_mode == CONSOLE_MODE_RAW)  // Process the character directly and control echoing
+            process_char_InRawMode(buf, nbuf);
+        else
+            return -1;    // Not supported mode
+    }
     else
-        return -1;    // Not supported mode
+        gets(buf, nbuf);
     if (buf[0] == 0)  // EOF
         return -1;
     return 0;
 }
 
 int main(void) {
-    static char buf[100];
+    static char buf[CHAR_BUF_SIZE];
+    //initialize the static global whitespace and symbols for fast indexing to avoid 
+    // strchr comparsion
+    init_Lookup_table(whitespace, 256, " \t\r\n\v");
+    init_Lookup_table(symbols, 256, "<|>&;()");
+    init_Lookup_table(specific_symbols, 256, "@~$");
     int fd;
 
     // Ensure that three file descriptors are open.
@@ -741,7 +789,7 @@ int main(void) {
 
     // Read and run input commands.
     while (getcmd(buf, sizeof(buf)) >= 0) {
-        // printf("current buf is %s\n", buf);
+        // printf("current buf is %s", buf);
         char *cmd = buf;
         while (*cmd == ' ' || *cmd == '\t') cmd++;
         if (*cmd == '\n') continue;                           // is a blank command
@@ -942,14 +990,16 @@ struct cmd *parse_exec(char **pointer_to_cursor, char *end_of_input) {
         if ((token_type = gettoken(pointer_to_cursor, end_of_input, &token_start, &token_end)) == 0)
             break;
         if (token_type != 'a') panic("syntax");  // should be argument
-        if (*token_start == '"' && *token_end == '"') {
-            printf("in sh.c, we meet the \"\"\n");
-            cmd->argv[argc] = token_start + 1;
-            cmd->argv[argc] = token_end - 1;
-        } else {
-            cmd->argv[argc] = token_start;
-            cmd->eargv[argc] = token_end;  // record the start and end pointer of the argument
-        }
+        // if (*token_start == '"' && token_end > token_start + 1 && *(token_end - 1) == '"') {
+        //     // Quoted argument: strip the surrounding quotes
+        //     cmd->argv[argc] = token_start + 1;
+        //     cmd->eargv[argc] = token_end - 1;
+        // } else {
+        //     cmd->argv[argc] = token_start;
+        //     cmd->eargv[argc] = token_end;  // record the start and end pointer of the argument
+        // }
+        cmd->argv[argc] = token_start;
+        cmd->eargv[argc] = token_end;  // record the start and end pointer of the argument
         argc++;
         if (argc >= MAXARGS) panic("too many args");
         ret = parse_redirections(

@@ -91,3 +91,36 @@ uint64 sys_uptime(void) {
     release(&tickslock);
     return xticks;
 }
+
+uint64 sys_interpose(void){
+    struct proc *p=myproc();
+    int syscall_mask_input;
+    uint64 allowed_path_addr;
+    argint(0, &syscall_mask_input);
+    argaddr(1, &allowed_path_addr);
+    unsigned int mask=(unsigned int)syscall_mask_input;
+    if(mask==0 || (mask & (mask -1))!=0) 
+        return -1;
+
+    int syscall_id=0;
+    unsigned int mask_copy=mask;
+    while((mask_copy & 0x1) ==0){
+        syscall_id++;
+        mask_copy >>=1 ;
+    }
+    if((p->syscall_mask >> syscall_id & 0x1) == 1)  
+        return -1;
+    int prev_len=strlen(p->allow_path_str); //pass All the tests
+    if(MAXPATH-2-prev_len <0)   return -1;
+    if(fetchstr(allowed_path_addr, p->allow_path_str+prev_len, MAXPATH-2-prev_len)<0){
+        //Append directly to the tail of it, and truncate it back if fails
+        p->allow_path_str[prev_len]='\0';
+        return -1;
+    }
+    //rearrange the end character 
+    int cur_len=strlen(p->allow_path_str);
+    p->allow_path_str[cur_len]='\n';
+    p->allow_path_str[cur_len+1]='\0';
+    p->syscall_mask |= mask;    //make sure don't affect other restricted syscalls
+    return 0;
+}

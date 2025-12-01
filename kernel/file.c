@@ -160,7 +160,7 @@ int fileioctl(struct file *f, int request, uint64 addr){
             return devsw[f->major].ioctl(request, addr);
             break;
         case FD_INODE:case FD_PIPE:
-            panic("Not support right now!");
+            panic("In fileioctl Not support right now!");
             return -1;
             break;
         default:

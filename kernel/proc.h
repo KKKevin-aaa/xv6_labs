@@ -92,7 +92,8 @@ struct proc { //Process control block(PCB)
   int killed;                  // If non-zero, have been killed
   int xstate;                  // Exit status to be returned to parent's wait
   int pid;                     // Process ID
-
+  int syscall_mask;            // Prohibited syscall mask (a bit set to 1 indicates the syscall is prohibited)
+  char allow_path_str[MAXPATH]; // List of allowed paths, separated by newlines(\n) for open and exec only
   // wait_lock must be held when using this:
   struct proc *parent;         // Parent process()
 

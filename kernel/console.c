@@ -36,7 +36,10 @@ struct {  // for struct:Intra-structure Locality
     struct spinlock lock;
     int mode;   // 0 for canonical(control by kernel's console),1 for raw(control by shell)
     int echo;   // 0(close), 1(open)
-#define INPUT_BUF_SIZE 5
+// Increase input buffer to avoid truncation of scripted commands.
+// Original xv6 uses 128; shell commands in this lab can reach ~100 bytes.
+// A tiny size (5) was causing loss of characters before the reader drained.
+#define INPUT_BUF_SIZE 128
     char buf_data[INPUT_BUF_SIZE];
     uint reader_idx;  // [Consumer] Index where the shell reads from
     uint commit_idx;  // [Boundary] Index up to which data is "committed"
@@ -71,6 +74,7 @@ int console_write(int is_from_user_space, uint64 source_address, int total_bytes
 // user read()s from the console go here.
 //
 int console_read(int is_to_user_space, uint64 dest_address, int max_bytes_to_read) {
+    // printf("now we can enter this console_read functions! now read_idx is %d\n", console_buf.reader_idx);
     if(console_buf.mode==CONSOLE_MODE_RAW){
         int fetch_char;char char_wrapped;
         int read_bytes=0;
@@ -140,6 +144,7 @@ int console_read(int is_to_user_space, uint64 dest_address, int max_bytes_to_rea
 // The console input interrupt handler.
 //
 void consoleintr(int input_char) {
+    // printf("we can enter this consoleintr functions!, now editor_idx is %d\n", console_buf.editor_idx);
     acquire(&console_buf.lock);
     if(console_buf.mode!=CONSOLE_MODE_RAW && console_buf.mode!=CONSOLE_MODE_CANONICAL){
         //Invalid mode, force to canonical mode
@@ -149,7 +154,6 @@ void consoleintr(int input_char) {
         if(console_buf.editor_idx-console_buf.reader_idx<INPUT_BUF_SIZE){
             console_buf.buf_data[console_buf.editor_idx % INPUT_BUF_SIZE]=input_char;
             console_buf.editor_idx++;
-            console_buf.commit_idx=console_buf.editor_idx;
             wakeup(&console_buf.reader_idx);
         }
         release(&console_buf.lock);

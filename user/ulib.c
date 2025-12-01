@@ -87,24 +87,32 @@ long strtol(const char *nptr, char **endptr, int base) {
     // skip the leading whitespace
     while (*nptr == ' ' || *nptr == '\t') nptr++;
     int negative = 0;
-    if (nptr[0] == '-') {
+    if (nptr[0] == '-') {   //skip the prefix
         negative = 1;
         nptr++;
     }
+    else if(nptr[0]=='+'){
+        nptr++;
+    }
+    long cutoff=__LONG_MAX__ / base;
+    long cutlim=__LONG_MAX__ % base;
     // handle the prefix(0x for hex)
     if (base == 16 && nptr[0] == '0' && (nptr[1] == 'x' || nptr[1] == 'X')) nptr += 2;
     long acc_ret = 0;
     int val = 0;
     while (nptr[0] != '\0') {
-        if (nptr[0] >= '0' && nptr[0] <= '9') val += (nptr[0] - '0');
+        if (nptr[0] >= '0' && nptr[0] <= '9') val = (nptr[0] - '0');
         else if (nptr[0] >= 'a' && nptr[0] <= 'z')
-            val += (10 + nptr[0] - 'a');
+            val = (10 + nptr[0] - 'a');
         else if (nptr[0] >= 'A' && nptr[0] <= 'Z')
-            val += (10 + nptr[0] - 'A');
+            val = (10 + nptr[0] - 'A');
         else
             break;
         if (val >= base) break;
-        acc_ret += acc_ret * base + val;
+        //check if overflow
+        if(acc_ret>cutoff || (acc_ret==cutoff && val > cutlim))
+            return negative ? (-__LONG_MAX__-1) : __LONG_MAX__;
+        acc_ret = acc_ret * base + val;
         nptr++;
     }
     if (endptr != NULL) *endptr = (char *)nptr;

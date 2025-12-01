@@ -307,6 +307,19 @@ void canonicalize_path(char* path);
  */
 unsigned get_char_offset(const char* path, char c, int num);
 
+/**
+ * @brief Intercepts and restricts a specific system call for the calling process.
+ * 
+ * This function installs a hook to prevent the kernel fomr executing
+ * the specified system call. It essentially "sandbox" the current process by
+ * disabling specific functionality.
+ * @param syscall_num the unqiue identifier of the system call to block
+ * @param keep_params Pointer to specific arguments or a configuration structure.
+ * if not NULL, only syscalls matching these paramters might be allowed
+ * @return 0 on success; a negative error code on failure
+ */
+int interpose(int syscall_num, char *keep_params);
+
 //==============================================================================
 // printf.c
 //==============================================================================

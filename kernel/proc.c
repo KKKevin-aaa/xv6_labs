@@ -109,7 +109,7 @@ static struct proc *allocproc(void) {
 found:
     p->pid = allocpid();
     p->state = USED;
-
+    p->syscall_mask =0;
     // Allocate a trapframe page.
     if ((p->trapframe = (struct trapframe *)kalloc()) == 0) {
         freeproc(p);
@@ -228,7 +228,9 @@ int kfork(void) {
     struct proc *np;
     struct proc *p = myproc();
 
-    // Allocate process.
+    // Allocate process(process control block).
+    // Critical: allocproc() acquires p->lock of the new process.
+    // This prevent the scheduler from picking up this "half-baked" process.
     if ((np = allocproc()) == 0) {
         return -1;
     }
@@ -242,20 +244,29 @@ int kfork(void) {
     np->sz = p->sz;
 
     // copy saved user registers.
+    // Ensure the child resumes execution at the exact same point
     *(np->trapframe) = *(p->trapframe);
 
     // Cause fork to return 0 in the child.
+    // Make child process know it is the child process.
     np->trapframe->a0 = 0;
 
     // increment reference counts on open file descriptors.
     for (i = 0; i < NOFILE; i++)
         if (p->ofile[i]) np->ofile[i] = filedup(p->ofile[i]);
+    // Duplicate the current working directory.(increment reference count)
     np->cwd = idup(p->cwd);
 
+    //Copy the process name for debugging purpose
     safestrcpy(np->name, p->name, sizeof(p->name));
 
     pid = np->pid;
-
+    
+    np->syscall_mask=p->syscall_mask;
+    safestrcpy(np->allow_path_str, p->allow_path_str, strlen(p->allow_path_str));
+    // Lock Ordering Dance (Deadlock Avoidance)
+    // We must release np->lock before acquiring wait_lock to obey the global lock order.
+    // Order: wait_lock -> proc->lock.
     release(&np->lock);
 
     acquire(&wait_lock);
@@ -263,7 +274,7 @@ int kfork(void) {
     release(&wait_lock);
 
     acquire(&np->lock);
-    np->state = RUNNABLE;
+    np->state = RUNNABLE;   //The scheduler can now pick up this process.
     release(&np->lock);
 
     return pid;
