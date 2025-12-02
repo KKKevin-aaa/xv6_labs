@@ -61,6 +61,30 @@ int argstr(int n, char *buf, int max) {
     return fetchstr(addr, buf, max);
 }
 
+int path_match(char *input_path, char *allow_path_str){
+    struct proc *p=myproc();
+    int input_len=strlen(input_path), total_len=strlen(p->allow_path_str);
+    int cur_len=0;
+    char *start=p->allow_path_str, *end=p->allow_path_str;
+    while(*start!='\0'){
+        while(*end!='\0' && *end!='\n')
+            end++;
+        cur_len=end-start;
+        if(cur_len!=0 && input_len==cur_len 
+            && strncmp(input_path, start, input_len)==0){
+                return 1;
+        }
+        if(*end!='\0'){
+            end++;
+            start=end;
+        }
+        else{
+            return 0;
+        }
+    }
+    return 0;
+}
+
 // Prototypes for the functions that handle system calls.
 extern uint64 sys_fork(void);
 extern uint64 sys_exit(void);
@@ -122,8 +146,26 @@ void syscall(void) {
         // Use num to lookup the system call function for num, call it,
         // and store its return value in p->trapframe->a0
         if ((p->syscall_mask >> num & 0x1) == 1) {
-            printf("pid: %d process(%s), syscall(%d) is restricted!\n", p->pid, p->name, num);
-            p->trapframe->a0 = -1;
+            if(num==SYS_open || num==SYS_exec){
+                uint input_path_addr;
+                char input_path[MAXPATH];
+                argaddr(0, &input_path_addr);
+                if(fetchstr(input_path_addr, &input_path, MAXPATH)<0){
+                    printf("Error path:\n");
+                    return -1;
+                }
+                if(path_match(input_path, p->allow_path_str)==1){
+                    p->trapframe->a0 = syscalls[num]();
+                }
+                else{
+                    printf("pid: %d process(%s),open or exec is restricted!\n", p->pid, p->name);
+                    printf("Meanwhile, the input path is not within the allowed special paths\n");
+                }
+            }
+            else{
+                printf("pid: %d process(%s), syscall(%d) is restricted!\n", p->pid, p->name, num);
+                p->trapframe->a0 = -1;
+            }
         } else {
             p->trapframe->a0 = syscalls[num]();
         }
