@@ -63,23 +63,26 @@ int argstr(int n, char *buf, int max) {
 
 int path_match(char *input_path, char *allow_path_str){
     struct proc *p=myproc();
-    int input_len=strlen(input_path), total_len=strlen(p->allow_path_str);
-    int cur_len=0;
-    char *start=p->allow_path_str, *end=p->allow_path_str;
-    while(*start!='\0'){
-        while(*end!='\0' && *end!='\n')
-            end++;
-        cur_len=end-start;
-        if(cur_len!=0 && input_len==cur_len 
-            && strncmp(input_path, start, input_len)==0){
-                return 1;
+    //KMP algorithm
+    char *ref_cursor=p->allow_path_str, *input_curosr=input_path;
+    while(*ref_cursor!='\0'){
+        while(*input_curosr!='\0' && *ref_cursor!='\0' && *ref_cursor!='\n'
+                && *ref_cursor==*input_curosr){
+            input_curosr++;
+            ref_cursor++;
         }
-        if(*end!='\0'){
-            end++;
-            start=end;
-        }
-        else{
+        //Determine the cuase of loop exit
+        if(*input_curosr=='\0' && (*ref_cursor=='\n' || *ref_cursor=='\0'))
+            return 1;   //Successfully matched(all got the end!)
+        else if(*ref_cursor=='\0')
             return 0;
+        else{
+            input_curosr=input_path;    //Restart matching from the beginning
+            while(*ref_cursor!='\0' && *ref_cursor!='\n')
+                ref_cursor++;
+            if(*ref_cursor=='\0')   //arrive the end
+                return 0;
+            ref_cursor++;
         }
     }
     return 0;
@@ -147,19 +150,22 @@ void syscall(void) {
         // and store its return value in p->trapframe->a0
         if ((p->syscall_mask >> num & 0x1) == 1) {
             if(num==SYS_open || num==SYS_exec){
-                uint input_path_addr;
+                uint64 input_path_addr;
                 char input_path[MAXPATH];
                 argaddr(0, &input_path_addr);
-                if(fetchstr(input_path_addr, &input_path, MAXPATH)<0){
+                if(fetchstr(input_path_addr, input_path, MAXPATH)<0){
                     printf("Error path:\n");
-                    return -1;
+                    p->trapframe->a0=-1;
+                    return;
                 }
                 if(path_match(input_path, p->allow_path_str)==1){
+                    printf("path matched!Now open or exec is allowed!\n");
                     p->trapframe->a0 = syscalls[num]();
                 }
                 else{
                     printf("pid: %d process(%s),open or exec is restricted!\n", p->pid, p->name);
                     printf("Meanwhile, the input path is not within the allowed special paths\n");
+                    p->trapframe->a0=-1;
                 }
             }
             else{

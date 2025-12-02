@@ -290,6 +290,9 @@ ifeq ($(LAB),syscall)
 	UEXTRA += user/exec.sh
 endif
 
+# Add custom text files to filesystem
+UEXTRA += big.txt bigger.txt biggerer.txt huge.txt
+
 fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS)
 	mkfs/mkfs fs.img README $(UEXTRA) $(UPROGS)
 
@@ -313,7 +316,7 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	then echo "-gdb tcp::$(GDBPORT)"; \
 	else echo "-s -p $(GDBPORT)"; fi)
 ifndef CPUS
-CPUS := 3
+CPUS := 1
 endif
 ifeq ($(LAB),fs)
 CPUS := 1

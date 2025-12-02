@@ -101,7 +101,6 @@ uint64 sys_interpose(void){
     unsigned int mask=(unsigned int)syscall_mask_input;
     if(mask==0 || (mask & (mask -1))!=0) 
         return -1;
-
     int syscall_id=0;
     unsigned int mask_copy=mask;
     while((mask_copy & 0x1) ==0){
@@ -110,17 +109,20 @@ uint64 sys_interpose(void){
     }
     if((p->syscall_mask >> syscall_id & 0x1) == 1)  
         return -1;
-    int prev_len=strlen(p->allow_path_str); //pass All the tests
-    if(MAXPATH-2-prev_len <0)   return -1;
-    if(fetchstr(allowed_path_addr, p->allow_path_str+prev_len, MAXPATH-2-prev_len)<0){
-        //Append directly to the tail of it, and truncate it back if fails
-        p->allow_path_str[prev_len]='\0';
+    char tmp_path[MAXPATH];
+    if(fetchstr(allowed_path_addr, tmp_path, MAXPATH)<0)
         return -1;
+    if(strlen(tmp_path)!=1 ||strncmp(tmp_path, "-", 1)!=0){
+        int prev_len=strlen(p->allow_path_str); //pass All the tests
+        int tmp_len=strlen(tmp_path);
+        if(tmp_len+prev_len+2>=MAXPATH)
+            return -1;
+        strncpy(p->allow_path_str+prev_len, tmp_path, tmp_len);
+        //rearrange the end character 
+        int cur_len=strlen(p->allow_path_str);
+        p->allow_path_str[cur_len]='\n';
+        p->allow_path_str[cur_len+1]='\0';
     }
-    //rearrange the end character 
-    int cur_len=strlen(p->allow_path_str);
-    p->allow_path_str[cur_len]='\n';
-    p->allow_path_str[cur_len+1]='\0';
     p->syscall_mask |= mask;    //make sure don't affect other restricted syscalls
     return 0;
 }

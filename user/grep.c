@@ -4,34 +4,35 @@
 #include "kernel/stat.h"
 #include "kernel/fcntl.h"
 #include "user/user.h"
-
-char buf[1024];
+#define BUF_SIZE 1024
+static char buf[BUF_SIZE];
 
 /**
  * process_stream: read data from the given file descriptor, cut by line,and invoke regex matcher
- * @parma pattern: the regex pattern
- * @parma fd: file descriptor to read from
+ * @param pattern: the regex pattern
+ * @param fd: file descriptor to read from
+ * @param 
  */
-void process_stream(char *pattern, int fd){
-    int bytes_read, data_length=0;
-    char *line_start, *newline_ptr;
-    while((bytes_read=read(fd, buf+data_length, sizeof(buf)-1-data_length))>0){
-        data_length+=bytes_read;
-        buf[data_length]='\0';
-        line_start=buf;
-        while((newline_ptr=strchr(line_start, '\n'))!=NULL){
-            *newline_ptr='\0';
-            if(regex_match(pattern, line_start)){
-                *newline_ptr='\n';
-                write(fd, buf, newline_ptr-line_start+1);
+static void process_stream(char *pattern, int fd){
+    int n_read, buffered_len=0;
+    char *line_head, *end_of_line;
+    while((n_read=read(fd, buf+buffered_len,BUF_SIZE-1-buffered_len))>0){
+        buffered_len+=n_read;
+        buf[buffered_len]='\0';
+        line_head=buf;
+        while((end_of_line=strchr(line_head, '\n'))!=NULL){
+            *end_of_line='\0';
+            if(regex_match(pattern, line_head)){
+                *end_of_line='\n';
+                write(1, line_head, end_of_line-line_head+1); 
                 //Scan by block IO, not by bytes(More efficent)
             }
-            line_start=newline_ptr+1;
+            line_head=end_of_line+1;
         }
-        if(data_length>0){
-            int remaining_len=data_length-(line_start-buf);
-            memmove(buf, line_start, remaining_len);
-            data_length=remaining_len;
+        if(buffered_len>0){
+            int remaining_len=buffered_len-(line_head-buf);
+            memmove(buf, line_head, remaining_len);
+            buffered_len=remaining_len;
         }
     }
 }

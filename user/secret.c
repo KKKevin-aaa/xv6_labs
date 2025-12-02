@@ -14,7 +14,6 @@ main(int argc, char *argv[])
     printf("Usage: secret the-secret\n");
     exit(1);
   }
-
   strcpy(data, "This may help.");
 
   strcpy(data + 16, argv[1]);
