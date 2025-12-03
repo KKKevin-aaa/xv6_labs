@@ -5,7 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
-
+// #define PROC_DEBUG
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -140,7 +140,13 @@ found:
 static void freeproc(struct proc *p) {
     if (p->trapframe) kfree((void *)p->trapframe);
     p->trapframe = 0;
+    #ifdef PROC_DEBUG
+    printf("in freeproc oldpagetbale is %p\n", p->pagetable);
+    #endif
     if (p->pagetable) proc_freepagetable(p->pagetable, p->sz);
+    #ifdef PROC_DEBUG
+    printf("Done free this process's memory!\n");
+    #endif
     p->pagetable = 0;
     p->sz = 0;
     p->pid = 0;
@@ -263,6 +269,9 @@ int kfork(void) {
     pid = np->pid;
     
     np->syscall_mask=p->syscall_mask;
+    #ifdef PROC_DEBUG
+    printf("In fork now pid is %d, pagetale is %p\n", np->pid, np->pagetable);
+    #endif
     safestrcpy(np->allow_path_str, p->allow_path_str, strlen(p->allow_path_str));
     // Lock Ordering Dance (Deadlock Avoidance)
     // We must release np->lock before acquiring wait_lock to obey the global lock order.

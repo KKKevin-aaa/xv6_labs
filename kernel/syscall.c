@@ -154,17 +154,17 @@ void syscall(void) {
                 char input_path[MAXPATH];
                 argaddr(0, &input_path_addr);
                 if(fetchstr(input_path_addr, input_path, MAXPATH)<0){
-                    printf("Error path:\n");
+                    // printf("Error path:\n");
                     p->trapframe->a0=-1;
                     return;
                 }
                 if(path_match(input_path, p->allow_path_str)==1){
-                    printf("path matched!Now open or exec is allowed!\n");
+                    // printf("path matched!Now open or exec is allowed!\n");
                     p->trapframe->a0 = syscalls[num]();
                 }
                 else{
                     printf("pid: %d process(%s),open or exec is restricted!\n", p->pid, p->name);
-                    printf("Meanwhile, the input path is not within the allowed special paths\n");
+                    // printf("Meanwhile, the input path is not within the allowed special paths\n");
                     p->trapframe->a0=-1;
                 }
             }

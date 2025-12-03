@@ -6,7 +6,7 @@
 #include "proc.h"
 #include "defs.h"
 #include "elf.h"
-
+// #define EXEC_DEBUG
 static int loadseg(pde_t *, uint64, struct inode *, uint, uint);
 
 // map ELF permissions to PTE permission bits.
@@ -71,12 +71,19 @@ int kexec(char *path, char **argv) {
     // Make the first inaccessible as a stack guard.
     // Use the rest as the user stack.
     sz = PGROUNDUP(sz);
+    #ifdef EXEC_DEBUG
+    printf("[EXEC] Process %s(pid=%d): OLD sz=%ld pages, NEW text/data sz=%ld pages\n", 
+           p->name, p->pid, oldsz/PGSIZE, sz/PGSIZE);
+    #endif
     uint64 sz1;
     if ((sz1 = uvmalloc(pagetable, sz, sz + (USERSTACK + 1) * PGSIZE, PTE_W)) == 0) goto bad;
     sz = sz1;
+    #ifdef EXEC_DEBUG
+    printf("[EXEC] After adding stack: NEW total sz=%ld pages\n", sz/PGSIZE);
+    #endif
     uvmclear(pagetable, sz - (USERSTACK + 1) * PGSIZE);
     sp = sz;
-    stackbase = sp - USERSTACK * PGSIZE;
+    stackbase = sp - USERSTACK * PGSIZE;    //the end of user_stack,should not arrived!
 
     // Copy argument strings into new stack, remember their
     // addresses in ustack[].
@@ -112,8 +119,15 @@ int kexec(char *path, char **argv) {
     p->sz = sz;
     p->trapframe->epc = elf.entry;  // initial program counter = main
     p->trapframe->sp = sp;          // initial stack pointer
+    #ifdef EXEC_DEBUG
+    printf("[EXEC] Now freeing OLD pagetable=%p with oldsz=%ld pages\n", 
+           oldpagetable, oldsz/PGSIZE);
+    #endif
     proc_freepagetable(oldpagetable, oldsz);
-
+    #ifdef EXEC_DEBUG
+    printf("[EXEC] Process %s(pid=%d) exec complete. Final sz=%ld pages\n", 
+           p->name, p->pid, sz/PGSIZE);
+    #endif
     return argc;  // this ends up in a0, the first argument to main(argc, argv)
 
 bad:
