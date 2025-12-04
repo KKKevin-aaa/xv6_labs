@@ -20,7 +20,7 @@ extern void forkret(void);
 static void freeproc(struct proc *p);
 
 extern char trampoline[];  // trampoline.S
-
+extern void *usyscall_pa;
 // helps ensure that wakeups of wait()ing
 // parents are not lost. helps obey the
 // memory model when using p->parent.
@@ -167,7 +167,10 @@ pagetable_t proc_pagetable(struct proc *p) {
     // An empty page table.
     pagetable = uvmcreate();
     if (pagetable == 0) return 0;
-
+    if(usyscall_pa==0)
+        return 0;
+    else
+        ((struct usyscall *)usyscall_pa)->pid=p->pid;
     // map the trampoline code (for system call return)
     // at the highest user virtual address.
     // only the supervisor uses it, on the way
@@ -185,6 +188,14 @@ pagetable_t proc_pagetable(struct proc *p) {
         return 0;
     }
 
+    // establish a shared, read-only mapping at USYSCALL to speed up syscalls via direct memory address.
+    if(mappages(pagetable, USYSCALL, PGSIZE, (uint64)usyscall_pa, PTE_R | PTE_U)<0){
+        uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+        uvmunmap(pagetable, TRAPFRAME,  1, 0);
+        uvmfree(pagetable, 0);  //have not alloc memory, so size equal zero!
+        return 0;
+    }
+
     return pagetable;
 }
 
@@ -193,6 +204,8 @@ pagetable_t proc_pagetable(struct proc *p) {
 void proc_freepagetable(pagetable_t pagetable, uint64 sz) {
     uvmunmap(pagetable, TRAMPOLINE, 1, 0);
     uvmunmap(pagetable, TRAPFRAME, 1, 0);
+    uvmunmap(pagetable, USYSCALL, 1, 0);
+    //All process share one usyscall page,so don' free here!
     uvmfree(pagetable, sz);
 }
 
@@ -504,7 +517,7 @@ void forkret(void) {
     }
 
     // return to user space, mimicing usertrap()'s return.
-    prepare_return();
+    prepare_return();   //change the stvec from kerneltrap to usertrap
     uint64 satp = MAKE_SATP(p->pagetable);
     uint64 trampoline_userret = TRAMPOLINE + (userret - trampoline);
     ((void (*)(uint64))trampoline_userret)(satp);

@@ -67,5 +67,6 @@
 
 struct usyscall {
   int pid;  // Process ID
+  int ticks; //Uptime the time
 };
 #endif

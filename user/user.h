@@ -186,6 +186,7 @@ int recv(uint16, uint32*, uint16*, char *, uint32);
 #endif
 #ifdef LAB_PGTBL
 int ugetpid(void);
+int u_uptime(void);
 uint64 pgpte(void*);
 void kpgtbl(void);
 #endif

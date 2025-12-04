@@ -21,19 +21,18 @@
 #define SYS_mkdir  20
 #define SYS_close  21
 #define SYS_ioctl  22
-#define SYS_interpose 23
 
 // System calls for labs
-#define SYS_trace     24
-#define SYS_interpose 25
-#define SYS_sigalarm  26
-#define SYS_sigreturn 27
-#define SYS_symlink   28
-#define SYS_mmap      29
-#define SYS_munmap    30
-#define SYS_bind      31
-#define SYS_unbind    32
-#define SYS_send      33
-#define SYS_recv      34
-#define SYS_pgpte     35
-#define SYS_kpgtbl    36
+#define SYS_trace     23
+#define SYS_interpose 24
+#define SYS_sigalarm  25
+#define SYS_sigreturn 26
+#define SYS_symlink   27
+#define SYS_mmap      28
+#define SYS_munmap    29
+#define SYS_bind      30
+#define SYS_unbind    31
+#define SYS_send      32
+#define SYS_recv      33
+#define SYS_pgpte     34
+#define SYS_kpgtbl    35

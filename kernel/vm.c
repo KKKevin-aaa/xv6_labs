@@ -12,7 +12,7 @@
  * the kernel's page table.
  */
 pagetable_t kernel_pagetable;
-
+void *usyscall_pa=NULL;
 extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[];  // trampoline.S
@@ -23,6 +23,11 @@ pagetable_t kvmmake(void) {
 
     kpgtbl = (pagetable_t)kalloc();
     memset(kpgtbl, 0, PGSIZE);
+
+    usyscall_pa=kalloc();
+    memset(usyscall_pa, 0, PGSIZE);
+    //Allocated once during system initialization, not per-process;
+    //thus, it is immune to memory leak.
 
     // uart registers
     kvmmap(kpgtbl, UART0, UART0, PGSIZE, PTE_R | PTE_W);
@@ -86,7 +91,6 @@ void kvminithart() {
 //    0..11 -- 12 bits of byte offset within the page.
 pte_t *walk(pagetable_t pagetable, uint64 va, int alloc) {
     if (va >= MAXVA) panic("walk");
-
     for (int level = 2; level > 0; level--) {
         pte_t *pte = &pagetable[PX(level, va)];
         if (*pte & PTE_V) {
@@ -123,8 +127,37 @@ uint64 walkaddr(pagetable_t pagetable, uint64 va) {
 }
 
 #if defined(LAB_PGTBL) || defined(SOL_MMAP) || defined(SOL_COW)
+void prefix_helper(char c, int count){
+    int i=count;
+    while(i-- > 0)  printf("%c", c);
+}
+uint64 get_step_size(int depth){
+    if(depth==1)    return 1l<<30;
+    else if(depth==2)   return 1l<<21;
+    else if(depth==3)   return 1l<<12;
+    return 0;
+}
+void walk_all_page(uint64 start_va, pagetable_t pagetable, int depth){
+    for(int i=0;i<512;i++){
+        pte_t pte=pagetable[i];
+        uint64 pa=PTE2PA(pte);
+        if(pte & PTE_V){
+            prefix_helper('.', depth*2);
+            printf("%p: pte %p pa %p\n", (void *)start_va, (void *)pte, (void *)pa);
+            if((pte & (PTE_X | PTE_W | PTE_R))==0){
+                //this PTE points to a lower-level page table.
+                walk_all_page(start_va, (pagetable_t)(void *)pa, depth+1);
+                //have not handle current va
+            }
+        }
+        start_va+=get_step_size(depth);
+    }
+}
+
 void vmprint(pagetable_t pagetable) {
-    // your code here
+    // your code here'
+    printf("page table %p\n", pagetable);
+    walk_all_page(0, pagetable, 1);
 }
 #endif
 

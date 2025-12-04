@@ -10,7 +10,7 @@ struct spinlock tickslock;
 uint ticks;
 
 extern char trampoline[], uservec[];
-
+extern void *usyscall_pa;
 // in kernelvec.S, calls kerneltrap().
 void kernelvec();
 
@@ -41,7 +41,7 @@ uint64 usertrap(void) {
     p->trapframe->epc = r_sepc();
 
     if (r_scause() == 8) {
-        // system call
+        // system call(Environment call from U-mode!)
 
         if (killed(p)) kexit(-1);
 
@@ -54,7 +54,7 @@ uint64 usertrap(void) {
         intr_on();
 
         syscall();
-    } else if ((which_dev = devintr()) != 0) {
+    } else if ((which_dev = devintr()) != 0) {//device interrupt
         // ok
     } else if ((r_scause() == 15 || r_scause() == 13) &&
                vmfault(p->pagetable, r_stval(), (r_scause() == 13) ? 1 : 0) != 0) {
@@ -145,6 +145,7 @@ void clockintr() {
         acquire(&tickslock);
         ticks++;
         wakeup(&ticks);
+        ((struct usyscall *)usyscall_pa)->ticks=ticks;
         release(&tickslock);
     }
 
@@ -164,7 +165,7 @@ int devintr() {
 
     if (scause == 0x8000000000000009L) {
         // this is a supervisor external interrupt, via PLIC.
-
+        //(Platform Level Interrupt Controller)
         // irq indicates which device interrupted.
         int irq = plic_claim();
 

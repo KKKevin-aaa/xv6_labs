@@ -77,41 +77,33 @@ uint64 sys_pause(void) {
     return 0;
 }
 
-
 #ifdef LAB_PGTBL
-int
-sys_pgpte(void)
-{
-  uint64 va;
-  struct proc *p;  
+int sys_pgpte(void) {
+    uint64 va;
+    struct proc *p;
 
-  p = myproc();
-  argaddr(0, &va);
-  pte_t *pte = pgpte(p->pagetable, va);
-  if(pte != 0) {
-      return (uint64) *pte;
-  }
-  return 0;
+    p = myproc();
+    argaddr(0, &va);
+    pte_t *pte = pgpte(p->pagetable, va);
+    if (pte != 0) {
+        return (uint64)*pte;
+    }
+    return 0;
 }
 #endif
 
 #ifdef LAB_PGTBL
-int
-sys_kpgtbl(void)
-{
-  struct proc *p;  
+int sys_kpgtbl(void) {
+    struct proc *p;
 
-  p = myproc();
-  vmprint(p->pagetable);
-  return 0;
+    p = myproc();
+    vmprint(p->pagetable);
+    return 0;
 }
 #endif
 
-
-uint64
-sys_kill(void)
-{
-  int pid;
+uint64 sys_kill(void) {
+    int pid;
 
     argint(0, &pid);
     return kkill(pid);
@@ -128,37 +120,33 @@ uint64 sys_uptime(void) {
     return xticks;
 }
 
-uint64 sys_interpose(void){
-    struct proc *p=myproc();
+uint64 sys_interpose(void) {
+    struct proc *p = myproc();
     int syscall_mask_input;
     uint64 allowed_path_addr;
     argint(0, &syscall_mask_input);
     argaddr(1, &allowed_path_addr);
-    unsigned int mask=(unsigned int)syscall_mask_input;
-    if(mask==0 || (mask & (mask -1))!=0) 
-        return -1;
-    int syscall_id=0;
-    unsigned int mask_copy=mask;
-    while((mask_copy & 0x1) ==0){
+    unsigned int mask = (unsigned int)syscall_mask_input;
+    if (mask == 0 || (mask & (mask - 1)) != 0) return -1;
+    int syscall_id = 0;
+    unsigned int mask_copy = mask;
+    while ((mask_copy & 0x1) == 0) {
         syscall_id++;
-        mask_copy >>=1 ;
+        mask_copy >>= 1;
     }
-    if((p->syscall_mask >> syscall_id & 0x1) == 1)  
-        return -1;
+    if ((p->syscall_mask >> syscall_id & 0x1) == 1) return -1;
     char tmp_path[MAXPATH];
-    if(fetchstr(allowed_path_addr, tmp_path, MAXPATH)<0)
-        return -1;
-    if(strlen(tmp_path)!=1 ||strncmp(tmp_path, "-", 1)!=0){
-        int prev_len=strlen(p->allow_path_str); //pass All the tests
-        int tmp_len=strlen(tmp_path);
-        if(tmp_len+prev_len+2>=MAXPATH)
-            return -1;
-        strncpy(p->allow_path_str+prev_len, tmp_path, tmp_len);
-        //rearrange the end character 
-        int cur_len=strlen(p->allow_path_str);
-        p->allow_path_str[cur_len]='\n';
-        p->allow_path_str[cur_len+1]='\0';
+    if (fetchstr(allowed_path_addr, tmp_path, MAXPATH) < 0) return -1;
+    if (strlen(tmp_path) != 1 || strncmp(tmp_path, "-", 1) != 0) {
+        int prev_len = strlen(p->allow_path_str);  // pass All the tests
+        int tmp_len = strlen(tmp_path);
+        if (tmp_len + prev_len + 2 >= MAXPATH) return -1;
+        strncpy(p->allow_path_str + prev_len, tmp_path, tmp_len);
+        // rearrange the end character
+        int cur_len = strlen(p->allow_path_str);
+        p->allow_path_str[cur_len] = '\n';
+        p->allow_path_str[cur_len + 1] = '\0';
     }
-    p->syscall_mask |= mask;    //make sure don't affect other restricted syscalls
+    p->syscall_mask |= mask;  // make sure don't affect other restricted syscalls
     return 0;
 }

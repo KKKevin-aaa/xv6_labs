@@ -152,7 +152,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_ioctl] sys_ioctl, 
-[SYS_interpose] sys_interpose
+[SYS_interpose] sys_interpose,
 #ifdef LAB_NET
 [SYS_bind] sys_bind,
 [SYS_unbind] sys_unbind,

@@ -133,6 +133,11 @@ ugetpid(void)
   struct usyscall *u = (struct usyscall *)USYSCALL;
   return u->pid;
 }
+int u_uptime(void){
+    struct usyscall *u=(struct usyscall *)USYSCALL;
+    return u->ticks;
+}
+
 #endif
 int atoi(const char *s) {
     // int n;
