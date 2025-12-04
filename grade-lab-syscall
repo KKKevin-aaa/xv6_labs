@@ -31,7 +31,7 @@ def test_sandbox_fork():
     r.run_qemu(shell_script([
         'sandbox 32768 - sh < exec.sh',
         'echo DONE',
-    ], 'DONE'))
+    ], '.*DONE'))
     matches = re.findall("hello world", r.qemu.output)
     assert_equal(len(matches), 1, "Number of appearances of 'hello world'")
     matches = re.findall("cannot open .", r.qemu.output)

@@ -164,7 +164,7 @@ void syscall(void) {
                 }
                 else{
                     printf("pid: %d process(%s),open or exec is restricted!\n", p->pid, p->name);
-                    // printf("Meanwhile, the input path is not within the allowed special paths\n");
+                    printf("Meanwhile, the input path is not within the allowed special paths\n");
                     p->trapframe->a0=-1;
                 }
             }

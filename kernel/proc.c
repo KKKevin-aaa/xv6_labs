@@ -6,6 +6,7 @@
 #include "proc.h"
 #include "defs.h"
 // #define PROC_DEBUG
+// #define PROC_TEST_TIME 
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -233,7 +234,9 @@ int kfork(void) {
     int i, pid;
     struct proc *np;
     struct proc *p = myproc();
-
+    #ifdef PROC_TEST_TIME
+        uint64 kfork_start_time=r_cycle();
+    #endif
     // Allocate process(process control block).
     // Critical: allocproc() acquires p->lock of the new process.
     // This prevent the scheduler from picking up this "half-baked" process.
@@ -272,7 +275,7 @@ int kfork(void) {
     #ifdef PROC_DEBUG
     printf("In fork now pid is %d, pagetale is %p\n", np->pid, np->pagetable);
     #endif
-    safestrcpy(np->allow_path_str, p->allow_path_str, strlen(p->allow_path_str));
+    safestrcpy(np->allow_path_str, p->allow_path_str, MAXPATH);
     // Lock Ordering Dance (Deadlock Avoidance)
     // We must release np->lock before acquiring wait_lock to obey the global lock order.
     // Order: wait_lock -> proc->lock.
@@ -284,8 +287,13 @@ int kfork(void) {
 
     acquire(&np->lock);
     np->state = RUNNABLE;   //The scheduler can now pick up this process.
+    #ifdef PROC_TEST_TIME
+        uint64 kfork_end_time=r_cycle();
+        if(kfork_end_time-kfork_start_time>10000){
+            printf("PERF: fork pid %d took %ld cycles\n", np->pid, kfork_end_time-kfork_start_time);
+        }
+    #endif
     release(&np->lock);
-
     return pid;
 }
 

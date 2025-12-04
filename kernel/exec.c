@@ -7,6 +7,7 @@
 #include "defs.h"
 #include "elf.h"
 // #define EXEC_DEBUG
+// #define EXEC_TEST_TIME
 static int loadseg(pde_t *, uint64, struct inode *, uint, uint);
 
 // map ELF permissions to PTE permission bits.
@@ -29,7 +30,9 @@ int kexec(char *path, char **argv) {
     struct proghdr ph;
     pagetable_t pagetable = 0, oldpagetable;
     struct proc *p = myproc();
-
+    #ifdef EXEC_TEST_TIME
+        uint64 kexec_start_time=r_cycle();
+    #endif
     begin_op();
 
     // Open the executable file.
@@ -127,6 +130,12 @@ int kexec(char *path, char **argv) {
     #ifdef EXEC_DEBUG
     printf("[EXEC] Process %s(pid=%d) exec complete. Final sz=%ld pages\n", 
            p->name, p->pid, sz/PGSIZE);
+    #endif
+    #ifdef EXEC_TEST_TIME
+        uint64 kexec_end_time=r_cycle();
+        if(kexec_end_time-kexec_start_time>10000){
+            printf("PERF: exec pid %d took %ld cycles\n", p->pid, kexec_end_time-kexec_start_time);
+        }
     #endif
     return argc;  // this ends up in a0, the first argument to main(argc, argv)
 
