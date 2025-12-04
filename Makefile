@@ -5,6 +5,13 @@
 
 -include conf/lab.mk
 
+
+# To compile and run with a lab solution, set the lab name in conf/lab.mk
+# (e.g., LAB=util).  Run make grade to test solution with the lab's
+# grade script (e.g., grade-lab-util).
+
+-include conf/lab.mk
+
 K=kernel
 U=user
 
@@ -31,6 +38,33 @@ OBJS = \
   $K/kernelvec.o \
   $K/plic.o \
   $K/virtio_disk.o
+
+OBJS_KCSAN = \
+  $K/start.o \
+  $K/console.o \
+  $K/printf.o \
+  $K/uart.o \
+  $K/spinlock.o
+
+ifdef KCSAN
+OBJS_KCSAN += \
+	$K/kcsan.o
+endif
+
+ifeq ($(LAB),lock)
+OBJS += \
+	$K/stats.o\
+	$K/sprintf.o
+endif
+
+
+ifeq ($(LAB),net)
+OBJS += \
+	$K/e1000.o \
+	$K/net.o \
+	$K/pci.o
+endif
+
 
 OBJS_KCSAN = \
   $K/start.o \
@@ -89,7 +123,6 @@ OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
 CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -gdwarf-2
-CFLAGS = -Wall -Werror -Wno-unknown-attributes -O -fno-omit-frame-pointer -ggdb -gdwarf-2
 
 ifdef LAB
 LABUPPER = $(shell echo $(LAB) | tr a-z A-Z)
@@ -119,6 +152,15 @@ CFLAGS += -DKCSAN
 KCSANFLAG = -fsanitize=thread -fno-inline
 endif
 
+ifeq ($(LAB),net)
+CFLAGS += -DNET_TESTS_PORT=$(SERVERPORT)
+endif
+
+ifdef KCSAN
+CFLAGS += -DKCSAN
+KCSANFLAG = -fsanitize=thread -fno-inline
+endif
+
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)
 CFLAGS += -fno-pie -no-pie
@@ -131,8 +173,14 @@ LDFLAGS = -z max-page-size=4096
 
 $K/kernel: $(OBJS) $(OBJS_KCSAN) $K/kernel.ld
 	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel $(OBJS) $(OBJS_KCSAN)
+$K/kernel: $(OBJS) $(OBJS_KCSAN) $K/kernel.ld
+	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel $(OBJS) $(OBJS_KCSAN)
 	$(OBJDUMP) -S $K/kernel > $K/kernel.asm
 	$(OBJDUMP) -t $K/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $K/kernel.sym
+$(OBJS): EXTRAFLAG := $(KCSANFLAG)
+
+$K/%.o: $K/%.c
+	$(CC) $(CFLAGS) $(EXTRAFLAG) -c -o $@ $<
 $(OBJS): EXTRAFLAG := $(KCSANFLAG)
 
 $K/%.o: $K/%.c
@@ -144,7 +192,7 @@ $K/%.o: $K/%.S
 tags: $(OBJS)
 	etags kernel/*.S kernel/*.c
 
-ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
+ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o $U/regexp.o
 
 ifeq ($(LAB),lock)
 ULIB += $U/statistics.o
@@ -196,6 +244,7 @@ UPROGS=\
 	$U/_logstress\
 	$U/_forphan\
 	$U/_dorphan\
+	$U/_sandbox
 
 
 
@@ -290,6 +339,9 @@ ifeq ($(LAB),syscall)
 	UEXTRA += user/exec.sh
 endif
 
+# Add custom text files to filesystem
+UEXTRA += big.txt bigger.txt biggerer.txt huge.txt
+
 fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS)
 	mkfs/mkfs fs.img README $(UEXTRA) $(UPROGS)
 
@@ -313,7 +365,10 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	then echo "-gdb tcp::$(GDBPORT)"; \
 	else echo "-s -p $(GDBPORT)"; fi)
 ifndef CPUS
-CPUS := 3
+CPUS := 1
+endif
+ifeq ($(LAB),fs)
+CPUS := 1
 endif
 ifeq ($(LAB),fs)
 CPUS := 1
@@ -338,6 +393,17 @@ qemu: check-qemu-version newfs.img $K/kernel fs.img
 
 # runs with existing fs.img, if present
 qemu-fs: check-qemu-version $K/kernel fs.img
+ifeq ($(LAB),net)
+QEMUOPTS += -netdev user,id=net0,hostfwd=udp::$(FWDPORT1)-:2000,hostfwd=udp::$(FWDPORT2)-:2001 -object filter-dump,id=net0,netdev=net0,file=packets.pcap
+QEMUOPTS += -device e1000,netdev=net0,bus=pcie.0
+endif
+
+# makes a new fs.img
+qemu: check-qemu-version newfs.img $K/kernel fs.img
+	$(QEMU) $(QEMUOPTS)
+
+# runs with existing fs.img, if present
+qemu-fs: check-qemu-version $K/kernel fs.img
 	$(QEMU) $(QEMUOPTS)
 
 .gdbinit: .gdbinit.tmpl-riscv
@@ -346,6 +412,20 @@ qemu-fs: check-qemu-version $K/kernel fs.img
 qemu-gdb: $K/kernel .gdbinit fs.img
 	@echo "*** Now run 'gdb' in another window." 1>&2
 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)
+
+ifeq ($(LAB),net)
+# try to generate a unique port for the echo server
+SERVERPORT = $(shell expr `id -u` % 5000 + 25099)
+
+endif
+
+##
+##  FOR testing lab grading script
+##
+
+ifneq ($(V),@)
+GRADEFLAGS += -v
+endif
 
 ifeq ($(LAB),net)
 # try to generate a unique port for the echo server

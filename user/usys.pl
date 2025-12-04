@@ -42,6 +42,8 @@ entry("getpid");
 entry("sbrk");
 entry("pause");
 entry("uptime");
+entry("ioctl");
+entry("interpose");
 entry("bind");
 entry("unbind");
 entry("send");

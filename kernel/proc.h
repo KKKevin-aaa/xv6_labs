@@ -82,25 +82,29 @@ struct trapframe {
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
-struct proc {
-  struct spinlock lock;
+struct proc { //Process control block(PCB)
+  struct spinlock lock; //Any operation that modifies this struct must hold this lock.
 
   // p->lock must be held when using these:
   enum procstate state;        // Process state
-  void *chan;                  // If non-zero, sleeping on chan
+  void *waitChannel;           // If non-zero, sleeping on channel
+  //channel is a pointer, record a address to identify current proc is waiting for what event.
   int killed;                  // If non-zero, have been killed
   int xstate;                  // Exit status to be returned to parent's wait
   int pid;                     // Process ID
-
+  int syscall_mask;            // Prohibited syscall mask (a bit set to 1 indicates the syscall is prohibited)
+  char allow_path_str[MAXPATH]; // List of allowed paths, separated by newlines(\n) for open and exec only
   // wait_lock must be held when using this:
-  struct proc *parent;         // Parent process
+  struct proc *parent;         // Parent process()
 
   // these are private to the process, so p->lock need not be held.
   uint64 kstack;               // Virtual address of kernel stack
-  uint64 sz;                   // Size of process memory (bytes)
+  uint64 sz;                   // Size of process memory (bytes),indicates the top of the user heap, modified by sbrk()
   pagetable_t pagetable;       // User page table
-  struct trapframe *trapframe; // data page for trampoline.S
-  struct context context;      // swtch() here to run process
+  struct trapframe *trapframe; // data page for trampoline.S(Mode switch)
+  //(switch form User to kernel,like syscall) still belong to this process,"what I am doing before enter kernel"
+  struct context context;      // swtch() here to run process(Process switch)
+  //(switch form kernel to kernel)switch to new process, "what I am doing before yield the CPU to the scheduler"
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
