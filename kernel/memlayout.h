@@ -41,7 +41,9 @@
 // for use by the kernel and user pages
 // from physical address 0x80000000 to PHYSTOP.
 #define KERNBASE 0x80000000L
-#define PHYSTOP (KERNBASE + 128*1024*1024)
+#define MEGA_PAGE_BASE (KERNBASE + 48*4096*512)
+#define PHYSTOP (KERNBASE + 128*1024*1024)  //equal to 64*4096*512=128MB
+#define GIGA_PAGE_BASE PHYSTOP //keep consistent
 
 // map the trampoline page to the highest address,
 // in both user and kernel space.

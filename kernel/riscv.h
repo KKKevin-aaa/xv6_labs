@@ -251,6 +251,20 @@ typedef uint64 *pagetable_t;  // 512 PTEs
 #define PGSIZE 4096 // bytes per page
 #define PGSHIFT 12  // bits of offset within a page
 
+static inline uint8 find_last_set(uint64 x){
+    if(x==0)    return 0;
+    uint64 ret;
+    asm volatile("clz %0, %1"
+                : "=r"(ret) //output
+                : "r"(x)    //input
+                );
+    return 63-ret;  //last_set = 63 - leading_zero
+}
+#define MAX_ORDER 12
+#define ORDER_BASE 12
+#define ORDER_LIMIT (MAX_ORDER+ORDER_BASE+3)
+#define MEGAPGSIZE (1ULL << 21)
+#define GIGAPGSIZE (1ULL << 30)
 #ifdef LAB_PGTBL
 #define SUPERPGSIZE (2 * (1 << 20)) // bytes per page
 #define SUPERPGROUNDUP(sz)  (((sz)+SUPERPGSIZE-1) & ~(SUPERPGSIZE-1))

@@ -43,7 +43,6 @@ uint64 sys_sbrk(void) {
     argint(0, &n);
     argint(1, &t);
     addr = myproc()->sz;
-
     if (t == SBRK_EAGER || n < 0) {
         if (growproc(n) < 0) {
             return -1;

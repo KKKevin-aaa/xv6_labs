@@ -202,9 +202,9 @@ pagetable_t proc_pagetable(struct proc *p) {
 // Free a process's page table, and free the
 // physical memory it refers to.
 void proc_freepagetable(pagetable_t pagetable, uint64 sz) {
-    uvmunmap(pagetable, TRAMPOLINE, 1, 0);
-    uvmunmap(pagetable, TRAPFRAME, 1, 0);
-    uvmunmap(pagetable, USYSCALL, 1, 0);
+    uvmunmap(pagetable, TRAMPOLINE, PGSIZE, 0);
+    uvmunmap(pagetable, TRAPFRAME, PGSIZE, 0);
+    uvmunmap(pagetable, USYSCALL, PGSIZE, 0);
     //All process share one usyscall page,so don' free here!
     uvmfree(pagetable, sz);
 }

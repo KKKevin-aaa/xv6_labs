@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
     ugetpid_test();
     print_kpgtbl();
     superpg_fork();
-    superpg_free();
+    superpg_freew();
     printf("pgtbltest: all tests succeeded\n");
     exit(0);
 }
@@ -95,6 +95,7 @@ void supercheck(char *end) {
             err("pte different");
         }
         if ((pte & PTE_V) == 0 || (pte & PTE_R) == 0 || (pte & PTE_W) == 0) {
+            // at least one bits are non-zero
             err("pte wrong");
         }
         last_pte = pte;
