@@ -10,7 +10,7 @@
 #include "proc.h"
 #include "defs.h"
 
-#define DEBUG_KALLOC
+// #define DEBUG_KALLOC
 // Maximun size is 2^max_order*4KB, and PHYsize=128MB
 // here we choose maximun size is 16MB, 
 // and larger memory requirements can fulfilled by combining smaller components
@@ -93,7 +93,7 @@ uint16 get_order(uint64 pa){
 void free_pages(void *pa){
     uint64 mem_idx=((uint64)(pa)-KERNBASE) / PGSIZE, buddy_idx;
     acquire(&kmem.lock);
-    struct page *cur_page=&kmem.mem_bitmaps[mem_idx];
+    struct page *cur_page=&kmem.mem_bitmaps[mem_idx], *buddy_page;
     uint16 cur_order=ORDER_MASK(cur_page->flags);
 #ifdef DEBUG_KALLOC
     struct proc *p = myproc();
@@ -107,12 +107,11 @@ void free_pages(void *pa){
     }
     if(FREE_MASK(cur_page->flags))
         panic("double free!");
-    cur_page->next=NULL;cur_page->prev=NULL;
-    cur_page->flags = 0x1; //free and order is unclear
     //should and always be chunk_header
     while(cur_order<MAX_ORDER){
         buddy_idx=mem_idx ^ (1ull << cur_order);
-        struct page *buddy_page=&kmem.mem_bitmaps[buddy_idx];
+        if(buddy_idx>=512*64)   break;
+        buddy_page=&kmem.mem_bitmaps[buddy_idx];
         if(!FREE_MASK(buddy_page->flags) || ORDER_MASK(buddy_page->flags)!=cur_order)
             break;  //stop 
         //remove current_page form the correspond free_list

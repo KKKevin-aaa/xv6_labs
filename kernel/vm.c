@@ -8,9 +8,7 @@
 #include "proc.h"
 #include "fs.h"
 
-// 调试开关：注释掉下面这行即可关闭所有 vm.c 的调试输出
-#define DEBUG_VM
-
+// #define DEBUG_VM
 /*
  * the kernel's page table.
  */
@@ -141,33 +139,51 @@ void prefix_helper(char c, int count){
     int i=count;
     while(i-- > 0)  printf("%c", c);
 }
-uint64 get_step_size(int depth){
-    if(depth==1)    return 1ull<<30;
-    else if(depth==2)   return 1ull<<21;
-    else if(depth==3)   return 1ull<<12;
+uint64 get_step_size(int level){
+    if(level==2)    return 1ull<<30;
+    else if(level==1)   return 1ull<<21;
+    else if(level==0)   return 1ull<<12;
     return 0;
 }
-void walk_all_page(uint64 start_va, pagetable_t pagetable, int depth){
-    for(int i=0;i<512;i++){
-        pte_t pte=pagetable[i];
+void walk_all_page(uint64 start_va, pagetable_t pagetable, int level){
+    int idx=0, step=1;
+    uint64 va_step, standard_stride=get_step_size(level);
+    uint64 num_4k_page, page_per_slot;
+    while(idx<512){
+        pte_t pte=pagetable[idx];
         uint64 pa=PTE2PA(pte);
         if(pte & PTE_V){
-            prefix_helper('.', depth*2);
-            printf("%p: pte %p pa %p\n", (void *)start_va, (void *)pte, (void *)pa);
+            prefix_helper('.', (3-level)*2);
             if((pte & (PTE_X | PTE_W | PTE_R))==0){
                 //this PTE points to a lower-level page table.
-                walk_all_page(start_va, (pagetable_t)(void *)pa, depth+1);
+                printf("(next-level)%p: pte %p pa %p\n", (void *)start_va, (void *)pte, (void *)pa);
+                walk_all_page(start_va, (pagetable_t)(void *)pa, level-1);
                 //have not handle current va
+                step=1;
+                va_step=standard_stride;
+            }
+            else{
+                num_4k_page=1ull<<get_order(pa);
+                page_per_slot=1ull<<(level*9);
+                step=num_4k_page/page_per_slot;
+                if(step<=0) step=1;
+                va_step=num_4k_page*PGSIZE;
+                printf("(data)%p: pte %p pa %p, size is %lx\n", (void *)start_va, (void *)pte, (void *)pa, va_step);
             }
         }
-        start_va+=get_step_size(depth);
+        else{
+            step=1;
+            va_step=standard_stride;
+        }
+        idx+=step;
+        start_va+=va_step;
     }
 }
 
 void vmprint(pagetable_t pagetable) {
     // your code here'
     printf("page table %p\n", (void *)pagetable);
-    walk_all_page(0, pagetable, 1);
+    walk_all_page(0, pagetable, 2);
 }
 #endif
 
@@ -343,7 +359,7 @@ uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
         // Perform the release step-by-step, following the reverse logic of alloc.
         uint8 oldsz_order=find_last_set(aligned_oldsz & -aligned_oldsz);
         oldsz_order=(oldsz_order==0 || oldsz_order>MAX_ORDER+ORDER_BASE)
-        ?(MAX_ORDER+ORDER_BASE):oldsz_order;
+            ?(MAX_ORDER+ORDER_BASE):oldsz_order;
         uint64 cur_max_size=1ull << oldsz_order;
         uint64 remain_size=aligned_newsz-aligned_oldsz, free_size=cur_max_size;
         uint64 cur_va=aligned_oldsz, cur_order=0;
@@ -366,50 +382,99 @@ uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
     return newsz;
 }
 
-// Recursively free page-table pages.
-void freewalk(pagetable_t pagetable, int do_free) {
+// Recursively free page-table pages.(And consider one-to-many mappings, where
+// a single allocation corresponds to N PTEs, and the first pte owing the control of whole
+// physical memory, so just free the header and clear the next ptes)
+void freewalk(pagetable_t pagetable, int do_free, int base_va, int max_sz, int level) {
 #ifdef DEBUG_VM
     printf("[VM] freewalk: pagetable=%p do_free=%d\n", (void *)pagetable, do_free);
 #endif
-    // there are 2^9 = 512 PTEs in a page table.
-    for (int i = 0; i < 512; i++) {
-        pte_t pte = pagetable[i];
-        uint64 pa = PTE2PA(pte);    //child pagetable or physical
+    pte_t pte;// there are 2^9 = 512 PTEs in a page table.
+    uint64 pa, num_4k_page, page_per_slot, step;
+    uint64 standard_stride=get_step_size(level), cur_va=base_va, va_step;
+    uint16 cur_order;
+    int idx=0;
+    while(idx<512){
+        if(cur_va>=max_sz)   break;
+        pte = pagetable[idx];
+        pa = PTE2PA(pte);    //child pagetable or physical
         if ((pte & PTE_V) && (pte & (PTE_R | PTE_W | PTE_X)) == 0) {
             // this PTE points to a lower-level page table.
-            freewalk((pagetable_t)pa, do_free);
+            freewalk((pagetable_t)pa, do_free, cur_va, max_sz, level-1);
+            step=1;
+            va_step=standard_stride;
         } else if ((pte & PTE_V) && do_free!=0) {   //leaf-node,release the physical page
-            free_pages((void *)pa);
+            if((uint64)pagetable==0x87f8c000)   walk_all_page(base_va, pagetable, 0);
+            //check if next page is associated with current page
+            cur_order=get_order(pa);
+            va_step=1ull<<(cur_order+ORDER_BASE);
+            num_4k_page=1ull<<cur_order;
+            page_per_slot=1ull<<(level*9);
+            step=num_4k_page/page_per_slot;
+            if(step<=0) step=1; //at least advance one
+            free_pages((void *)pa); //record statement before freeing, 
+            // as the merging process potentially alter the metadata.
         }
-        pagetable[i] = 0;
+        else{
+            step=1; //Invalid pte
+            va_step=standard_stride;
+        }
+        for(int j=0;j<step;j++){
+            if(idx+j==512){
+                printf("PANIC: Physical block spans across page table pages!\n");
+                printf("Level: %d, Idx: %d, Step: %ld, PA: %p\n", level, idx, step, (void *)pa);
+                panic("freewalk: alignment error");
+                break;
+            }
+            pagetable[idx+j]=0; //Clear the relevant PTEs
+        }
+        cur_va+=va_step;
+        idx+=step;
     }
     free_pages((void *)pagetable);
 }
 // Recursively copy page-table pages.Consider the superpage
 // if error is ture, we should free the allocated resources and quit recursively
-void copywalk(pagetable_t old_pg, pagetable_t new_pg, uint64 base_va, int depth, int *error){
+void copywalk(pagetable_t old_pg, pagetable_t new_pg, uint64 base_va, uint64 max_sz, int level, int *error){
     pte_t pte;
-    uint64 pa,cur_size=get_step_size(depth), cur_va=base_va;
+    uint64 pa, standard_stride=get_step_size(level), cur_va=base_va, va_step;
+    uint64 num_4k_page, page_per_slot, step, cur_order;
     char *mem;
     uint flags;
-    for (int i = 0; i < 512; i++) {
-        pte = old_pg[i];
+    int idx=0;
+    while(idx<512) {
+        if(cur_va>=max_sz)   break;
+        pte = old_pg[idx];
         pa = PTE2PA(pte);    //child pagetable or physical
         flags=PTE_FLAGS(pte);
         if ((pte & PTE_V) && (pte & (PTE_R | PTE_W | PTE_X)) == 0) {
             // this PTE points to a lower-level page table.
-            copywalk((pagetable_t)pa, new_pg, cur_va, depth+1, error);
+            copywalk((pagetable_t)pa, new_pg, cur_va, max_sz, level-1, error);
             if(*error==-1)  return;  //fast exit and releasing all allocated resources.
+            step=1;
+            va_step=standard_stride;
         } else if (pte & PTE_V) {   //leaf-node,release the physical page
-            mem=alloc_memory(cur_size);
+            cur_order=get_order(pa);
+            va_step=1ull<<(cur_order+ORDER_BASE);
+            if(cur_va % va_step !=0)   panic("copywalk: unaligned address!");
+            mem=alloc_memory(va_step);
             if(mem==0)  goto free_and_release;
-            memmove(mem, (char *)pa, cur_size);
-            if(mappages(new_pg, cur_va, cur_size, (uint64)mem, flags)!=0){
+            memmove(mem, (char *)pa, va_step);
+            if(mappages(new_pg, cur_va, va_step, (uint64)mem, flags)!=0){
                 free_pages(mem);
                 goto free_and_release;
             }
+            num_4k_page=1ull<<cur_order;
+            page_per_slot=1ull<<(level*9);
+            step=num_4k_page/page_per_slot;
+            if(step<=0) step=1; //at least advance one
         }
-        cur_va+=cur_size;
+        else{   //Invalid and not a directory pte
+            step=1;
+            va_step=standard_stride;
+        }
+        cur_va+=va_step;
+        idx+=step;
     }
     return;
 free_and_release:   //prevent resources leaks and waste
@@ -423,8 +488,8 @@ free_and_release:   //prevent resources leaks and waste
 // Even though the release process itself does not requires the sz parameter.
 // Must free page-table pages.
 void uvmfree(pagetable_t pagetable, uint64 sz) {
-    if (sz > 0) freewalk(pagetable, 1);
-    else    freewalk(pagetable, 0);
+    if (sz > 0) freewalk(pagetable, 1, 0, sz, 2);
+    else    freewalk(pagetable, 0, 0, sz, 2);
 }
 
 // Given a parent process's page table, copy
@@ -439,7 +504,7 @@ int uvmcopy(pagetable_t old_pg, pagetable_t new_pg, uint64 sz) {
 #endif
     uint64 start_va=0;
     int error_flags=0;
-    copywalk(old_pg, new_pg, start_va, 1, &error_flags);
+    copywalk(old_pg, new_pg, start_va, sz, 2, &error_flags);
     if(error_flags==1)  return -1;
     return 0;
 }
@@ -670,9 +735,6 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max) {
     //     return -1;
     // }
 }
-
-
-
 
 // allocate and map user memory if process is referencing a page
 // that was lazily allocated in sys_sbrk().
