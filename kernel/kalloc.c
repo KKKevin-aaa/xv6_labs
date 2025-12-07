@@ -10,7 +10,7 @@
 #include "proc.h"
 #include "defs.h"
 
-// #define DEBUG_KALLOC
+#define DEBUG_KALLOC
 // Maximun size is 2^max_order*4KB, and PHYsize=128MB
 // here we choose maximun size is 16MB, 
 // and larger memory requirements can fulfilled by combining smaller components
@@ -81,7 +81,7 @@ static void add_to_list_nolock(struct page *p, int order){
     new_head->flags=(order << 8 | 0x1);
 }
 uint16 get_order(uint64 pa){
-    pa=pa-(uint64)end;
+    pa=pa-KERNBASE;
     if(pa%PGSIZE!=0)
         panic("get order: Lookup unaligned address!");
     uint64 pa_idx=pa/PGSIZE;
@@ -91,15 +91,23 @@ uint16 get_order(uint64 pa){
     return tmp;
 }
 void free_pages(void *pa){
-    uint64 mem_idx=(uint64)(pa-(void *)end) / PGSIZE, buddy_idx;
+    uint64 mem_idx=((uint64)(pa)-KERNBASE) / PGSIZE, buddy_idx;
     acquire(&kmem.lock);
     struct page *cur_page=&kmem.mem_bitmaps[mem_idx];
-    if(ORDER_MASK(cur_page->flags) == MAGIC_MERGED)
-        panic("Kfree:trying to free a middle chunk!");
-    cur_page->next=NULL;cur_page->prev=NULL;
     uint16 cur_order=ORDER_MASK(cur_page->flags);
+#ifdef DEBUG_KALLOC
+    struct proc *p = myproc();
+    int pid = p ? p->pid : -1;
+    char *name = p ? p->name : "kernel";
+    printf("[KALLOC] free_pages: pid=%d(%s) freeing pa=%p order=%d\n", pid, name, (void *)pa, cur_order);
+#endif
+    if(cur_order== MAGIC_MERGED){
+        // while(1);
+        panic("Kfree:trying to free a middle chunk!");
+    }
     if(FREE_MASK(cur_page->flags))
         panic("double free!");
+    cur_page->next=NULL;cur_page->prev=NULL;
     cur_page->flags = 0x1; //free and order is unclear
     //should and always be chunk_header
     while(cur_order<MAX_ORDER){
@@ -142,34 +150,23 @@ int is_all_same_swar(const uint8 *data, uint64 len){
     }
     return 1;
 }
-// Another solution for find_last_set
-// inline uint8 find_last_set(uint64 x){
-//     int idx=63;
-//     if(x==0)    return 0;
-//     if((x & 0xffffffff00000000ull)==0){  //check if 63-32bits all zero
-//         x=x<<32;idx-=32;
-//     }
-//     if((x & 0xffff000000000000ull)==0){  //check if 31-16bits all zero
-//         x=x<<16;idx-=16;
-//     }
-//     if((x & 0xff00000000000000ull)==0){
-//         x=x<<8;idx-=8;
-//     }
-//     if((x & 0xf000000000000000ull)==0){
-//         x=x<<4;idx-=4;
-//     }
-//     if((x & 0xc000000000000000ull)==0){
-//         x=x<<2;idx-=2;
-//     }
-//     if((x & 0x8000000000000000ull)==0)
-//         idx-=1;
-//     return idx;
-// }
 void kinit() {
+#ifdef DEBUG_KALLOC
+    printf("[KALLOC] kinit: initializing memory allocator\n");
+#endif
     initlock(&kmem.lock, "kmem");
     init_whole_area();
+#ifdef DEBUG_KALLOC
+    printf("[KALLOC] kinit: initialization complete\n");
+#endif
 }
 void *alloc_memory(uint64 size){
+#ifdef DEBUG_KALLOC
+    struct proc *p = myproc();
+    int pid = p ? p->pid : -1;
+    char *name = p ? p->name : "kernel";
+    printf("[KALLOC] alloc_memory: pid=%d(%s) requesting size=%lx\n", pid, name, size);
+#endif
     //check first, should be 4kB-aligned
     //And it must be ensured that only a single page is allocated within alloc_memory.
     if(find_last_set(size & -size)<12){
@@ -199,14 +196,20 @@ void *alloc_memory(uint64 size){
         //split into two blocks,both add into the lower level list
         split_order--;
         high_tmp= tmp + (1ull<<split_order);
-        tmp->flags=(split_order << 8 | 0x1);
         high_tmp->flags=split_order << 8;
+        //tmp's flags will be set in add_to_list_nolock functions
         add_to_list_nolock(tmp, split_order);
         tmp=high_tmp;
     }
+    high_tmp->flags=split_order << 8;   //check order and free state
     offset=(tmp-kmem.mem_bitmaps)*PGSIZE;
     release(&kmem.lock);
-    return (void *)(offset+(uint64)end);
+#ifdef DEBUG_KALLOC
+    printf("[KALLOC] alloc_memory: pid=%d(%s) allocated size=%lx at pa=%p order=%d\n", 
+           pid, name, size, (void *)(KERNBASE+offset), split_order);
+#endif
+    // if(KERNBASE+offset == 0x87fb2000)   while(1);
+    return (void *)(offset+KERNBASE);
 }
 void freerange(void *pa_start, void *pa_end) {
     char *p;
@@ -220,6 +223,12 @@ void freerange(void *pa_start, void *pa_end) {
 // call to kalloc().  (The exception is when
 // initializing the allocator; see kinit above.)
 void kfree(void *pa) {
+#ifdef DEBUG_KALLOC
+    struct proc *p = myproc();
+    int pid = p ? p->pid : -1;
+    char *name = p ? p->name : "kernel";
+    printf("[KALLOC] kfree: pid=%d(%s) freeing pa=%p\n", pid, name, pa);
+#endif
     if (((uint64)pa % PGSIZE) != 0 || (char *)pa < end || (uint64)pa >= PHYSTOP)
         panic("kfree");
 #ifndef LAB_SYSCALL
@@ -231,5 +240,11 @@ void kfree(void *pa) {
 // Returns a pointer that the kernel can use.
 // Returns 0 if the memory cannot be allocated.
 void *kalloc(void) {
+#ifdef DEBUG_KALLOC
+    struct proc *p = myproc();
+    int pid = p ? p->pid : -1;
+    char *name = p ? p->name : "kernel";
+    printf("[KALLOC] kalloc: pid=%d(%s) requesting PGSIZE\n", pid, name);
+#endif
     return alloc_memory(PGSIZE);
 }

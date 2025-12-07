@@ -8,6 +8,9 @@
 #include "proc.h"
 #include "fs.h"
 
+// 调试开关：注释掉下面这行即可关闭所有 vm.c 的调试输出
+#define DEBUG_VM
+
 /*
  * the kernel's page table.
  */
@@ -94,6 +97,9 @@ void kvminithart() {
 // To support superpage, we introduce new paras: target_level
 // and stop while level equals to target_level(0 for 4kB, 1 for 2MB, 2 for 1GB)
 pte_t *walk(pagetable_t pagetable, uint64 va, int alloc, int target_level) {
+#ifdef DEBUG_VM
+    printf("[VM] walk: pagetable=%p va=%p alloc=%d target_level=%d\n", pagetable, (void *)va, alloc, target_level);
+#endif
     if (va >= MAXVA) panic("walk");
     for (int level = 2; level > target_level; level--) {
         pte_t *pte = &pagetable[PX(level, va)]; //math
@@ -160,7 +166,7 @@ void walk_all_page(uint64 start_va, pagetable_t pagetable, int depth){
 
 void vmprint(pagetable_t pagetable) {
     // your code here'
-    printf("page table %p\n", pagetable);
+    printf("page table %p\n", (void *)pagetable);
     walk_all_page(0, pagetable, 1);
 }
 #endif
@@ -196,35 +202,35 @@ void kvmmap(pagetable_t kpgtbl, uint64 va, uint64 pa, uint64 sz, int perm) {
 //     return 0;
 // }
 int mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm){
-    pte_t *pte;
-    uint64 basic_size=PGSIZE, target_level;
+#ifdef DEBUG_VM
+    printf("[VM] mappages: va=%p size=%lx pa=%p perm=%x\n", (void *)va, size, (void *)pa, perm);
+#endif
+    pte_t *pte=NULL;
+    uint64 basic_size=PGSIZE, target_level=0, prev_level=3;   //determine rewalk necessity
     if(size%PGSIZE!=0)  panic("mappages: size not aligned");
     if (size == 0) panic("mappages: size");
-    if(size>=PGSIZE && size<MEGAPGSIZE){
-        target_level=0;
-        basic_size=PGSIZE;
-    }
-    else if(size>=MEGAPGSIZE && size<GIGAPGSIZE){
-        target_level=1;
-        basic_size=MEGAPGSIZE;
-    }
-    else{
-        target_level=2;
-        basic_size=GIGAPGSIZE;
-    }
-    if ((va % basic_size) != 0) panic("mappages: va not aligned");
-    if ((pa % basic_size) != 0) panic("mappages: pa not aligned");
-    pte=walk(pagetable, va, 1, target_level);//enable superblock
     while(size>0){
-        if(pte==0)  return -1;
+        if(va%GIGAPGSIZE==0 && size>=GIGAPGSIZE){
+            target_level=2;basic_size=GIGAPGSIZE;
+        } 
+        else if(va%MEGAPGSIZE==0 && size>=MEGAPGSIZE){
+            target_level=1;basic_size=MEGAPGSIZE;
+        }
+        else{
+            target_level=0;basic_size=PGSIZE;
+        }
+        if ((pa % basic_size) != 0) panic("mappages: pa not aligned");
+        if(prev_level!=target_level || PX(target_level, va)==0)
+            //check if arrive the boundary or need jump into other level
+            pte=walk(pagetable, va, 1, target_level);//walk again
+        else    pte++;  //update the pte quickly,no need to walk agin
         if(*pte & PTE_V)    panic("mappages: remap");
         *pte= PA2PTE(pa) | PTE_V | perm;//Assign
         size-=basic_size;
         va+=basic_size;
         pa+=basic_size;
-        pte++;  //update the pte quickly,no need to walk agin
-        if(PX(target_level, va)==0)    //check if arrive the boundary
-            pte=walk(pagetable, va, 1, target_level);   //walk again
+        //update basic_size(and target level) based on the current maximum alignment value.
+        prev_level=target_level;
     }
     return 0;
 }
@@ -244,6 +250,9 @@ pagetable_t uvmcreate() {
 // page-aligned. It's OK if the mappings don't exist.
 // Optionally free the physical memory.
 void uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int do_free){
+#ifdef DEBUG_VM
+    printf("[VM] uvmunmap: va=%p size=%lx do_free=%d\n", (void *)va, size, do_free);
+#endif
     pte_t *pte; //Can only handle the release of pages with the same size
     uint64 basic_size=PGSIZE, target_level;
     if(size%PGSIZE!=0)  panic("mappages: size not aligned");
@@ -263,6 +272,8 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int do_free){
     if ((va % basic_size) != 0) panic("uvmunmap: va not aligned");
     pte=walk(pagetable, va, 0, target_level);//enable superblock
     while(size>0){
+        if(PX(target_level, va)==0)    //check if arrive the boundary
+            pte=walk(pagetable, va, 0, target_level);   //walk again
         if(pte==0)  panic("try to unmap an unexisting mapping!");
         if((*pte & PTE_V)!=0){
             if(do_free){
@@ -274,14 +285,15 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int do_free){
         size-=basic_size;
         va+=basic_size;
         pte++;  //update the pte quickly,no need to walk agin
-        if(PX(target_level, va)==0)    //check if arrive the boundary
-            pte=walk(pagetable, va, 0, target_level);   //walk again
     }
 }
 
 // Allocate PTEs and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 uint64 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm) {
+#ifdef DEBUG_VM
+    printf("[VM] uvmalloc: oldsz=%lx newsz=%lx xperm=%x\n", oldsz, newsz, xperm);
+#endif
     if(newsz<oldsz) return oldsz;
     uint64 aligned_oldsz=PGROUNDUP(oldsz), aligned_newsz=PGROUNDUP(newsz);
     if(aligned_oldsz==aligned_newsz)    return newsz;
@@ -322,6 +334,9 @@ uint64 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm) {
 // need to be less than oldsz.  oldsz can be larger than the actual
 // process size.  Returns the new process size.
 uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
+#ifdef DEBUG_VM
+    printf("[VM] uvmdealloc: oldsz=%lx newsz=%lx\n", oldsz, newsz);
+#endif
     if (newsz >= oldsz) return oldsz;
     int aligned_newsz=PGROUNDUP(newsz), aligned_oldsz=PGROUNDUP(oldsz);
     if (aligned_newsz < aligned_oldsz) {
@@ -353,6 +368,9 @@ uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
 
 // Recursively free page-table pages.
 void freewalk(pagetable_t pagetable, int do_free) {
+#ifdef DEBUG_VM
+    printf("[VM] freewalk: pagetable=%p do_free=%d\n", (void *)pagetable, do_free);
+#endif
     // there are 2^9 = 512 PTEs in a page table.
     for (int i = 0; i < 512; i++) {
         pte_t pte = pagetable[i];
@@ -360,7 +378,7 @@ void freewalk(pagetable_t pagetable, int do_free) {
         if ((pte & PTE_V) && (pte & (PTE_R | PTE_W | PTE_X)) == 0) {
             // this PTE points to a lower-level page table.
             freewalk((pagetable_t)pa, do_free);
-        } else if (pte & PTE_V && do_free!=0) {   //leaf-node,release the physical page
+        } else if ((pte & PTE_V) && do_free!=0) {   //leaf-node,release the physical page
             free_pages((void *)pa);
         }
         pagetable[i] = 0;
@@ -416,6 +434,9 @@ void uvmfree(pagetable_t pagetable, uint64 sz) {
 // returns 0 on success, -1 on failure.
 // frees any allocated pages on failure.
 int uvmcopy(pagetable_t old_pg, pagetable_t new_pg, uint64 sz) {
+#ifdef DEBUG_VM
+    printf("[VM] uvmcopy: old_pg=%p new_pg=%p sz=%lx\n", (void *)old_pg, (void *)new_pg, sz);
+#endif
     uint64 start_va=0;
     int error_flags=0;
     copywalk(old_pg, new_pg, start_va, 1, &error_flags);
@@ -437,6 +458,9 @@ void uvmclear(pagetable_t pagetable, uint64 va) {
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
 int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
+#ifdef DEBUG_VM
+    printf("[VM] copyout: dstva=%p len=%lx\n", (void *)dstva, len);
+#endif
     uint64 aligned_dstva=PGROUNDDOWN(dstva);
     uint8 cur_order=find_last_set(aligned_dstva & -aligned_dstva);
     cur_order=(cur_order==0 || cur_order>MAX_ORDER+ORDER_BASE)
@@ -514,6 +538,9 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
 // Copy len bytes to dst from virtual address srcva in a given page table.
 // Return 0 on success, -1 on error.
 int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
+#ifdef DEBUG_VM
+    printf("[VM] copyin: srcva=%p len=%lx\n", (void *)srcva, len);
+#endif
     uint64 aligned_srcva=PGROUNDDOWN(srcva);
     uint8 cur_order=find_last_set(aligned_srcva & -aligned_srcva);
     cur_order=(cur_order==0 || cur_order>MAX_ORDER+ORDER_BASE)

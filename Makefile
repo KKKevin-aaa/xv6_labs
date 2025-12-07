@@ -168,6 +168,7 @@ endif
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]nopie'),)
 CFLAGS += -fno-pie -nopie
 endif
+CFLAGS += -O0
 
 LDFLAGS = -z max-page-size=4096
 
