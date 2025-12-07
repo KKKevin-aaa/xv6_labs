@@ -251,15 +251,42 @@ typedef uint64 *pagetable_t;  // 512 PTEs
 #define PGSIZE 4096 // bytes per page
 #define PGSHIFT 12  // bits of offset within a page
 
-static inline uint8 find_last_set(uint64 x){
+// inline uint8 find_last_set(uint64 x){ 
+// Adopt a standard ISA for underlying hareware realization!
+//     if(x==0)    return 0;
+//     uint64 ret;
+//     asm volatile("clz %0, %1"
+//                 : "=r"(ret) //output
+//                 : "r"(x)    //input
+//                 );
+//     return 63-ret;  //last_set = 63 - leading_zero
+// }
+#ifndef __ASSEMBLER__
+//exclude S files using the complier builtin macro
+inline uint8 find_last_set(uint64 x){
     if(x==0)    return 0;
-    uint64 ret;
-    asm volatile("clz %0, %1"
-                : "=r"(ret) //output
-                : "r"(x)    //input
-                );
-    return 63-ret;  //last_set = 63 - leading_zero
+    uint8 n=63;
+    if((x & 0xffffffff00000000ull)==0){
+        n-=32;x<<=32;
+    }
+    if((x & 0xffff000000000000ull)==0){
+        n-=16;x<<=16;
+    }
+    if((x & 0xff00000000000000ull)==0){
+        n-=8;x<<=8;
+    }
+    if((x & 0xf000000000000000ull)==0){
+        n-=4;x<<=4;
+    }
+    if((x & 0xc000000000000000ull)==0){
+        n-=2;x<<=2;
+    }
+    if((x & 0x8000000000000000ull)==0){
+        n-=1;
+    }
+    return n;
 }
+#endif
 #define MAX_ORDER 12
 #define ORDER_BASE 12
 #define ORDER_LIMIT (MAX_ORDER+ORDER_BASE+3)

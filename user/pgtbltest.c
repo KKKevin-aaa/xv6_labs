@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
     ugetpid_test();
     print_kpgtbl();
     superpg_fork();
-    superpg_freew();
+    superpg_free();
     printf("pgtbltest: all tests succeeded\n");
     exit(0);
 }

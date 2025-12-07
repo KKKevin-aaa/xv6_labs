@@ -22,9 +22,11 @@ pagetable_t kvmmake(void) {
     pagetable_t kpgtbl;
 
     kpgtbl = (pagetable_t)kalloc();
+    if(kpgtbl==0)   panic("kvmmake: alloc fail!");
     memset(kpgtbl, 0, PGSIZE);
 
     usyscall_pa=kalloc();
+    if(usyscall_pa==0)  panic("kvmmake: alloc fail!");
     memset(usyscall_pa, 0, PGSIZE);
     //Allocated once during system initialization, not per-process;
     //thus, it is immune to memory leak.
@@ -300,7 +302,7 @@ uint64 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm) {
             return 0;
         }
         memset(mem, 0, alloc_size);
-        if(mappages(pagetable, cur_va, alloc_size, mem, PTE_R | PTE_U | xperm)!=0){
+        if(mappages(pagetable, cur_va, alloc_size, (uint64)mem, PTE_R | PTE_U | xperm)!=0){
             free_pages(mem);
             uvmdealloc(pagetable, cur_va, aligned_oldsz);
             return 0;
@@ -440,84 +442,140 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
     cur_order=(cur_order==0 || cur_order>MAX_ORDER+ORDER_BASE)
         ?(MAX_ORDER+ORDER_BASE):cur_order;
     uint64 cur_max_size=1ull << cur_order;
-    uint64 alloc_size=cur_max_size;
+    uint64 alloc_size=cur_max_size, copy_size;
     void *mem;
-    uint64 cur_va=dstva, basepage_va, cur_pa;
+    uint64 cur_va=dstva, basepage_va=aligned_dstva, cur_pa;
     pte_t *pte;
-    
-
-
-        memset(mem, 0, alloc_size);
-        if(mappages(pagetable, cur_va, alloc_size, mem, PTE_R | PTE_U | xperm)!=0){
-            free_pages(mem);
-            uvmdealloc(pagetable, cur_va, aligned_oldsz);
-            return 0;
-        }
-        if(remain_size>alloc_size)  remain_size-=alloc_size;
-        else    break;
-        cur_va+=alloc_size;
-        cur_order=find_last_set(cur_va & -cur_va);
-        cur_order=(cur_order > MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):cur_order;
-        cur_max_size=1ull << cur_order;
-    }
-    return newsz;
-
-    uint64 n, va0, pa0;
-    pte_t *pte;
-
-    while (len > 0) {
-        va0 = PGROUNDDOWN(dstva);
-        if (va0 >= MAXVA) return -1;
-
-        pa0 = walkaddr(pagetable, va0);
-        if (pa0 == 0) {
-            if ((pa0 = vmfault(pagetable, va0, 0)) == 0) {
+    while(len>0){
+        if(cur_va>=MAXVA)   return -1;
+        cur_pa=walkaddr(pagetable, basepage_va);
+        if(cur_pa==0){
+            alloc_size=cur_max_size;
+            while(len < alloc_size && alloc_size>PGSIZE)
+                alloc_size/= 2;
+            mem=alloc_memory(alloc_size);
+            if(mem==0){
+                uvmdealloc(pagetable, cur_va, dstva);
                 return -1;
             }
+            memset(mem, 0, alloc_size);
+            if(mappages(pagetable, basepage_va, alloc_size, (uint64)mem, PTE_U | PTE_W | PTE_R)!=0){
+                free_pages(mem);
+                uvmdealloc(pagetable, cur_va, dstva);
+                return -1;
+            }
+            cur_pa=walkaddr(pagetable, basepage_va);
         }
-
-        if ((pte = walk(pagetable, va0, 0, 0)) == 0) {
-            // printf("copyout: pte should exist %lx %ld\n", dstva, len);
-            return -1;
+        else{
+            alloc_size=1ull<<(get_order(cur_pa)+ORDER_BASE);
+            //exist the mapping, check the bitmap for more info.
+            pte=walk(pagetable, basepage_va, 0, 0);
+            if(pte==0 || (*pte & PTE_W)==0) return -1;  //exist and pte_w is valid.
         }
-
-        // forbid copyout over read-only user text pages.
-        if ((*pte & PTE_W) == 0) return -1;
-
-        n = PGSIZE - (dstva - va0);
-        if (n > len) n = len;
-        memmove((void *)(pa0 + (dstva - va0)), src, n);
-
-        len -= n;
-        src += n;
-        dstva = va0 + PGSIZE;
+        copy_size=alloc_size-(cur_va-basepage_va);
+        if(copy_size>len)   copy_size=len;
+        memmove((void *)cur_pa+(cur_va-basepage_va), src, copy_size);
+        len-=copy_size;
+        src+=copy_size;
+        cur_va=basepage_va+alloc_size;
+        cur_order=find_last_set(basepage_va & -basepage_va);
+        cur_order=(cur_order>MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):cur_order;
+        cur_max_size=1ull<<cur_order;
+        basepage_va=PGROUNDDOWN(cur_va);
     }
     return 0;
+    // uint64 n, va0, pa0;
+    // pte_t *pte;
+    // while (len > 0) {
+    //     va0 = PGROUNDDOWN(dstva);
+    //     if (va0 >= MAXVA) return -1;
+    //     pa0 = walkaddr(pagetable, va0);
+    //     if (pa0 == 0) {
+    //         if ((pa0 = vmfault(pagetable, va0, 0)) == 0) {
+    //             return -1;
+    //         }
+    //     }
+    //     if ((pte = walk(pagetable, va0, 0, 0)) == 0) {
+    //         // printf("copyout: pte should exist %lx %ld\n", dstva, len);
+    //         return -1;
+    //     }
+    //     // forbid copyout over read-only user text pages.
+    //     if ((*pte & PTE_W) == 0) return -1;
+    //     n = PGSIZE - (dstva - va0);
+    //     if (n > len) n = len;
+    //     memmove((void *)(pa0 + (dstva - va0)), src, n);
+    //     len -= n;
+    //     src += n;
+    //     dstva = va0 + PGSIZE;
+    // }
 }
 
 // Copy from user to kernel.
 // Copy len bytes to dst from virtual address srcva in a given page table.
 // Return 0 on success, -1 on error.
 int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
-    uint64 n, va0, pa0;
-
-    while (len > 0) {
-        va0 = PGROUNDDOWN(srcva);
-        pa0 = walkaddr(pagetable, va0);
-        if (pa0 == 0) {
-            if ((pa0 = vmfault(pagetable, va0, 0)) == 0) {
+    uint64 aligned_srcva=PGROUNDDOWN(srcva);
+    uint8 cur_order=find_last_set(aligned_srcva & -aligned_srcva);
+    cur_order=(cur_order==0 || cur_order>MAX_ORDER+ORDER_BASE)
+        ?(MAX_ORDER+ORDER_BASE):cur_order;
+    uint64 alloc_size, copy_size;
+    void *mem;
+    uint64 cur_va=srcva, basepage_va=aligned_srcva, cur_pa;
+    pte_t *pte;
+    while(len>0){
+        cur_pa=walkaddr(pagetable, basepage_va);
+        if(cur_pa==0){  
+            //Trigger a page fault due to the missing page and finish allocations.
+            cur_order=find_last_set(basepage_va & -basepage_va);
+            cur_order=(cur_order>MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):cur_order;
+            alloc_size=1ull<<cur_order;
+            while(len < alloc_size && alloc_size>PGSIZE)
+                alloc_size/=2;
+            mem=alloc_memory(alloc_size);
+            if(mem==0){
+                uvmdealloc(pagetable, basepage_va, srcva);
                 return -1;
             }
+            memset(mem, 0, alloc_size);
+            if(mappages(pagetable, basepage_va, alloc_size, (uint64)mem, PTE_U | PTE_W | PTE_R)!=0){
+                free_pages(mem);
+                uvmdealloc(pagetable, basepage_va, srcva);
+                return -1;
+            }
+            cur_pa=walkaddr(pagetable, basepage_va);    //update 
         }
-        n = PGSIZE - (srcva - va0);
-        if (n > len) n = len;
-        memmove(dst, (void *)(pa0 + (srcva - va0)), n);
-
-        len -= n;
-        dst += n;
-        srcva = va0 + PGSIZE;
+        else{
+            alloc_size=1ull<<(get_order(cur_pa)+ORDER_BASE); 
+            //exist the mapping, check the bitmap for more info.
+            pte=walk(pagetable, basepage_va, 0, 0);
+            if(pte==0 || (*pte & PTE_R)==0) return -1;
+        }
+        copy_size=alloc_size-(cur_va-basepage_va);
+        if(copy_size>len)   copy_size=len;  
+        //modified the size to reflect the actual amount successfully copied!
+        memmove(dst, (void *)(cur_pa+(cur_va-basepage_va)), copy_size);
+        len-=copy_size;
+        dst+=copy_size;
+        cur_va=basepage_va+alloc_size;
+        basepage_va=PGROUNDDOWN(cur_va);
     }
     return 0;
+    // uint64 n, va0, pa0;
+    // while (len > 0) {
+    //     va0 = PGROUNDDOWN(srcva);
+    //     pa0 = walkaddr(pagetable, va0);
+    //     if (pa0 == 0) {
+    //         if ((pa0 = vmfault(pagetable, va0, 0)) == 0) {
+    //             return -1;
+    //         }
+    //     }
+    //     n = PGSIZE - (srcva - va0);
+    //     if (n > len) n = len;
+    //     memmove(dst, (void *)(pa0 + (srcva - va0)), n);
+    //     len -= n;
+    //     dst += n;
+    //     srcva = va0 + PGSIZE;
+    // }
 }
 
 // Copy a null-terminated string from user to kernel.
@@ -525,38 +583,65 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
 // until a '\0', or max.
 // Return 0 on success, -1 on error.
 int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max) {
-    uint64 n, va0, pa0;
-    int got_null = 0;
-
-    while (got_null == 0 && max > 0) {
-        va0 = PGROUNDDOWN(srcva);
-        pa0 = walkaddr(pagetable, va0);
-        if (pa0 == 0) return -1;
-        n = PGSIZE - (srcva - va0);
-        if (n > max) n = max;
-
-        char *p = (char *)(pa0 + (srcva - va0));
-        while (n > 0) {
-            if (*p == '\0') {
+    uint64 cur_pa, basepage_va;
+    uint64 support_size, copy_size;
+    int got_null=0;
+    pte_t *pte;
+    while(got_null==0 && max>0){
+        basepage_va=PGROUNDDOWN(srcva);
+        cur_pa=walkaddr(pagetable, basepage_va);
+        if(cur_pa==0)   return -1;  //Invalid page
+        pte=walk(pagetable, basepage_va, 0, 0);
+        if(pte==0 || (*pte & PTE_R)==0) return -1;
+        support_size=1ull<<(get_order(cur_pa)+ORDER_BASE);
+        copy_size=support_size-(srcva-basepage_va);
+        if(copy_size>max)   copy_size=max;  
+        //modified the size to reflect the actual amount successfully copied!
+        char *ptr=(char *)(cur_pa + (srcva-basepage_va));
+        while (copy_size > 0) {
+            if (*ptr == '\0') {
                 *dst = '\0';
                 got_null = 1;
                 break;
             } else {
-                *dst = *p;
+                *dst = *ptr;
             }
-            --n;
-            --max;
-            p++;
-            dst++;
+            --copy_size;--max;
+            ptr++;dst++;
         }
-
-        srcva = va0 + PGSIZE;
+        srcva=basepage_va+support_size;
     }
-    if (got_null) {
-        return 0;
-    } else {
-        return -1;
-    }
+    if (got_null)   return 0;
+    else    return -1;
+    // uint64 n, va0, pa0;
+    // int got_null = 0;
+    // while (got_null == 0 && max > 0) {
+    //     va0 = PGROUNDDOWN(srcva);
+    //     pa0 = walkaddr(pagetable, va0);
+    //     if (pa0 == 0) return -1;
+    //     n = PGSIZE - (srcva - va0);
+    //     if (n > max) n = max;
+    //     char *p = (char *)(pa0 + (srcva - va0));
+    //     while (n > 0) {
+    //         if (*p == '\0') {
+    //             *dst = '\0';
+    //             got_null = 1;
+    //             break;
+    //         } else {
+    //             *dst = *p;
+    //         }
+    //         --n;
+    //         --max;
+    //         p++;
+    //         dst++;
+    //     }
+    //     srcva = va0 + PGSIZE;
+    // }
+    // if (got_null) {
+    //     return 0;
+    // } else {
+    //     return -1;
+    // }
 }
 
 

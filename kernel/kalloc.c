@@ -80,6 +80,16 @@ static void add_to_list_nolock(struct page *p, int order){
     kmem.free_area[order].head=new_head;
     new_head->flags=(order << 8 | 0x1);
 }
+uint16 get_order(uint64 pa){
+    pa=pa-(uint64)end;
+    if(pa%PGSIZE!=0)
+        panic("get order: Lookup unaligned address!");
+    uint64 pa_idx=pa/PGSIZE;
+    acquire(&kmem.lock);
+    uint16 tmp=ORDER_MASK(kmem.mem_bitmaps[pa_idx].flags);
+    release(&kmem.lock);
+    return tmp;
+}
 void free_pages(void *pa){
     uint64 mem_idx=(uint64)(pa-(void *)end) / PGSIZE, buddy_idx;
     acquire(&kmem.lock);
@@ -187,10 +197,11 @@ void *alloc_memory(uint64 size){
     del_form_list_nolock(tmp, split_order);
     while(split_order>order){
         //split into two blocks,both add into the lower level list
-        high_tmp= tmp + (1ull<<(split_order -1));
-        tmp->flags=(split_order-1 << 8 | 0x1);
-        high_tmp->flags=(split_order-1 << 8);
-        add_to_list_nolock(tmp, split_order-1);
+        split_order--;
+        high_tmp= tmp + (1ull<<split_order);
+        tmp->flags=(split_order << 8 | 0x1);
+        high_tmp->flags=split_order << 8;
+        add_to_list_nolock(tmp, split_order);
         tmp=high_tmp;
     }
     offset=(tmp-kmem.mem_bitmaps)*PGSIZE;
