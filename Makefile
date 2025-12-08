@@ -170,6 +170,10 @@ CFLAGS += -fno-pie -nopie
 endif
 CFLAGS += -O0
 
+ifeq ($(DEBUG), 1)
+CFLAGS += -DDEBUG_FORK -DDEBUG_VM -DDEBUG_KALLOC -DDEBUG_EXEC
+endif
+
 LDFLAGS = -z max-page-size=4096
 
 $K/kernel: $(OBJS) $(OBJS_KCSAN) $K/kernel.ld

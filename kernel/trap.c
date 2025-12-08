@@ -73,7 +73,7 @@ uint64 usertrap(void) {
                 printf(" -> PTE does not exist (page table missing)\n");
             } else {
                 printf(" -> PTE content: %lx (Valid bit: %ld, Write bit: %ld)\n", 
-                       *pte, (*pte & PTE_V), (*pte & PTE_W)>>3);
+                       *pte, (*pte & PTE_V), (*pte & PTE_W)>>2);
             }
             
             // 甚至可以打印整个页表树

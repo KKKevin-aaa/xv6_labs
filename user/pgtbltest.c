@@ -137,13 +137,17 @@ void superpg_fork() {
 
     // free super pages
     sbrk(-SZ);
+    printf("1 \n");
     if ((pid = fork()) < 0) {
         err("fork");
     } else if (pid == 0) {
         // reference freed memory; this should result in page fault and
         // the kernel should kill the child.
+        printf("2 \n");
         *(end + 1) = '9';
+        printf("3 \n");
     } else {
+        printf("4 \n");
         int status;
         wait(&status);
         if (status == 0) {
@@ -165,10 +169,12 @@ void superpg_free() {
 
     // free pages beyond a super page
     char *a = sbrk(0);
+    printf("current a is %p\n", (void *)a);
     uint64 s = SUPERPGROUNDDOWN((uint64)a);
+    printf("current s is 0x%lx, next-sbrk is 0x%lx\n", s, -((uint64)a - s));
     sbrk(-((uint64)a - s));
     a = sbrk(0);
-
+    printf("current a is %p\n", (void *)a);
     pte_t pte1 = (pte_t)pgpte((void *)a - PGSIZE);
     pte_t pte2 = (pte_t)pgpte((void *)a - 2 * PGSIZE);
     if (pte1 != pte2) {
@@ -182,7 +188,7 @@ void superpg_free() {
     // free last 4096 bytes of a super page
     sbrk(-PGSIZE);
     a = sbrk(0);
-
+    printf("current a is %p\n", (void *)a);
     if (*(a - PGSIZE + 1) != '9') {
         err("lost content after freeing part of super page");
     }

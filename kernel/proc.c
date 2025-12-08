@@ -263,7 +263,7 @@ int kfork(void) {
         uint64 kfork_start_time=r_cycle();
     #endif
 #ifdef DEBUG_FORK
-    FORK_TRACE("parent pid=%d name=%s sz=%p syscall_mask=%x\n", p->pid, p->name, (void *)p->sz, p->syscall_mask);
+    FORK_TRACE("parent pid=%d name=%s sz=0x%lx syscall_mask=0x%x\n", p->pid, p->name, p->sz, p->syscall_mask);
 #endif
     // Allocate process(process control block).
     // Critical: allocproc() acquires p->lock of the new process.
@@ -288,7 +288,7 @@ int kfork(void) {
     np->sz = p->sz;
 
 #ifdef DEBUG_FORK
-    FORK_TRACE("copied pagetable for child pid=%d sz=%ld\n", np->pid, np->sz);
+    FORK_TRACE("copied pagetable for child pid=%d sz=0x%lx\n", np->pid, np->sz);
 #endif
     // copy saved user registers.
     // Ensure the child resumes execution at the exact same point
