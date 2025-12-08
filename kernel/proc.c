@@ -5,6 +5,18 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+// 调试开关：注释下面这一行可关闭所有 fork 日志
+// #define DEBUG_FORK
+#ifdef DEBUG_FORK
+#define FORK_TRACE(fmt, ...) \
+    do { \
+        printf("[FORK:%s] " fmt, __func__, ##__VA_ARGS__); \
+    } while (0)
+#else
+#define FORK_TRACE(fmt, ...) \
+    do { \
+    } while (0)
+#endif
 // #define PROC_DEBUG
 // #define PROC_TEST_TIME 
 struct cpu cpus[NCPU];
@@ -250,21 +262,34 @@ int kfork(void) {
     #ifdef PROC_TEST_TIME
         uint64 kfork_start_time=r_cycle();
     #endif
+#ifdef DEBUG_FORK
+    FORK_TRACE("parent pid=%d name=%s sz=%p syscall_mask=%x\n", p->pid, p->name, (void *)p->sz, p->syscall_mask);
+#endif
     // Allocate process(process control block).
     // Critical: allocproc() acquires p->lock of the new process.
     // This prevent the scheduler from picking up this "half-baked" process.
     if ((np = allocproc()) == 0) {
         return -1;
     }
+#ifdef DEBUG_FORK
+    FORK_TRACE("allocproc returned child pid=%d pagetable=%p\n", np->pid, np->pagetable);
+    FORK_TRACE("kfork -> uvmcopy for pid=%d\n", np->pid);
+#endif
 
     // Copy user memory from parent to child.
     if (uvmcopy(p->pagetable, np->pagetable, p->sz) < 0) {
+    #ifdef DEBUG_FORK
+        FORK_TRACE("uvmcopy failed for child pid=%d\n", np->pid);
+#endif
         freeproc(np);
         release(&np->lock);
         return -1;
     }
     np->sz = p->sz;
 
+#ifdef DEBUG_FORK
+    FORK_TRACE("copied pagetable for child pid=%d sz=%ld\n", np->pid, np->sz);
+#endif
     // copy saved user registers.
     // Ensure the child resumes execution at the exact same point
     *(np->trapframe) = *(p->trapframe);
@@ -300,6 +325,9 @@ int kfork(void) {
 
     acquire(&np->lock);
     np->state = RUNNABLE;   //The scheduler can now pick up this process.
+#ifdef DEBUG_FORK
+    FORK_TRACE("child pid=%d is RUNNABLE and ready\n", np->pid);
+#endif
     #ifdef PROC_TEST_TIME
         uint64 kfork_end_time=r_cycle();
         if(kfork_end_time-kfork_start_time>10000){
@@ -307,6 +335,9 @@ int kfork(void) {
         }
     #endif
     release(&np->lock);
+#ifdef DEBUG_FORK
+    FORK_TRACE("kfork returns pid=%d\n", pid);
+#endif
     return pid;
 }
 

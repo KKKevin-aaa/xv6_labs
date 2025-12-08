@@ -11,6 +11,16 @@
 #include "defs.h"
 
 // #define DEBUG_KALLOC
+#ifdef DEBUG_KALLOC
+#define KALLOC_TRACE(fmt, ...) \
+    do { \
+        printf("[KALLOC:%s] " fmt, __func__, ##__VA_ARGS__); \
+    } while (0)
+#else
+#define KALLOC_TRACE(fmt, ...) \
+    do { \
+    } while (0)
+#endif
 // Maximun size is 2^max_order*4KB, and PHYsize=128MB
 // here we choose maximun size is 16MB, 
 // and larger memory requirements can fulfilled by combining smaller components
@@ -99,7 +109,7 @@ void free_pages(void *pa){
     struct proc *p = myproc();
     int pid = p ? p->pid : -1;
     char *name = p ? p->name : "kernel";
-    printf("[KALLOC] free_pages: pid=%d(%s) freeing pa=%p order=%d\n", pid, name, (void *)pa, cur_order);
+    KALLOC_TRACE("pid=%d(%s) freeing pa=%p order=%d\n", pid, name, (void *)pa, cur_order);
 #endif
     if(cur_order== MAGIC_MERGED){
         // while(1);
@@ -151,12 +161,12 @@ int is_all_same_swar(const uint8 *data, uint64 len){
 }
 void kinit() {
 #ifdef DEBUG_KALLOC
-    printf("[KALLOC] kinit: initializing memory allocator\n");
+    KALLOC_TRACE("initializing memory allocator\n");
 #endif
     initlock(&kmem.lock, "kmem");
     init_whole_area();
 #ifdef DEBUG_KALLOC
-    printf("[KALLOC] kinit: initialization complete\n");
+    KALLOC_TRACE("initialization complete\n");
 #endif
 }
 void *alloc_memory(uint64 size){
@@ -164,7 +174,7 @@ void *alloc_memory(uint64 size){
     struct proc *p = myproc();
     int pid = p ? p->pid : -1;
     char *name = p ? p->name : "kernel";
-    printf("[KALLOC] alloc_memory: pid=%d(%s) requesting size=%lx\n", pid, name, size);
+    KALLOC_TRACE("pid=%d(%s) requesting size=%lx\n", pid, name, size);
 #endif
     //check first, should be 4kB-aligned
     //And it must be ensured that only a single page is allocated within alloc_memory.
@@ -204,7 +214,7 @@ void *alloc_memory(uint64 size){
     offset=(tmp-kmem.mem_bitmaps)*PGSIZE;
     release(&kmem.lock);
 #ifdef DEBUG_KALLOC
-    printf("[KALLOC] alloc_memory: pid=%d(%s) allocated size=%lx at pa=%p order=%d\n", 
+    KALLOC_TRACE("pid=%d(%s) allocated size=%lx at pa=%p order=%d\n", 
            pid, name, size, (void *)(KERNBASE+offset), split_order);
 #endif
     // if(KERNBASE+offset == 0x87fb2000)   while(1);
@@ -226,7 +236,7 @@ void kfree(void *pa) {
     struct proc *p = myproc();
     int pid = p ? p->pid : -1;
     char *name = p ? p->name : "kernel";
-    printf("[KALLOC] kfree: pid=%d(%s) freeing pa=%p\n", pid, name, pa);
+    KALLOC_TRACE("pid=%d(%s) freeing pa=%p\n", pid, name, pa);
 #endif
     if (((uint64)pa % PGSIZE) != 0 || (char *)pa < end || (uint64)pa >= PHYSTOP)
         panic("kfree");
@@ -243,7 +253,7 @@ void *kalloc(void) {
     struct proc *p = myproc();
     int pid = p ? p->pid : -1;
     char *name = p ? p->name : "kernel";
-    printf("[KALLOC] kalloc: pid=%d(%s) requesting PGSIZE\n", pid, name);
+    KALLOC_TRACE("pid=%d(%s) requesting PGSIZE\n", pid, name);
 #endif
     return alloc_memory(PGSIZE);
 }

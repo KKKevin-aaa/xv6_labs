@@ -6,7 +6,18 @@
 #include "proc.h"
 #include "defs.h"
 #include "elf.h"
-// #define EXEC_DEBUG
+// 调试开关：注释下面一行即可关闭所有 exec 日志
+// #define DEBUG_EXEC
+#ifdef DEBUG_EXEC
+#define EXEC_TRACE(fmt, ...) \
+    do { \
+        printf("[EXEC:%s] " fmt, __func__, ##__VA_ARGS__); \
+    } while (0)
+#else
+#define EXEC_TRACE(fmt, ...) \
+    do { \
+    } while (0)
+#endif
 // #define EXEC_TEST_TIME
 static int loadseg(pde_t *, uint64, struct inode *, uint, uint);
 
@@ -33,10 +44,12 @@ int kexec(char *path, char **argv) {
     #ifdef EXEC_TEST_TIME
         uint64 kexec_start_time=r_cycle();
     #endif
+    EXEC_TRACE("kexec start pid=%d path=%s argv=%p\n", p->pid, path, argv);
     begin_op();
 
     // Open the executable file.
     if ((ip = namei(path)) == 0) {
+    EXEC_TRACE("namei failed for %s\n", path);
         end_op();
         return -1;
     }
@@ -49,6 +62,7 @@ int kexec(char *path, char **argv) {
     if (elf.magic != ELF_MAGIC) goto bad;
 
     if ((pagetable = proc_pagetable(p)) == 0) goto bad;
+    EXEC_TRACE("new pagetable %p created for pid=%d\n", pagetable, p->pid);
 
     // Load program into memory.
     for (i = 0, off = elf.phoff; i < elf.phnum; i++, off += sizeof(ph)) {
@@ -61,6 +75,7 @@ int kexec(char *path, char **argv) {
         if ((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz, flags2perm(ph.flags))) == 0)
             goto bad;
         sz = sz1;
+        EXEC_TRACE("mapped segment va=%p memsz=%lu filesz=%lu\n", (void *)ph.vaddr, ph.memsz, ph.filesz);
         if (loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0) goto bad;
     }
     iunlockput(ip);
@@ -74,19 +89,16 @@ int kexec(char *path, char **argv) {
     // Make the first inaccessible as a stack guard.
     // Use the rest as the user stack.
     sz = PGROUNDUP(sz);
-    #ifdef EXEC_DEBUG
-    printf("[EXEC] Process %s(pid=%d): OLD sz=%ld pages, NEW text/data sz=%ld pages\n", 
-           p->name, p->pid, oldsz/PGSIZE, sz/PGSIZE);
-    #endif
+        EXEC_TRACE("Process %s(pid=%d): OLD sz=%ld pages, NEW text/data sz=%ld pages\n", 
+            p->name, p->pid, oldsz/PGSIZE, sz/PGSIZE);
     uint64 sz1;
     if ((sz1 = uvmalloc(pagetable, sz, sz + (USERSTACK + 1) * PGSIZE, PTE_W)) == 0) goto bad;
     sz = sz1;
-    #ifdef EXEC_DEBUG
-    printf("[EXEC] After adding stack: NEW total sz=%ld pages\n", sz/PGSIZE);
-    #endif
+    EXEC_TRACE("After adding stack: NEW total sz=%ld pages\n", sz/PGSIZE);
     uvmclear(pagetable, sz - (USERSTACK + 1) * PGSIZE);
     sp = sz;
     stackbase = sp - USERSTACK * PGSIZE;    //the end of user_stack,should not arrived!
+    EXEC_TRACE("stack window base=%p top=%p\n", (void *)stackbase, (void *)sp);
 
     // Copy argument strings into new stack, remember their
     // addresses in ustack[].
@@ -122,15 +134,11 @@ int kexec(char *path, char **argv) {
     p->sz = sz;
     p->trapframe->epc = elf.entry;  // initial program counter = main
     p->trapframe->sp = sp;          // initial stack pointer
-    #ifdef EXEC_DEBUG
-    printf("[EXEC] Now freeing OLD pagetable=%p with oldsz=%ld pages\n", 
-           oldpagetable, oldsz/PGSIZE);
-    #endif
+        EXEC_TRACE("Now freeing OLD pagetable=%p with oldsz=%ld pages\n", 
+            oldpagetable, oldsz/PGSIZE);
     proc_freepagetable(oldpagetable, oldsz);
-    #ifdef EXEC_DEBUG
-    printf("[EXEC] Process %s(pid=%d) exec complete. Final sz=%ld pages\n", 
-           p->name, p->pid, sz/PGSIZE);
-    #endif
+        EXEC_TRACE("Process %s(pid=%d) exec complete. Final sz=%ld pages\n", 
+            p->name, p->pid, sz/PGSIZE);
     #ifdef EXEC_TEST_TIME
         uint64 kexec_end_time=r_cycle();
         if(kexec_end_time-kexec_start_time>10000){
@@ -140,6 +148,7 @@ int kexec(char *path, char **argv) {
     return argc;  // this ends up in a0, the first argument to main(argc, argv)
 
 bad:
+    EXEC_TRACE("exec failed for path=%s pid=%d\n", path, p->pid);
     if (pagetable) proc_freepagetable(pagetable, sz);
     if (ip) {
         iunlockput(ip);

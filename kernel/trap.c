@@ -62,6 +62,25 @@ uint64 usertrap(void) {
     } else {
         printf("usertrap(): unexpected scause 0x%lx pid=%d\n", r_scause(), p->pid);
         printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), r_stval());
+        printf("            pagetable is %p, name is %s\n",p->pagetable, p->name);
+        if (r_scause() == 15 && r_stval() >= 0x5000 && r_stval() < 0x6000) {
+            printf("!!! DEBUG TRAP: Page Fault at %lx pid=%d name=%s !!!\n", 
+                   r_stval(), p->pid, p->name);
+            
+            // 此时，你可以手动调用 walk 查看页表到底长什么样
+            pte_t *pte = walk(p->pagetable, r_stval(), 0, 0); // 假设 level=0
+            if(pte == 0) {
+                printf(" -> PTE does not exist (page table missing)\n");
+            } else {
+                printf(" -> PTE content: %lx (Valid bit: %ld, Write bit: %ld)\n", 
+                       *pte, (*pte & PTE_V), (*pte & PTE_W)>>3);
+            }
+            
+            // 甚至可以打印整个页表树
+            vmprint(p->pagetable); 
+            
+            panic("Stop for inspection"); // 这里的 panic 是最有效的断点
+        }
         setkilled(p);
     }
 
