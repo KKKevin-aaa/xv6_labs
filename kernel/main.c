@@ -25,8 +25,12 @@ void main() {
         binit();             // buffer cache
         iinit();             // inode table
         fileinit();          // file table
+        printf("1\n");
         virtio_disk_init();  // emulated hard disk
+        printf("1\n");        
         userinit();          // first user process
+        printf("1\n");
+
         __sync_synchronize();
         started = 1;
     } else {

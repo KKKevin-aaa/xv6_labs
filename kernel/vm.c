@@ -291,10 +291,10 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int do_free){
                 size-=step;va+=step;
                 break;
             }
-            if(PTE_LEAF(*pte)!=0){   //level-2 leaf
+            if(PTE_LEAF(*pte)!=0){   //leaf
                 pa=PTE2PA(*pte);
+                if(do_free!=0)  free_pages((void *)pa, get_step_size(cur_level)); //free 
                 cur_order=get_order(pa);
-                if(do_free!=0)  free_pages((void *)pa); //free 
                 pte_step=1ull<<(cur_order-cur_level*9);
                 step=1ull<<(ORDER_BASE+cur_order);
                 if(step>size)   step=size;
@@ -336,7 +336,7 @@ uint64 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm) {
         memset(mem, 0, alloc_size);
         VM_TRACE("uvmalloc -> mappages cur_va=0x%lx alloc_size=0x%lx\n", cur_va, alloc_size);
         if(mappages(pagetable, cur_va, alloc_size, (uint64)mem, PTE_R | PTE_U | xperm)!=0){
-            free_pages(mem);
+            free_pages(mem, alloc_size);
             VM_TRACE("uvmalloc mappages failed at cur_va=0x%lx size=0x%lx\n", cur_va, alloc_size);
             uvmdealloc(pagetable, cur_va, aligned_oldsz);
             return 0;
@@ -429,7 +429,7 @@ void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz,
 #ifdef DEBUG_VM
             VM_TRACE("freewalk freeing pa=%p size=0x%lx\n", (void *)pa, va_step);
 #endif
-            free_pages((void *)pa); //record statement before freeing, 
+            free_pages((void *)pa, va_step); //record statement before freeing, 
             // as the merging process potentially alter the metadata.
         }
         else{
@@ -448,7 +448,7 @@ void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz,
         cur_va+=va_step;
         idx+=step;
     }
-    free_pages((void *)pagetable);
+    free_pages((void *)pagetable, PGSIZE);
 }
 // Recursively copy page-table pages.Consider the superpage Error occurs, quit recursively.
 // Directly assign the known PTE to bypass the mappage overhead, 
@@ -585,7 +585,7 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
             }
             memset(mem, 0, alloc_size);
             if(mappages(pagetable, basepage_va, alloc_size, (uint64)mem, PTE_U | PTE_W | PTE_R)!=0){
-                free_pages(mem);
+                free_pages(mem, alloc_size);
                 uvmdealloc(pagetable, cur_va, dstva);
                 return -1;
             }
@@ -667,7 +667,7 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
             }
             memset(mem, 0, alloc_size);
             if(mappages(pagetable, basepage_va, alloc_size, (uint64)mem, PTE_U | PTE_W | PTE_R)!=0){
-                free_pages(mem);
+                free_pages(mem, alloc_size);
                 uvmdealloc(pagetable, basepage_va, srcva);
                 return -1;
             }

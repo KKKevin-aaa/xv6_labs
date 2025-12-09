@@ -67,7 +67,7 @@ void            ireclaim(int);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
-void            free_pages(void *); //for huge page
+void            free_pages(void *pa, uint64 sz); //for huge page
 void*           alloc_memory(uint64);
 uint16          get_order(uint64);
 // log.c
