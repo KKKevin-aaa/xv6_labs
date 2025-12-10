@@ -1,0 +1,977 @@
+
+xv6 kernel is booting
+
+[KALLOC:kinit] initializing memory allocator
+[KALLOC:kinit] initialization complete
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fff000 order=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ffe000 order=0
+[VM:mappages] va=0x0000000010000000 size=0x1000 pa=0x0000000010000000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000010000000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ffd000 order=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ffc000 order=0
+[VM:mappages] va=0x0000000010001000 size=0x1000 pa=0x0000000010001000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000010001000 alloc=1 target_level=0
+[VM:mappages] va=0x000000000c000000 size=0x4000000 pa=0x000000000c000000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000c000000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000c200000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000c400000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000c600000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000c800000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000ca00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000cc00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000ce00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000d000000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000d200000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000d400000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000d600000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000d800000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000da00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000dc00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000de00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000e000000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000e200000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000e400000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000e600000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000e800000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000ea00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000ec00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000ee00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000f000000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000f200000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000f400000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000f600000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000f800000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000fa00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000fc00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000000fe00000 alloc=1 target_level=1
+[VM:mappages] va=0x0000000080000000 size=0xe000 pa=0x0000000080000000 perm=0xa
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080000000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ffb000 order=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ffa000 order=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080001000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080002000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080003000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080004000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080005000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080006000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080007000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080008000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080009000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008000a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008000b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008000c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008000d000 alloc=1 target_level=0
+[VM:mappages] va=0x000000008000e000 size=0x7ff2000 pa=0x000000008000e000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008000e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008000f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080010000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080011000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080012000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080013000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080014000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080015000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080016000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080017000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080018000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080019000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008001a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008001b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008001c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008001d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008001e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008001f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080020000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080021000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080022000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080023000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080024000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080025000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080026000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080027000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080028000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080029000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008002a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008002b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008002c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008002d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008002e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008002f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080030000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080031000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080032000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080033000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080034000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080035000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080036000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080037000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080038000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080039000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008003a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008003b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008003c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008003d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008003e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008003f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080040000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080041000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080042000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080043000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080044000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080045000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080046000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080047000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080048000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080049000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008004a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008004b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008004c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008004d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008004e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008004f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080050000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080051000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080052000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080053000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080054000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080055000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080056000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080057000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080058000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080059000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008005a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008005b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008005c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008005d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008005e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008005f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080060000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080061000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080062000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080063000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080064000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080065000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080066000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080067000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080068000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080069000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008006a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008006b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008006c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008006d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008006e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008006f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080070000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080071000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080072000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080073000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080074000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080075000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080076000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080077000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080078000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080079000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008007a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008007b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008007c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008007d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008007e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008007f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080080000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080081000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080082000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080083000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080084000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080085000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080086000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080087000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080088000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080089000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008008a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008008b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008008c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008008d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008008e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008008f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080090000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080091000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080092000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080093000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080094000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080095000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080096000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080097000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080098000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080099000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008009a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008009b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008009c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008009d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008009e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008009f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800a0000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800a1000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800a2000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800a3000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800a4000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800a5000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800a6000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800a7000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800a8000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800a9000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800aa000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800ab000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800ac000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800ad000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800ae000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800af000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800b0000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800b1000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800b2000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800b3000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800b4000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800b5000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800b6000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800b7000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800b8000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800b9000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800ba000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800bb000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800bc000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800bd000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800be000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800bf000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800c0000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800c1000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800c2000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800c3000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800c4000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800c5000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800c6000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800c7000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800c8000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800c9000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800ca000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800cb000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800cc000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800cd000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800ce000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800cf000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800d0000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800d1000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800d2000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800d3000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800d4000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800d5000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800d6000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800d7000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800d8000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800d9000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800da000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800db000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800dc000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800dd000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800de000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800df000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800e0000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800e1000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800e2000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800e3000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800e4000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800e5000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800e6000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800e7000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800e8000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800e9000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800ea000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800eb000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800ec000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800ed000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800ee000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800ef000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800f0000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800f1000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800f2000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800f3000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800f4000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800f5000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800f6000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800f7000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800f8000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800f9000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800fa000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800fb000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800fc000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800fd000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800fe000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000800ff000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080100000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080101000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080102000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080103000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080104000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080105000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080106000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080107000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080108000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080109000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008010a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008010b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008010c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008010d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008010e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008010f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080110000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080111000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080112000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080113000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080114000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080115000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080116000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080117000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080118000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080119000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008011a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008011b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008011c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008011d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008011e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008011f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080120000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080121000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080122000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080123000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080124000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080125000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080126000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080127000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080128000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080129000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008012a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008012b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008012c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008012d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008012e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008012f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080130000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080131000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080132000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080133000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080134000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080135000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080136000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080137000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080138000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080139000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008013a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008013b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008013c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008013d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008013e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008013f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080140000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080141000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080142000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080143000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080144000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080145000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080146000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080147000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080148000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080149000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008014a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008014b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008014c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008014d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008014e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008014f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080150000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080151000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080152000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080153000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080154000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080155000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080156000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080157000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080158000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080159000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008015a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008015b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008015c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008015d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008015e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008015f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080160000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080161000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080162000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080163000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080164000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080165000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080166000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080167000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080168000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080169000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008016a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008016b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008016c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008016d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008016e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008016f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080170000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080171000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080172000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080173000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080174000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080175000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080176000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080177000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080178000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080179000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008017a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008017b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008017c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008017d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008017e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008017f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080180000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080181000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080182000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080183000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080184000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080185000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080186000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080187000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080188000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080189000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008018a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008018b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008018c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008018d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008018e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008018f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080190000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080191000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080192000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080193000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080194000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080195000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080196000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080197000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080198000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080199000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008019a000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008019b000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008019c000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008019d000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008019e000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x000000008019f000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801a0000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801a1000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801a2000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801a3000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801a4000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801a5000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801a6000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801a7000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801a8000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801a9000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801aa000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801ab000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801ac000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801ad000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801ae000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801af000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801b0000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801b1000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801b2000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801b3000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801b4000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801b5000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801b6000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801b7000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801b8000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801b9000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801ba000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801bb000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801bc000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801bd000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801be000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801bf000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801c0000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801c1000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801c2000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801c3000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801c4000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801c5000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801c6000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801c7000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801c8000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801c9000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801ca000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801cb000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801cc000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801cd000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801ce000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801cf000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801d0000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801d1000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801d2000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801d3000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801d4000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801d5000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801d6000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801d7000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801d8000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801d9000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801da000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801db000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801dc000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801dd000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801de000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801df000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801e0000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801e1000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801e2000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801e3000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801e4000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801e5000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801e6000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801e7000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801e8000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801e9000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801ea000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801eb000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801ec000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801ed000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801ee000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801ef000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801f0000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801f1000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801f2000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801f3000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801f4000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801f5000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801f6000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801f7000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801f8000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801f9000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801fa000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801fb000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801fc000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801fd000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801fe000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x00000000801ff000 alloc=1 target_level=0
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080200000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080400000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080600000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080800000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080a00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080c00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000080e00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000081000000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000081200000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000081400000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000081600000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000081800000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000081a00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000081c00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000081e00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000082000000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000082200000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000082400000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000082600000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000082800000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000082a00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000082c00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000082e00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000083000000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000083200000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000083400000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000083600000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000083800000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000083a00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000083c00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000083e00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000084000000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000084200000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000084400000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000084600000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000084800000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000084a00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000084c00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000084e00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000085000000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000085200000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000085400000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000085600000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000085800000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000085a00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000085c00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000085e00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000086000000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000086200000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000086400000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000086600000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000086800000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000086a00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000086c00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000086e00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000087000000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000087200000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000087400000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000087600000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000087800000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000087a00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000087c00000 alloc=1 target_level=1
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000000087e00000 alloc=1 target_level=1
+[VM:mappages] va=0x0000003ffffff000 size=0x1000 pa=0x000000008000d000 perm=0xa
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffff000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ff9000 order=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ff8000 order=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ff7000 order=0
+[VM:mappages] va=0x0000003fffffc000 size=0x1000 pa=0x0000000087ff7000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003fffffc000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ff6000 order=0
+[VM:mappages] va=0x0000003fffffa000 size=0x1000 pa=0x0000000087ff6000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003fffffa000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ff5000 order=0
+[VM:mappages] va=0x0000003fffff8000 size=0x1000 pa=0x0000000087ff5000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003fffff8000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ff4000 order=0
+[VM:mappages] va=0x0000003fffff6000 size=0x1000 pa=0x0000000087ff4000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003fffff6000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ff3000 order=0
+[VM:mappages] va=0x0000003fffff4000 size=0x1000 pa=0x0000000087ff3000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003fffff4000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ff2000 order=0
+[VM:mappages] va=0x0000003fffff2000 size=0x1000 pa=0x0000000087ff2000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003fffff2000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ff1000 order=0
+[VM:mappages] va=0x0000003fffff0000 size=0x1000 pa=0x0000000087ff1000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003fffff0000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ff0000 order=0
+[VM:mappages] va=0x0000003ffffee000 size=0x1000 pa=0x0000000087ff0000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffee000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fef000 order=0
+[VM:mappages] va=0x0000003ffffec000 size=0x1000 pa=0x0000000087fef000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffec000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fee000 order=0
+[VM:mappages] va=0x0000003ffffea000 size=0x1000 pa=0x0000000087fee000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffea000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fed000 order=0
+[VM:mappages] va=0x0000003ffffe8000 size=0x1000 pa=0x0000000087fed000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffe8000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fec000 order=0
+[VM:mappages] va=0x0000003ffffe6000 size=0x1000 pa=0x0000000087fec000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffe6000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087feb000 order=0
+[VM:mappages] va=0x0000003ffffe4000 size=0x1000 pa=0x0000000087feb000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffe4000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fea000 order=0
+[VM:mappages] va=0x0000003ffffe2000 size=0x1000 pa=0x0000000087fea000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffe2000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fe9000 order=0
+[VM:mappages] va=0x0000003ffffe0000 size=0x1000 pa=0x0000000087fe9000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffe0000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fe8000 order=0
+[VM:mappages] va=0x0000003ffffde000 size=0x1000 pa=0x0000000087fe8000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffde000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fe7000 order=0
+[VM:mappages] va=0x0000003ffffdc000 size=0x1000 pa=0x0000000087fe7000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffdc000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fe6000 order=0
+[VM:mappages] va=0x0000003ffffda000 size=0x1000 pa=0x0000000087fe6000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffda000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fe5000 order=0
+[VM:mappages] va=0x0000003ffffd8000 size=0x1000 pa=0x0000000087fe5000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffd8000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fe4000 order=0
+[VM:mappages] va=0x0000003ffffd6000 size=0x1000 pa=0x0000000087fe4000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffd6000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fe3000 order=0
+[VM:mappages] va=0x0000003ffffd4000 size=0x1000 pa=0x0000000087fe3000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffd4000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fe2000 order=0
+[VM:mappages] va=0x0000003ffffd2000 size=0x1000 pa=0x0000000087fe2000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffd2000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fe1000 order=0
+[VM:mappages] va=0x0000003ffffd0000 size=0x1000 pa=0x0000000087fe1000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffd0000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fe0000 order=0
+[VM:mappages] va=0x0000003ffffce000 size=0x1000 pa=0x0000000087fe0000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffce000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fdf000 order=0
+[VM:mappages] va=0x0000003ffffcc000 size=0x1000 pa=0x0000000087fdf000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffcc000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fde000 order=0
+[VM:mappages] va=0x0000003ffffca000 size=0x1000 pa=0x0000000087fde000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffca000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fdd000 order=0
+[VM:mappages] va=0x0000003ffffc8000 size=0x1000 pa=0x0000000087fdd000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffc8000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fdc000 order=0
+[VM:mappages] va=0x0000003ffffc6000 size=0x1000 pa=0x0000000087fdc000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffc6000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fdb000 order=0
+[VM:mappages] va=0x0000003ffffc4000 size=0x1000 pa=0x0000000087fdb000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffc4000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fda000 order=0
+[VM:mappages] va=0x0000003ffffc2000 size=0x1000 pa=0x0000000087fda000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffc2000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fd9000 order=0
+[VM:mappages] va=0x0000003ffffc0000 size=0x1000 pa=0x0000000087fd9000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffc0000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fd8000 order=0
+[VM:mappages] va=0x0000003ffffbe000 size=0x1000 pa=0x0000000087fd8000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffbe000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fd7000 order=0
+[VM:mappages] va=0x0000003ffffbc000 size=0x1000 pa=0x0000000087fd7000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffbc000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fd6000 order=0
+[VM:mappages] va=0x0000003ffffba000 size=0x1000 pa=0x0000000087fd6000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffba000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fd5000 order=0
+[VM:mappages] va=0x0000003ffffb8000 size=0x1000 pa=0x0000000087fd5000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffb8000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fd4000 order=0
+[VM:mappages] va=0x0000003ffffb6000 size=0x1000 pa=0x0000000087fd4000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffb6000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fd3000 order=0
+[VM:mappages] va=0x0000003ffffb4000 size=0x1000 pa=0x0000000087fd3000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffb4000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fd2000 order=0
+[VM:mappages] va=0x0000003ffffb2000 size=0x1000 pa=0x0000000087fd2000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffb2000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fd1000 order=0
+[VM:mappages] va=0x0000003ffffb0000 size=0x1000 pa=0x0000000087fd1000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffb0000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fd0000 order=0
+[VM:mappages] va=0x0000003ffffae000 size=0x1000 pa=0x0000000087fd0000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffae000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fcf000 order=0
+[VM:mappages] va=0x0000003ffffac000 size=0x1000 pa=0x0000000087fcf000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffac000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fce000 order=0
+[VM:mappages] va=0x0000003ffffaa000 size=0x1000 pa=0x0000000087fce000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffaa000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fcd000 order=0
+[VM:mappages] va=0x0000003ffffa8000 size=0x1000 pa=0x0000000087fcd000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffa8000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fcc000 order=0
+[VM:mappages] va=0x0000003ffffa6000 size=0x1000 pa=0x0000000087fcc000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffa6000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fcb000 order=0
+[VM:mappages] va=0x0000003ffffa4000 size=0x1000 pa=0x0000000087fcb000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffa4000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fca000 order=0
+[VM:mappages] va=0x0000003ffffa2000 size=0x1000 pa=0x0000000087fca000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffa2000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fc9000 order=0
+[VM:mappages] va=0x0000003ffffa0000 size=0x1000 pa=0x0000000087fc9000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffffa0000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fc8000 order=0
+[VM:mappages] va=0x0000003ffff9e000 size=0x1000 pa=0x0000000087fc8000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffff9e000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fc7000 order=0
+[VM:mappages] va=0x0000003ffff9c000 size=0x1000 pa=0x0000000087fc7000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffff9c000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fc6000 order=0
+[VM:mappages] va=0x0000003ffff9a000 size=0x1000 pa=0x0000000087fc6000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffff9a000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fc5000 order=0
+[VM:mappages] va=0x0000003ffff98000 size=0x1000 pa=0x0000000087fc5000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffff98000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fc4000 order=0
+[VM:mappages] va=0x0000003ffff96000 size=0x1000 pa=0x0000000087fc4000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffff96000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fc3000 order=0
+[VM:mappages] va=0x0000003ffff94000 size=0x1000 pa=0x0000000087fc3000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffff94000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fc2000 order=0
+[VM:mappages] va=0x0000003ffff92000 size=0x1000 pa=0x0000000087fc2000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffff92000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fc1000 order=0
+[VM:mappages] va=0x0000003ffff90000 size=0x1000 pa=0x0000000087fc1000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffff90000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fc0000 order=0
+[VM:mappages] va=0x0000003ffff8e000 size=0x1000 pa=0x0000000087fc0000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffff8e000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fbf000 order=0
+[VM:mappages] va=0x0000003ffff8c000 size=0x1000 pa=0x0000000087fbf000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffff8c000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fbe000 order=0
+[VM:mappages] va=0x0000003ffff8a000 size=0x1000 pa=0x0000000087fbe000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffff8a000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fbd000 order=0
+[VM:mappages] va=0x0000003ffff88000 size=0x1000 pa=0x0000000087fbd000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffff88000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fbc000 order=0
+[VM:mappages] va=0x0000003ffff86000 size=0x1000 pa=0x0000000087fbc000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffff86000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fbb000 order=0
+[VM:mappages] va=0x0000003ffff84000 size=0x1000 pa=0x0000000087fbb000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffff84000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fba000 order=0
+[VM:mappages] va=0x0000003ffff82000 size=0x1000 pa=0x0000000087fba000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffff82000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fb9000 order=0
+[VM:mappages] va=0x0000003ffff80000 size=0x1000 pa=0x0000000087fb9000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffff80000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fb8000 order=0
+[VM:mappages] va=0x0000003ffff7e000 size=0x1000 pa=0x0000000087fb8000 perm=0x6
+[VM:walk] pagetable=0x0000000087fff000 va=0x0000003ffff7e000 alloc=1 target_level=0
+1
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fb7000 order=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fb6000 order=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fb5000 order=0
+1
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fb4000 order=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fb3000 order=0
+[VM:mappages] va=0x0000003ffffff000 size=0x1000 pa=0x000000008000d000 perm=0xa
+[VM:walk] pagetable=0x0000000087fb3000 va=0x0000003ffffff000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fb2000 order=0
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087fb1000 order=0
+[VM:mappages] va=0x0000003fffffe000 size=0x1000 pa=0x0000000087fb4000 perm=0x6
+[VM:walk] pagetable=0x0000000087fb3000 va=0x0000003fffffe000 alloc=1 target_level=0
+[VM:mappages] va=0x0000003fffffd000 size=0x1000 pa=0x0000000087ffe000 perm=0x12
+[VM:walk] pagetable=0x0000000087fb3000 va=0x0000003fffffd000 alloc=1 target_level=0
+1
+[EXEC:kexec] kexec start pid=1 path=/init argv=0x0000003fffffcfc8
+[KALLOC:kalloc] pid=1() requesting PGSIZE
+[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087fb0000 order=0
+[VM:mappages] va=0x0000003ffffff000 size=0x1000 pa=0x000000008000d000 perm=0xa
+[VM:walk] pagetable=0x0000000087fb0000 va=0x0000003ffffff000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=1() requesting PGSIZE
+[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087faf000 order=0
+[KALLOC:kalloc] pid=1() requesting PGSIZE
+[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087fae000 order=0
+[VM:mappages] va=0x0000003fffffe000 size=0x1000 pa=0x0000000087fb4000 perm=0x6
+[VM:walk] pagetable=0x0000000087fb0000 va=0x0000003fffffe000 alloc=1 target_level=0
+[VM:mappages] va=0x0000003fffffd000 size=0x1000 pa=0x0000000087ffe000 perm=0x12
+[VM:walk] pagetable=0x0000000087fb0000 va=0x0000003fffffd000 alloc=1 target_level=0
+[EXEC:kexec] new pagetable 0x0000000087fb0000 created for pid=1
+[VM:uvmalloc] oldsz=0x0 newsz=0x1049 xperm=0x8
+[KALLOC:alloc_memory] pid=1() allocated size=2000 at pa=0x0000000087fac000 order=1
+[VM:uvmalloc] uvmalloc -> mappages cur_va=0x0 alloc_size=0x2000
+[VM:mappages] va=0x0000000000000000 size=0x2000 pa=0x0000000087fac000 perm=0x1a
+[VM:walk] pagetable=0x0000000087fb0000 va=0x0000000000000000 alloc=1 target_level=0
+[KALLOC:kalloc] pid=1() requesting PGSIZE
+[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087fab000 order=0
+[KALLOC:kalloc] pid=1() requesting PGSIZE
+[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087faa000 order=0
+[VM:walk] pagetable=0x0000000087fb0000 va=0x0000000000001000 alloc=1 target_level=0
+[VM:uvmalloc] uvmalloc exiting success newsz=0x1049
+[EXEC:kexec] mapped segment va=0x0000000000000000 memsz=0x1049 filesz=0x1049
+[VM:walk] pagetable=0x0000000087fb0000 va=0x0000000000000000 alloc=0 target_level=0
+[VM:walk] pagetable=0x0000000087fb0000 va=0x0000000000001000 alloc=0 target_level=0
+[VM:uvmalloc] oldsz=0x1049 newsz=0x2030 xperm=0x4
+[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087fa9000 order=0
+[VM:uvmalloc] uvmalloc -> mappages cur_va=0x2000 alloc_size=0x1000
+[VM:mappages] va=0x0000000000002000 size=0x1000 pa=0x0000000087fa9000 perm=0x16
+[VM:walk] pagetable=0x0000000087fb0000 va=0x0000000000002000 alloc=1 target_level=0
+[VM:uvmalloc] uvmalloc exiting success newsz=0x2030
+[EXEC:kexec] mapped segment va=0x0000000000002000 memsz=0x30 filesz=0x10
+[VM:walk] pagetable=0x0000000087fb0000 va=0x0000000000002000 alloc=0 target_level=0
+[EXEC:kexec] Process (pid=1): OLD sz=0x0 pages, NEW text/data sz=0x3 pages
+[VM:uvmalloc] oldsz=0x3000 newsz=0x5000 xperm=0x4
+[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087fa8000 order=0
+[VM:uvmalloc] uvmalloc -> mappages cur_va=0x3000 alloc_size=0x1000
+[VM:mappages] va=0x0000000000003000 size=0x1000 pa=0x0000000087fa8000 perm=0x16
+[VM:walk] pagetable=0x0000000087fb0000 va=0x0000000000003000 alloc=1 target_level=0
+[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087fa7000 order=0
+[VM:uvmalloc] uvmalloc -> mappages cur_va=0x4000 alloc_size=0x1000
+[VM:mappages] va=0x0000000000004000 size=0x1000 pa=0x0000000087fa7000 perm=0x16
+[VM:walk] pagetable=0x0000000087fb0000 va=0x0000000000004000 alloc=1 target_level=0
+[VM:uvmalloc] uvmalloc exiting success newsz=0x5000
+[EXEC:kexec] After adding stack: NEW total sz=0x5 pages
+[VM:walk] pagetable=0x0000000087fb0000 va=0x0000000000003000 alloc=0 target_level=0
+[EXEC:kexec] stack window base=0x0000000000004000 top=0x0000000000005000
+[VM:copyout] dstva=0x0000000000004ff0 len=0x6
+[VM:walk] pagetable=0x0000000087fb0000 va=0x0000000000004000 alloc=0 target_level=0
+[VM:walk] pagetable=0x0000000087fb0000 va=0x0000000000004000 alloc=0 target_level=0
+[VM:copyout] dstva=0x0000000000004fe0 len=0x10
+[VM:walk] pagetable=0x0000000087fb0000 va=0x0000000000004000 alloc=0 target_level=0
+[VM:walk] pagetable=0x0000000087fb0000 va=0x0000000000004000 alloc=0 target_level=0
+[EXEC:kexec] Now freeing OLD pagetable=0x0000000087fb3000 with oldsz=0x0 pages
+[VM:uvmunmap] va=0x0000003ffffff000 size=0x1000 do_free=0
+panic: get order:try to get non-header's order!
+QEMU: Terminated
+

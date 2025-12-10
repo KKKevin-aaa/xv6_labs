@@ -172,11 +172,18 @@ endif
 BUILD_DIR := build
 
 ifeq ($(DEBUG), 1)
-CFLAGS += -DDEBUG_FORK -DDEBUG_VM -DDEBUG_KALLOC -DDEBUG_EXEC -O0
-OBJ_DIR := $(BUILD_DIR)/DEBUG
+  CFLAGS += -DDEBUG_FORK -DDEBUG_VM -DDEBUG_KALLOC -DDEBUG_EXEC -O0
+  OBJ_DIR := $(BUILD_DIR)/DEBUG
+  LOG_FILE := qemu_output.log
+  ifeq ($(PIPE), 1)
+    LOG_SUFFIX := 2>&1 | tee $(LOG_FILE)
+  else
+    LOG_SUFFIX := 2>&1 > $(LOG_FILE)
+  endif
 else
 CFLAGS += -O2
 OBJ_DIR := $(BUILD_DIR)/release
+LOG_SUFFIX :=
 endif
 
 LDFLAGS = -z max-page-size=4096
@@ -193,10 +200,6 @@ $(OBJS): EXTRAFLAG := $(KCSANFLAG)
 
 $(K)/$(OBJ_DIR)/%.o: $(K)/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) $(EXTRAFLAG) -c -o $@ $<
-$(OBJS): EXTRAFLAG := $(KCSANFLAG)
-
-$(K)/$(OBJ_DIR)/%.o: $(K)/%.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) $(EXTRAFLAG) -c -o $@ $<
 
 $(K)/$(OBJ_DIR)/%.o: $(K)/%.S | $(OBJ_DIR)
 	$(CC) -g -c -o $@ $<
@@ -204,28 +207,31 @@ $(K)/$(OBJ_DIR)/%.o: $(K)/%.S | $(OBJ_DIR)
 tags: $(OBJS) | $(OBJ_DIR)
 	etags kernel/*.S kernel/*.c
 
-ULIB = $U/$(OBJ_DIR)/ulib.o $U/$(OBJ_DIR)/usys.o $U/$(OBJ_DIR)/printf.o $U/$(OBJ_DIR)/umalloc.o $U/$(OBJ_DIR)/regexp.o
+ULIB = $(U)/$(OBJ_DIR)/ulib.o $(U)/$(OBJ_DIR)/usys.o $(U)/$(OBJ_DIR)/printf.o $(U)/$(OBJ_DIR)/umalloc.o $(U)/$(OBJ_DIR)/regexp.o
 
 ifeq ($(LAB),lock)
-ULIB += $U/$(OBJ_DIR)/statistics.o
+ULIB += $(U)/$(OBJ_DIR)/statistics.o
 endif
 
-$(U)/$(OBJ_DIR)/_%: $(U)/$(OBJ_DIR)/%.o $(ULIB) $U/user.ld | $(OBJ_DIR)
-	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $< $(ULIB)
-	$(OBJDUMP) -S $@ > $(OBJ_DIR)/$*.asm
-	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(U)/$(OBJ_DIR)$*.sym
+$(U)/$(OBJ_DIR)/_%: $(U)/$(OBJ_DIR)/%.o $(ULIB) $(U)/user.ld | $(OBJ_DIR)
+	$(LD) $(LDFLAGS) -T $(U)/user.ld -o $@ $< $(ULIB)
+	$(OBJDUMP) -S $@ > $(U)/$(OBJ_DIR)/$*.asm
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(U)/$(OBJ_DIR)/$*.sym
 
-$U/$(OBJ_DIR)/usys.S : $U/usys.pl | $(OBJ_DIR)
-	perl $U/usys.pl > $U/$(OBJ_DIR)/usys.S
+$(U)/$(OBJ_DIR)/%.o :$(U)/%.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(EXTRAFLAG) -c -o $@ $<
 
-$U/$(OBJ_DIR)/usys.o : $U/$(OBJ_DIR)/usys.S | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c -o $U/$(OBJ_DIR)/usys.o $U/$(OBJ_DIR)/usys.S
+$(U)/$(OBJ_DIR)/usys.S : $(U)/usys.pl | $(OBJ_DIR)
+	perl $(U)/usys.pl > $(U)/$(OBJ_DIR)/usys.S
 
-$U/$(OBJ_DIR)/_forktest: $U/$(OBJ_DIR)/forktest.o $(ULIB) | $(OBJ_DIR)
+$(U)/$(OBJ_DIR)/usys.o : $(U)/$(OBJ_DIR)/usys.S | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c -o $(U)/$(OBJ_DIR)/usys.o $(U)/$(OBJ_DIR)/usys.S
+
+$(U)/$(OBJ_DIR)/_forktest: $(U)/$(OBJ_DIR)/forktest.o $(ULIB) | $(OBJ_DIR)
 	# forktest has less library code linked in - needs to be small
 	# in order to be able to max out the proc table.
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $U/$(OBJ_DIR)/_forktest $U/$(OBJ_DIR)/forktest.o $U/$(OBJ_DIR)/ulib.o $U/$(OBJ_DIR)/usys.o
-	$(OBJDUMP) -S $U/$(OBJ_DIR)/_forktest > $U/$(OBJ_DIR)/forktest.asm
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(U)/$(OBJ_DIR)/_forktest $(U)/$(OBJ_DIR)/forktest.o $(U)/$(OBJ_DIR)/ulib.o $(U)/$(OBJ_DIR)/usys.o
+	$(OBJDUMP) -S $(U)/$(OBJ_DIR)/_forktest > $(U)/$(OBJ_DIR)/forktest.asm
 
 mkfs/mkfs: mkfs/mkfs.c $(K)/fs.h $(K)/param.h | $(OBJ_DIR)
 	gcc $(XCFLAGS) -Wno-unknown-attributes -Werror -Wall -I. -o mkfs/mkfs mkfs/mkfs.c
@@ -237,75 +243,75 @@ mkfs/mkfs: mkfs/mkfs.c $(K)/fs.h $(K)/param.h | $(OBJ_DIR)
 .PRECIOUS: %.o
 
 UPROGS=\
-	$U/$(OBJ_DIR)/_cat\
-	$U/$(OBJ_DIR)/_echo\
-	$U/$(OBJ_DIR)/_forktest\
-	$U/$(OBJ_DIR)/_grep\
-	$U/$(OBJ_DIR)/_init\
-	$U/$(OBJ_DIR)/_kill\
-	$U/$(OBJ_DIR)/_ln\
-	$U/$(OBJ_DIR)/_ls\
-	$U/$(OBJ_DIR)/_mkdir\
-	$U/$(OBJ_DIR)/_rm\
-	$U/$(OBJ_DIR)/_sh\
-	$U/$(OBJ_DIR)/_stressfs\
-	$U/$(OBJ_DIR)/_usertests\
-	$U/$(OBJ_DIR)/_grind\
-	$U/$(OBJ_DIR)/_wc\
-	$U/$(OBJ_DIR)/_zombie\
-	$U/$(OBJ_DIR)/_logstress\
-	$U/$(OBJ_DIR)/_forphan\
-	$U/$(OBJ_DIR)/_dorphan\
-	$U/$(OBJ_DIR)/_sandbox
+	$(U)/$(OBJ_DIR)/_cat\
+	$(U)/$(OBJ_DIR)/_echo\
+	$(U)/$(OBJ_DIR)/_forktest\
+	$(U)/$(OBJ_DIR)/_grep\
+	$(U)/$(OBJ_DIR)/_init\
+	$(U)/$(OBJ_DIR)/_kill\
+	$(U)/$(OBJ_DIR)/_ln\
+	$(U)/$(OBJ_DIR)/_ls\
+	$(U)/$(OBJ_DIR)/_mkdir\
+	$(U)/$(OBJ_DIR)/_rm\
+	$(U)/$(OBJ_DIR)/_sh\
+	$(U)/$(OBJ_DIR)/_stressfs\
+	$(U)/$(OBJ_DIR)/_usertests\
+	$(U)/$(OBJ_DIR)/_grind\
+	$(U)/$(OBJ_DIR)/_wc\
+	$(U)/$(OBJ_DIR)/_zombie\
+	$(U)/$(OBJ_DIR)/_logstress\
+	$(U)/$(OBJ_DIR)/_forphan\
+	$(U)/$(OBJ_DIR)/_dorphan\
+	$(U)/$(OBJ_DIR)/_sandbox
 
 
 
 ifeq ($(LAB),util)
 UPROGS += \
-	$U/$(OBJ_DIR)/_sleep\
-	$U/$(OBJ_DIR)/_sixfive\
-	$U/$(OBJ_DIR)/_find
+	$(U)/$(OBJ_DIR)/_sleep\
+	$(U)/$(OBJ_DIR)/_sixfive\
+	$(U)/$(OBJ_DIR)/_find
 endif
 ### ENDIF
 
 
 ifeq ($(LAB),syscall)
 UPROGS += \
-	$U/$(OBJ_DIR)/_attack\
-	$U/$(OBJ_DIR)/_secret
+	$(U)/$(OBJ_DIR)/_attack\
+	$(U)/$(OBJ_DIR)/_secret
 endif
 
 ifeq ($(LAB),lock)
 UPROGS += \
-	$U/$(OBJ_DIR)/_stats
+	$(U)/$(OBJ_DIR)/_stats
 endif
 
 ifeq ($(LAB),traps)
 UPROGS += \
-	$U/$(OBJ_DIR)/_call\
-	$U/$(OBJ_DIR)/_bttest
+	$(U)/$(OBJ_DIR)/_call\
+	$(U)/$(OBJ_DIR)/_bttest
 endif
 
 ifeq ($(LAB),lazy)
 UPROGS += \
-	$U/$(OBJ_DIR)/_lazytests
+	$(U)/$(OBJ_DIR)/_lazytests
 endif
 
 ifeq ($(LAB),cow)
 UPROGS += \
-	$U/$(OBJ_DIR)/_cowtest
+	$(U)/$(OBJ_DIR)/_cowtest
 endif
 
 ifeq ($(LAB),thread)
 UPROGS += \
-	$U/$(OBJ_DIR)/_uthread
+	$(U)/$(OBJ_DIR)/_uthread
 
-$U/$(OBJ_DIR)/uthread_switch.o : $U/$(OBJ_DIR)/uthread_switch.S | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c -o $U/$(OBJ_DIR)/uthread_switch.o $U/$(OBJ_DIR)/uthread_switch.S
+$(U)/$(OBJ_DIR)/uthread_switch.o : $(U)/$(OBJ_DIR)/uthread_switch.S | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c -o $(U)/$(OBJ_DIR)/uthread_switch.o $(U)/$(OBJ_DIR)/uthread_switch.S
 
-$U/$(OBJ_DIR)/_uthread: $U/$(OBJ_DIR)/uthread.o $U/$(OBJ_DIR)/uthread_switch.o $(ULIB) | $(OBJ_DIR)
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $U/$(OBJ_DIR)/_uthread $U/$(OBJ_DIR)/uthread.o $U/$(OBJ_DIR)/uthread_switch.o $(ULIB)
-	$(OBJDUMP) -S $U/$(OBJ_DIR)/_uthread > $U/$(OBJ_DIR)/uthread.asm
+$(U)/$(OBJ_DIR)/_uthread: $(U)/$(OBJ_DIR)/uthread.o $(U)/$(OBJ_DIR)/uthread_switch.o $(ULIB) | $(OBJ_DIR)
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(U)/$(OBJ_DIR)/_uthread $(U)/$(OBJ_DIR)/uthread.o $(U)/$(OBJ_DIR)/uthread_switch.o $(ULIB)
+	$(OBJDUMP) -S $(U)/$(OBJ_DIR)/_uthread > $(U)/$(OBJ_DIR)/uthread.asm
 
 ph: notxv6/ph.c
 	gcc -o ph -g -O2 $(XCFLAGS) notxv6/ph.c -pthread
@@ -316,36 +322,36 @@ endif
 
 ifeq ($(LAB),pgtbl)
 UPROGS += \
-	$U/$(OBJ_DIR)/_pgtbltest
+	$(U)/$(OBJ_DIR)/_pgtbltest
 endif
 
 ifeq ($(LAB),lock)
 UPROGS += \
-	$U/$(OBJ_DIR)/_kalloctest\
-	$U/$(OBJ_DIR)/_bcachetest
+	$(U)/$(OBJ_DIR)/_kalloctest\
+	$(U)/$(OBJ_DIR)/_bcachetest
 endif
 
 ifeq ($(LAB),fs)
 UPROGS += \
-	$U/$(OBJ_DIR)/_bigfile
+	$(U)/$(OBJ_DIR)/_bigfile
 endif
 
 
 ifeq ($(LAB),mmap)
 UPROGS += \
-	$U/$(OBJ_DIR)/_mmaptest
+	$(U)/$(OBJ_DIR)/_mmaptest
 endif
 
 ifeq ($(LAB),net)
 UPROGS += \
-	$U/$(OBJ_DIR)/_nettest
+	$(U)/$(OBJ_DIR)/_nettest
 endif
 
 UEXTRA=
 ifeq ($(LAB),util)
 	UEXTRA += user/findtest.sh
 	UEXTRA += user/sixfive.txt
-	UPROGS += $U/$(OBJ_DIR)/_memdump
+	UPROGS += $(U)/$(OBJ_DIR)/_memdump
 endif
 ifeq ($(LAB),syscall)
 	UEXTRA += user/exec.sh
@@ -367,7 +373,7 @@ clean:
 	*/*.o */*.d */*.asm */*.sym \
 	$(K)/$(OBJ_DIR)/kernel fs.img \
 	mkfs/mkfs .gdbinit \
-        $U/$(OBJ_DIR)/usys.S \
+        $(U)/$(OBJ_DIR)/usys.S \
 	$(UPROGS)
 
 # try to generate a unique GDB port
@@ -401,7 +407,7 @@ endif
 
 # makes a new fs.img
 qemu: check-qemu-version newfs.img $(K)/$(OBJ_DIR)/kernel fs.img | $(OBJ_DIR)
-	$(QEMU) $(QEMUOPTS)
+	$(QEMU) $(QEMUOPTS) $(LOG_SUFFIX)
 
 # runs with existing fs.img, if present
 qemu-fs: check-qemu-version $(K)/$(OBJ_DIR)/kernel fs.img | $(OBJ_DIR)
@@ -411,11 +417,11 @@ QEMUOPTS += -device e1000,netdev=net0,bus=pcie.0
 endif
 
 .gdbinit: .gdbinit.tmpl-riscv
-	sed "s/:1234/:$(GDBPORT)/" < $^ > $@
+	sed "s/:1234/:$(GDBPORT)/; s|kernel/kernel|$(K)/$(OBJ_DIR)/kernel|" < $^ > $@
 
 qemu-gdb: $(K)/$(OBJ_DIR)/kernel .gdbinit fs.img | $(OBJ_DIR)
 	@echo "*** Now run 'gdb' in another window." 1>&2
-	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)
+	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB) $(LOG_SUFFIX)
 
 ifeq ($(LAB),net)
 # try to generate a unique port for the echo server

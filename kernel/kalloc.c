@@ -118,7 +118,7 @@ uint16 get_order(uint64 pa){
     uint64 pa_idx=pa/PGSIZE;
     acquire(&kmem.lock);
     struct page *p=&kmem.mem_bitmaps[pa_idx];
-    if(IS_HEAD((uint64)p)==0)   panic("get order:try to get non-header's order!");
+    if(IS_HEAD((uint64)p->flags)==0)   panic("get order:try to get non-header's order!");
     uint16 tmp=GET_ORDER((uint64)p->flags);
     release(&kmem.lock);
     return tmp;
@@ -191,7 +191,7 @@ void free_pages(void *pa, uint64 size){
     KALLOC_TRACE("pid=%d(%s) free size=%lx at pa=%p order=%d\n", 
             pid, name, size, pa, req_order);
 #endif
-    if(IS_HEAD((uint64)b_head)==0){ //Not a block's header
+    if(IS_HEAD((uint64)b_head->flags)==0){ //Not a block's header
         head_idx=b_head_idx-GET_OFFSET((uint64)b_head->flags);
         head=&kmem.mem_bitmaps[head_idx];
         cur_order=GET_ORDER((uint64)head->flags);
@@ -221,7 +221,7 @@ void free_pages(void *pa, uint64 size){
         b_buddy_idx= b_head_idx ^ (1ull<<req_order);
         if(b_buddy_idx>=512*64) break;;
         b_buddy=&kmem.mem_bitmaps[b_buddy_idx];
-        if(!IS_FREE((uint64)b_buddy) || GET_ORDER((uint64)b_buddy->flags)!=req_order)
+        if(!IS_FREE((uint64)b_buddy->flags) || GET_ORDER((uint64)b_buddy->flags)!=req_order)
             break;
         //remove current_page form the correspond free_list
         del_from_list_nolock(b_buddy, req_order);

@@ -493,6 +493,10 @@ int copywalk(pagetable_t old_pg, pagetable_t new_pg, uint64 base_va, void *ret_v
             page_per_slot=1ull<<(level*9);
             step=num_4k_page/page_per_slot;
             if(step<=0) step=1; //at least advance one
+            #ifdef DEBUG_VM
+                VM_TRACE("Leaf-node:step=0x%lx, cur_order=0x%lx, mem=%p, start_va=0x%lx, max_sz=0x%lx\n",
+                    step, cur_order, (void *)mem, cur_va, max_sz);
+            #endif
             for(int i=0;i<step;i++){
                 flags=PTE_FLAGS(old_pg[i+idx]); //reset the pte!
                 //Although initially allocated contiguously, permission bits have become inconsistent
@@ -500,12 +504,12 @@ int copywalk(pagetable_t old_pg, pagetable_t new_pg, uint64 base_va, void *ret_v
                 uint64 inner_pa=(uint64)mem+i*page_per_slot*PGSIZE;
                 new_pte=PA2PTE(inner_pa) | flags | PTE_V;
                 new_pg[i+idx]=new_pte;
-#ifdef DEBUG_VM
-            VM_TRACE("Leaf-node:(start va=0x%lx)copywalk copying pa=%p, ptes=0x%lx, maxsz=0x%lx, ret_va=0x%lx\n",
-                cur_va, (void *)inner_pa, new_pte, max_sz, *(uint64 *)ret_va);
-            VM_TRACE("current pa=0x%lx, va_step=0x%lx\n",
-                pa, va_step);
-#endif
+            #ifdef DEBUG_VM
+                VM_TRACE("Leaf-node:copywalk No.%d step, copying pa=%p, ptes=0x%lx, ret_va=0x%lx\n",
+                    i, (void *)inner_pa, new_pte, *(uint64 *)ret_va);
+                VM_TRACE("current pa=0x%lx,  dealing with NO.%d entry(in page)\n",
+                    pa, i+idx);
+            #endif
             }
         }
         else{   //Invalid and not a directory pte
@@ -515,6 +519,10 @@ int copywalk(pagetable_t old_pg, pagetable_t new_pg, uint64 base_va, void *ret_v
         cur_va+=va_step;
         idx+=step;
         *(uint64 *)ret_va=cur_va;
+#ifdef DEBUG_VM
+        VM_TRACE("END.level=%d, cur_va change to 0x%lx(max_sz=0x%lx), idx=%d, *ret_va=0x%lx\n",
+            level, cur_va, max_sz, idx, *(uint64 *)ret_va);
+#endif
     }
     return 0;
 }
