@@ -453,7 +453,7 @@ void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz,
 // Recursively copy page-table pages.Consider the superpage Error occurs, quit recursively.
 // Directly assign the known PTE to bypass the mappage overhead, 
 // significantly improving efficiency
-int copywalk(pagetable_t old_pg, pagetable_t new_pg, uint64 base_va, uint64 max_sz, int level){
+int copywalk(pagetable_t old_pg, pagetable_t new_pg, uint64 base_va, void *ret_va, uint64 max_sz, int level){
     pte_t pte, new_pte;
     uint64 pa, standard_stride=get_step_size(level), cur_va=base_va, va_step;
     uint64 num_4k_page, page_per_slot, step, cur_order;
@@ -474,10 +474,10 @@ int copywalk(pagetable_t old_pg, pagetable_t new_pg, uint64 base_va, uint64 max_
             new_pte=PA2PTE((uint64)mem) | flags | PTE_V;
             new_pg[idx]=new_pte;
 #ifdef DEBUG_VM
-            VM_TRACE("(start va=0x%lx]copywalk copying pa=%p size=0x%lx, pte=0x%lx\n",
-                cur_va, (void *)pa, va_step, new_pte);
+            VM_TRACE("Directory:(start va=0x%lx]copywalk copying pa=%p, pte=0x%lx, max_sz=0x%lx, ret_va=0x%lx\n",
+                cur_va, (void *)pa, new_pte, max_sz, *(uint64 *)ret_va);
 #endif
-            if(copywalk((pagetable_t)pa, (pagetable_t)mem, cur_va, max_sz, level-1)<0)   return -1;
+            if(copywalk((pagetable_t)pa, (pagetable_t)mem, cur_va, ret_va, max_sz, level-1)<0)   return -1;
             //fast exit and releasing all allocated resources.
             step=1;
             va_step=standard_stride;
@@ -501,8 +501,10 @@ int copywalk(pagetable_t old_pg, pagetable_t new_pg, uint64 base_va, uint64 max_
                 new_pte=PA2PTE(inner_pa) | flags | PTE_V;
                 new_pg[i+idx]=new_pte;
 #ifdef DEBUG_VM
-            VM_TRACE("(start va=0x%lx)copywalk copying pa=%p size=0x%lx, ptes=0x%lx\n",
-                cur_va, (void *)inner_pa, va_step, new_pte);
+            VM_TRACE("Leaf-node:(start va=0x%lx)copywalk copying pa=%p, ptes=0x%lx, maxsz=0x%lx, ret_va=0x%lx\n",
+                cur_va, (void *)inner_pa, new_pte, max_sz, *(uint64 *)ret_va);
+            VM_TRACE("current pa=0x%lx, va_step=0x%lx\n",
+                pa, va_step);
 #endif
             }
         }
@@ -512,6 +514,7 @@ int copywalk(pagetable_t old_pg, pagetable_t new_pg, uint64 base_va, uint64 max_
         }
         cur_va+=va_step;
         idx+=step;
+        *(uint64 *)ret_va=cur_va;
     }
     return 0;
 }
@@ -536,11 +539,15 @@ int uvmcopy(pagetable_t old_pg, pagetable_t new_pg, uint64 sz) {
     VM_TRACE("old_pg=%p new_pg=%p sz=0x%lx\n", (void *)old_pg, (void *)new_pg, sz);
 #endif
     uint64 start_va=0;
-    if(copywalk(old_pg, new_pg, start_va, sz, 2)<0){//prevent resources leaks and waste
-        uvmfree(new_pg, sz);    
+    uint64 ret_va=0;
+    if(copywalk(old_pg, new_pg, start_va, &ret_va, sz, 2)<0){//prevent resources leaks and waste
+        uvmfree(new_pg, ret_va-start_va);
         //Error occurs, size are guaranteed not to exceed the original size
         return -1;
     }
+#ifdef DEBUG_VM
+    VM_TRACE("after uvmcopy start_va is 0x%lx, while ret_va is 0x%lx\n", start_va, ret_va);
+#endif
     return 0;
 }
 
