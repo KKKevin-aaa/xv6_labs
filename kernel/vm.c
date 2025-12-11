@@ -143,7 +143,6 @@ uint64 walkaddr(pagetable_t pagetable, uint64 va) {
     pa = PTE2PA(*pte);
     return pa;
 }
-
 #if defined(LAB_PGTBL) || defined(SOL_MMAP) || defined(SOL_COW)
 void prefix_helper(char c, int count){
     int i=count;
@@ -173,11 +172,17 @@ void walk_all_page(uint64 start_va, pagetable_t pagetable, int level){
                 va_step=standard_stride;
             }
             else{
-                num_4k_page=1ull<<get_order(pa);
-                page_per_slot=1ull<<(level*9);
-                step=num_4k_page/page_per_slot;
-                if(step<=0) step=1;
-                va_step=num_4k_page*PGSIZE;
+                if(is_managed_memory(pa)==0){
+                    step=1;
+                    va_step=get_step_size(level);
+                }
+                else{
+                    num_4k_page=1ull<<get_order(pa);
+                    page_per_slot=1ull<<(level*9);
+                    step=num_4k_page/page_per_slot;
+                    if(step<=0) step=1;
+                    va_step=num_4k_page*PGSIZE;
+                }
                 printf("(data)%p: pte %p pa %p, size is 0x%lx\n", (void *)start_va, (void *)pte, (void *)pa, va_step);
             }
         }
@@ -204,29 +209,6 @@ void kvmmap(pagetable_t kpgtbl, uint64 va, uint64 pa, uint64 sz, int perm) {
     if (mappages(kpgtbl, va, sz, pa, perm) != 0) panic("kvmmap");
 }
 
-// Create PTEs for virtual addresses starting at va that refer to
-// physical addresses starting at pa.
-// va and size MUST be page-aligned.
-// Returns 0 on success, -1 if walk() couldn't
-// allocate a needed page-table page.
-// int mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm) {
-//     uint64 a, last;
-//     pte_t *pte;
-//     if ((va % PGSIZE) != 0) panic("mappages: va not aligned");
-//     if ((size % PGSIZE) != 0) panic("mappages: size not aligned");
-//     if (size == 0) panic("mappages: size");
-//     a = va;
-//     last = va + size - PGSIZE;
-//     for (;;) {
-//         if ((pte = walk(pagetable, a, 1, 0)) == 0) return -1;
-//         if (*pte & PTE_V) panic("mappages: remap");
-//         *pte = PA2PTE(pa) | perm | PTE_V;
-//         if (a == last) break;
-//         a += PGSIZE;
-//         pa += PGSIZE;
-//     }
-//     return 0;
-// }
 int mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm){
 #ifdef DEBUG_VM
     VM_TRACE("va=%p size=0x%lx pa=%p perm=0x%x\n", (void *)va, size, (void *)pa, perm);
@@ -287,6 +269,7 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int do_free){
             cur_idx=PX(cur_level, va);
             pte=&dire_table[cur_idx];   //first try
             if((*pte & PTE_V)==0){  //Invalid
+                //Capable of handling sys_munmap(support freeing sub-regions within block)
                 step=get_step_size(cur_level);
                 size-=step;va+=step;
                 break;
@@ -294,9 +277,15 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int do_free){
             if(PTE_LEAF(*pte)!=0){   //leaf
                 pa=PTE2PA(*pte);
                 if(do_free!=0)  free_pages((void *)pa, get_step_size(cur_level)); //free 
-                cur_order=get_order(pa);
-                pte_step=1ull<<(cur_order-cur_level*9);
-                step=1ull<<(ORDER_BASE+cur_order);
+                if(is_managed_memory(pa)==0){
+                    pte_step=1;
+                    step=get_step_size(cur_level);
+                }
+                else{   //Only in specific managed region can call this funtion
+                    cur_order=get_order(pa);
+                    pte_step=1ull<<(cur_order-cur_level*9);
+                    step=1ull<<(ORDER_BASE+cur_order);
+                }
                 if(step>size)   step=size;
                 for(int i=0;i<pte_step;i++)
                     if(cur_idx+i<512) pte[i]=0;
@@ -316,7 +305,7 @@ uint64 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm) {
     if(newsz<oldsz) return oldsz;
     uint64 aligned_oldsz=PGROUNDUP(oldsz), aligned_newsz=PGROUNDUP(newsz);
     if(aligned_oldsz==aligned_newsz)    return newsz;
-    uint8 oldsz_order=find_last_set(aligned_oldsz & -aligned_oldsz);
+    uint8 oldsz_order=i_log2(aligned_oldsz & -aligned_oldsz);
     oldsz_order=(oldsz_order==0 || oldsz_order>MAX_ORDER+ORDER_BASE)
         ?(MAX_ORDER+ORDER_BASE):oldsz_order;
     uint64 cur_max_size=1ull << oldsz_order;
@@ -344,7 +333,7 @@ uint64 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm) {
         if(remain_size>alloc_size)  remain_size-=alloc_size;
         else    break;
         cur_va+=alloc_size;
-        cur_order=find_last_set(cur_va & -cur_va);
+        cur_order=i_log2(cur_va & -cur_va);
         cur_order=(cur_order > MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):cur_order;
         cur_max_size=1ull << cur_order;
     }
@@ -352,10 +341,7 @@ uint64 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm) {
     return newsz;
 }
 
-// Deallocate user pages to bring the process size from oldsz to
-// newsz.  oldsz and newsz need not be page-aligned, nor does newsz
-// need to be less than oldsz.  oldsz can be larger than the actual
-// process size.  Returns the new process size.
+//Keep the same logic as uvmalloc(Binary Buddy Decomposition!)
 uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
 #ifdef DEBUG_VM
     VM_TRACE("oldsz=0x%lx newsz=0x%lx\n", oldsz, newsz);
@@ -367,7 +353,7 @@ uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
     int aligned_newsz=PGROUNDUP(newsz), aligned_oldsz=PGROUNDUP(oldsz);
     if (aligned_newsz < aligned_oldsz) {
         // Perform the release step-by-step, following the reverse logic of alloc.
-        uint8 oldsz_order=find_last_set(aligned_oldsz & -aligned_oldsz);
+        uint8 oldsz_order=i_log2(aligned_oldsz & -aligned_oldsz);
         oldsz_order=(oldsz_order==0 || oldsz_order>MAX_ORDER+ORDER_BASE)
             ?(MAX_ORDER+ORDER_BASE):oldsz_order;
         uint64 cur_max_size=1ull << oldsz_order;
@@ -377,15 +363,15 @@ uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
             free_size=cur_max_size;
             while(remain_size < free_size && free_size>PGSIZE)
                 free_size/=2;
-#ifdef DEBUG_VM
-            VM_TRACE("uvmdealloc -> uvmunmap va=0x%lx size=0x%lx, remain size is 0x%lx\n", 
-                cur_va-free_size, free_size, remain_size);
-#endif
+            #ifdef DEBUG_VM
+                VM_TRACE("uvmdealloc -> uvmunmap va=0x%lx size=0x%lx, remain size is 0x%lx\n", 
+                    cur_va-free_size, free_size, remain_size);
+            #endif
             uvmunmap(pagetable, cur_va-free_size, free_size, 1);
             if(remain_size>free_size)  remain_size-=free_size;
             else    break;
             cur_va-=free_size;
-            cur_order=find_last_set(cur_va & -cur_va);
+            cur_order=i_log2(cur_va & -cur_va);
             cur_order=(cur_order > MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):cur_order;
             cur_max_size=1ull << cur_order;
         }
@@ -420,7 +406,7 @@ void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz,
             va_step=standard_stride;
         } else if ((pte & PTE_V) && do_free!=0) {   //leaf-node,release the physical page
             //check if next page is associated with current page
-            cur_order=get_order(pa);
+            cur_order=get_order(pa);    //Specific area(Cannot be freed),so skip additional checks.
             va_step=1ull<<(cur_order+ORDER_BASE);
             num_4k_page=1ull<<cur_order;
             page_per_slot=1ull<<(level*9);
@@ -482,6 +468,7 @@ int copywalk(pagetable_t old_pg, pagetable_t new_pg, uint64 base_va, void *ret_v
             step=1;
             va_step=standard_stride;
         } else if (pte & PTE_V) {   //leaf-node,release the physical page
+            // The same is as freewalk, and param:sz can guarantee it!
             cur_order=get_order(pa);
             va_step=1ull<<(cur_order+ORDER_BASE);
             if(cur_va % va_step !=0)   panic("copywalk: unaligned address!");
@@ -577,7 +564,7 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
     VM_TRACE("dstva=%p len=0x%lx\n", (void *)dstva, len);
 #endif
     uint64 aligned_dstva=PGROUNDDOWN(dstva);
-    uint8 cur_order=find_last_set(aligned_dstva & -aligned_dstva);
+    uint8 cur_order=i_log2(aligned_dstva & -aligned_dstva);
     cur_order=(cur_order==0 || cur_order>MAX_ORDER+ORDER_BASE)
         ?(MAX_ORDER+ORDER_BASE):cur_order;
     uint64 cur_max_size=1ull << cur_order;
@@ -618,36 +605,12 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
         len-=copy_size;
         src+=copy_size;
         cur_va=basepage_va+alloc_size;
-        cur_order=find_last_set(basepage_va & -basepage_va);
+        cur_order=i_log2(basepage_va & -basepage_va);
         cur_order=(cur_order>MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):cur_order;
         cur_max_size=1ull<<cur_order;
         basepage_va=PGROUNDDOWN(cur_va);
     }
     return 0;
-    // uint64 n, va0, pa0;
-    // pte_t *pte;
-    // while (len > 0) {
-    //     va0 = PGROUNDDOWN(dstva);
-    //     if (va0 >= MAXVA) return -1;
-    //     pa0 = walkaddr(pagetable, va0);
-    //     if (pa0 == 0) {
-    //         if ((pa0 = vmfault(pagetable, va0, 0)) == 0) {
-    //             return -1;
-    //         }
-    //     }
-    //     if ((pte = walk(pagetable, va0, 0, 0)) == 0) {
-    //         // printf("copyout: pte should exist 0x%lx %ld\n", dstva, len);
-    //         return -1;
-    //     }
-    //     // forbid copyout over read-only user text pages.
-    //     if ((*pte & PTE_W) == 0) return -1;
-    //     n = PGSIZE - (dstva - va0);
-    //     if (n > len) n = len;
-    //     memmove((void *)(pa0 + (dstva - va0)), src, n);
-    //     len -= n;
-    //     src += n;
-    //     dstva = va0 + PGSIZE;
-    // }
 }
 
 // Copy from user to kernel.
@@ -658,7 +621,7 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
     VM_TRACE("srcva=%p len=0x%lx\n", (void *)srcva, len);
 #endif
     uint64 aligned_srcva=PGROUNDDOWN(srcva);
-    uint8 cur_order=find_last_set(aligned_srcva & -aligned_srcva);
+    uint8 cur_order=i_log2(aligned_srcva & -aligned_srcva);
     cur_order=(cur_order==0 || cur_order>MAX_ORDER+ORDER_BASE)
         ?(MAX_ORDER+ORDER_BASE):cur_order;
     uint64 alloc_size, copy_size;
@@ -669,7 +632,7 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
         cur_pa=walkaddr(pagetable, basepage_va);
         if(cur_pa==0){  
             //Trigger a page fault due to the missing page and finish allocations.
-            cur_order=find_last_set(basepage_va & -basepage_va);
+            cur_order=i_log2(basepage_va & -basepage_va);
             cur_order=(cur_order>MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):cur_order;
             alloc_size=1ull<<cur_order;
             while(len < alloc_size && alloc_size>PGSIZE)
@@ -704,22 +667,6 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
         basepage_va=PGROUNDDOWN(cur_va);
     }
     return 0;
-    // uint64 n, va0, pa0;
-    // while (len > 0) {
-    //     va0 = PGROUNDDOWN(srcva);
-    //     pa0 = walkaddr(pagetable, va0);
-    //     if (pa0 == 0) {
-    //         if ((pa0 = vmfault(pagetable, va0, 0)) == 0) {
-    //             return -1;
-    //         }
-    //     }
-    //     n = PGSIZE - (srcva - va0);
-    //     if (n > len) n = len;
-    //     memmove(dst, (void *)(pa0 + (srcva - va0)), n);
-    //     len -= n;
-    //     dst += n;
-    //     srcva = va0 + PGSIZE;
-    // }
 }
 
 // Copy a null-terminated string from user to kernel.
@@ -757,35 +704,6 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max) {
     }
     if (got_null)   return 0;
     else    return -1;
-    // uint64 n, va0, pa0;
-    // int got_null = 0;
-    // while (got_null == 0 && max > 0) {
-    //     va0 = PGROUNDDOWN(srcva);
-    //     pa0 = walkaddr(pagetable, va0);
-    //     if (pa0 == 0) return -1;
-    //     n = PGSIZE - (srcva - va0);
-    //     if (n > max) n = max;
-    //     char *p = (char *)(pa0 + (srcva - va0));
-    //     while (n > 0) {
-    //         if (*p == '\0') {
-    //             *dst = '\0';
-    //             got_null = 1;
-    //             break;
-    //         } else {
-    //             *dst = *p;
-    //         }
-    //         --n;
-    //         --max;
-    //         p++;
-    //         dst++;
-    //     }
-    //     srcva = va0 + PGSIZE;
-    // }
-    // if (got_null) {
-    //     return 0;
-    // } else {
-    //     return -1;
-    // }
 }
 
 // allocate and map user memory if process is referencing a page

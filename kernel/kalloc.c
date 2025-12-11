@@ -26,24 +26,18 @@
 #define SPEC_MASK(bits) (~((1ull << (bits)) -1 ))
 #define SPEC_PAGESIZE(order) ( 1ull<<((order)+ORDER_BASE))
 #define P_TYPE_MASK 0X8000
+#define P_TYPE_HEAD P_TYPE_MASK
+#define P_TYPE_TAIL 0
 #define P_DATA_MASK 0x7ffe
 #define P_FREE_MASK 0x0001
 #define IS_HEAD(flags)      (((flags) & P_TYPE_MASK) != 0)
 #define GET_ORDER(flags)    (((flags) & P_DATA_MASK) >> 1)
 #define GET_OFFSET(flags)   (((flags) & P_DATA_MASK) >> 1)
 #define IS_FREE(flags)      (((flags) & P_FREE_MASK) != 0)
-#define W_HEAD_ORDER(p, order) do{  \
-    uint16 _f=(p)->flags & P_FREE_MASK; \
-    (p)->flags = _f | P_TYPE_MASK | (((order)<<1) & P_DATA_MASK); \
-}while(0);
-#define W_TAIL_OFFSET(p, offset) do{ \
-    uint16 _f=(p)->flags & P_FREE_MASK; \
-    (p)->flags = _f | (((offset)<<1) & P_DATA_MASK);  \
-}while(0);
-#define SET_FREE(p)         ((p)->flags |= P_FREE_MASK)
-#define STE_ALLOC(p)        ((p)->flags &= ~P_FREE_MASK)
 #define MAGIC_MERGED 0XFF
-void freerange(void *pa_start, void *pa_end);
+uint64 total_pages;
+uint64 free_start_addr;
+uint64 start_idx;   //NOTE:start from start_idx instead of 0
 extern char end[];  // first address after kernel.
                     // defined by kernel.ld.
 struct page{
@@ -59,35 +53,71 @@ struct listhead{
 struct {    //Anonymous structure(Single Pattern)
     struct spinlock lock;
     //Buddy system, minimum page size is 4096 bytes(4kB)
-    struct page mem_bitmaps[512*64];    //Embedded Array
+    struct page *mem_bitmaps;    //Embedded Array
     struct listhead free_area[MAX_ORDER+1];
 } kmem;
+static void free_pages_nolock(void *pa, uint64 size);
+static inline void w_head_order(struct page *p, uint16 order){
+    uint16 existing_flag= p->flags & ~(P_DATA_MASK | P_TYPE_MASK);
+    uint16 new_val = P_TYPE_HEAD | ((order<<1) & P_DATA_MASK);
+    p->flags = existing_flag | new_val;
+}
+static inline void w_tail_offset(struct page *p, uint16 offset){
+    uint16 existing_flag= p->flags & ~(P_DATA_MASK | P_TYPE_MASK);
+    uint16 new_val = P_TYPE_TAIL| ((offset<<1) & P_DATA_MASK);
+    p->flags = existing_flag | new_val;
+}
+static inline void set_free(struct page * p){
+    p->flags |= P_FREE_MASK;
+}
+static inline void set_alloc(struct page *p){
+    //Syntax Error: function body must be a compound statement
+    p->flags &= ~P_FREE_MASK;
+}
+static inline uint64 paddr_to_pfn(uint64 pa){    //paddr convert to Page Frame Number
+    if(pa%PGSIZE!=0)    panic("paddr_to_pfn: unaligned!");
+    if(pa<KERNBASE || pa>=PHYSTOP)  panic("paddr_to_pfn, out of range");
+    return (pa-KERNBASE)/PGSIZE;
+}
+static inline uint64 pfn_to_paddr(uint64 idx){
+    if(idx>=total_pages)    panic("pfn_to_paddr: Segment fault");
+    return (idx*PGSIZE + KERNBASE);
+}
 static void reset_flags_in_range(struct page *p, uint16 new_order, uint8 free){
     uint64 idx=1, size=1ull<<new_order;
-    W_HEAD_ORDER(p, new_order);
-    if(free)    SET_FREE(p);
-    else    STE_ALLOC(p);
+    w_head_order(p, new_order);
+    if(free)    set_free(p);
+    else    set_alloc(p);
     while(idx<size){
-        W_TAIL_OFFSET(p+idx, idx);
-        if(free)    SET_FREE(p+idx);
-        else    STE_ALLOC(p+idx);
+        w_tail_offset(p+idx, idx);
+        if(free)    set_free(p+idx);
+        else    set_alloc(p+idx);
         idx++;
     }
 }
-static void init_whole_area(){
+static void init_whole_area(uint64 end_addr, uint64 maximum_addr){
     acquire(&kmem.lock);
+    end_addr = PGROUNDUP(end_addr);
+    maximum_addr=PGROUNDDOWN(maximum_addr);
+    total_pages = (maximum_addr - KERNBASE) / PGSIZE;   
+    //fpn0 should always corresponds to the absolute physical base address
+    kmem.mem_bitmaps=(struct page *)end_addr;
+    free_start_addr = end_addr + sizeof(struct page)*total_pages;
+    free_start_addr=PGROUNDUP(free_start_addr);
+    //Important!Bootstrapping, solve by the cost of wasting some array element
+    total_pages= (maximum_addr - free_start_addr)/PGSIZE;
+    //Skip the text,rodata segment of the program, start from the free_start_addr
+    start_idx=(free_start_addr - KERNBASE)/PGSIZE;
+    memset(kmem.mem_bitmaps, 0, total_pages*sizeof(struct page));
+    for(int i=0;i<total_pages;i++){ //Set the reversed area
+        w_head_order(&kmem.mem_bitmaps[i], 0);
+        set_alloc(&kmem.mem_bitmaps[i]);
+    }
     for(int i=0;i<MAX_ORDER+1;i++){
         kmem.free_area[i].head=NULL;
     }
-    memset(kmem.mem_bitmaps, 0, sizeof(kmem.mem_bitmaps));
-    struct page *tmp;
-    for(uint64 idx=0;idx<512ull*64;idx+=1ull<<MAX_ORDER){
-        tmp=&kmem.mem_bitmaps[idx];
-        if(kmem.free_area[MAX_ORDER].head!=NULL)
-            kmem.free_area[MAX_ORDER].head->prev=tmp;
-        tmp->next=kmem.free_area[MAX_ORDER].head;
-        kmem.free_area[MAX_ORDER].head=tmp;
-        reset_flags_in_range(tmp, MAX_ORDER, 1);
+    for(int i=start_idx;i<total_pages;i++){
+        free_pages_nolock((void *)pfn_to_paddr(i), PGSIZE);
     }
     release(&kmem.lock);
 }
@@ -101,6 +131,12 @@ static void del_from_list_nolock(struct page *p, int order){    //Occupied
         next->prev=prev;
     p->next=NULL;
     p->prev=NULL;
+    //check if this block's oreder is expected
+    if(GET_ORDER(p->flags)!=order){
+        KALLOC_TRACE("try to delete Order.%d block list while this block is Order.%d \n",
+            order, GET_ORDER(p->flags));
+        panic("del_form_list");
+    }
 }
 static void add_to_list_nolock(struct page *p, int order){  //free
     struct page *old_head=kmem.free_area[order].head;
@@ -110,27 +146,45 @@ static void add_to_list_nolock(struct page *p, int order){  //free
         old_head->prev=new_head;
     }
     kmem.free_area[order].head=new_head;
+    if(GET_ORDER(p->flags)!=order){
+        KALLOC_TRACE("try to add to Order.%d block list, while this block is Order.%d\n",
+            order, GET_ORDER(p->flags));
+        panic("add_to_list");
+    }
 }
 uint16 get_order(uint64 pa){
-    pa=pa-KERNBASE;
     if(pa%PGSIZE!=0)
         panic("get order: Lookup unaligned address!");
-    uint64 pa_idx=pa/PGSIZE;
+    uint64 pa_idx=paddr_to_pfn(pa);
     acquire(&kmem.lock);
     struct page *p=&kmem.mem_bitmaps[pa_idx];
-    if(IS_HEAD((uint64)p->flags)==0)   panic("get order:try to get non-header's order!");
-    uint16 tmp=GET_ORDER((uint64)p->flags);
+    uint16 tmp;
+    if(IS_HEAD((uint64)p->flags)==0)    tmp=0;
+    else    tmp=GET_ORDER((uint64)p->flags);
+    // KALLOC_TRACE("flags=0x%lx, pa=0x%lx, NO.0x%lx, head=NO.0x%lx\n",
+    //     (uint64)p->flags, pa, pa_idx, pa_idx-GET_OFFSET(p->flags));
+    // panic("get order:try to get non-header's order!");
     release(&kmem.lock);
     return tmp;
+}
+uint8 is_head(uint64 pa){
+    if(pa%PGSIZE!=0)
+    panic("get order: Lookup unaligned address!");
+    uint64 pa_idx=paddr_to_pfn(pa);
+    acquire(&kmem.lock);
+    struct page *p=&kmem.mem_bitmaps[pa_idx];
+    uint8 ret=IS_HEAD((uint64)p->flags);
+    release(&kmem.lock);
+    return ret;
 }
 void *alloc_memory(uint64 size){
     //check first, should be 4kB-aligned
     //And it must be ensured that only a single page is allocated within alloc_memory.
-    if(find_last_set(size & -size)<12){
+    if(i_log2(size & -size)<12){
         panic("alloc memory: should aligned with 4kB");
         return 0;
     }
-    uint8 order=find_last_set(size-1)-11;
+    uint8 order=i_log2(size-1)-11;
     struct page *tmp,*high_tmp;  //higher page
     uint64 step;
     acquire(&kmem.lock);
@@ -149,16 +203,16 @@ void *alloc_memory(uint64 size){
     }
     tmp=kmem.free_area[split_order].head;   //lower page
     high_tmp=tmp;  //higher page
-    del_from_list_nolock(tmp, split_order);
     reset_flags_in_range(tmp, split_order, 0);
+    del_from_list_nolock(tmp, split_order);
     while(split_order>order){
         //split into two blocks,both add into the lower level list
         split_order--;
         step=1ull<<split_order;
         high_tmp= tmp + step;
-        add_to_list_nolock(tmp, split_order);
         reset_flags_in_range(tmp, split_order, 1);
         reset_flags_in_range(high_tmp, split_order, 0);
+        add_to_list_nolock(tmp, split_order);
         tmp=high_tmp;
     }
     offset=(tmp-kmem.mem_bitmaps)*PGSIZE;
@@ -172,31 +226,32 @@ void *alloc_memory(uint64 size){
 #endif
     return (void *)(offset+KERNBASE);
 }
-void free_pages(void *pa, uint64 size){
+void free_pages_nolock(void *pa, uint64 size){
     //When releasing an incomplete page, decompage it and splice the 
     //seperated fragments back into their respective slop.
+    if((uint64)pa < free_start_addr)    panic("try to free the data segment!");
     size=PGROUNDUP(size);
     uint16 cur_order, req_order;
     uint64 b_head_idx, b_tail_idx, b_buddy_idx;
     uint64 head_idx, mid_idx, tail_idx;
     struct page *b_head, *head, *b_buddy;
-    b_head_idx=((uint64)pa-KERNBASE) / PGSIZE;
-    acquire(&kmem.lock);
+    b_head_idx=paddr_to_pfn((uint64)pa);
+    // acquire(&kmem.lock);
     b_head=&kmem.mem_bitmaps[b_head_idx];
-    req_order=find_last_set(size-1)-11;
-#ifdef DEBUG_KALLOC
-    struct proc *p = myproc();
-    int pid = p ? p->pid : -1;
-    char *name = p ? p->name : "kernel";
-    KALLOC_TRACE("pid=%d(%s) free size=%lx at pa=%p order=%d\n", 
-            pid, name, size, pa, req_order);
-#endif
+    req_order=i_log2(size-1)-11;
+// #ifdef DEBUG_KALLOC
+//     struct proc *p = myproc();
+//     int pid = p ? p->pid : -1;
+//     char *name = p ? p->name : "kernel";
+//     KALLOC_TRACE("pid=%d(%s) free size=%lx at pa=%p order=%d\n", 
+//             pid, name, size, pa, req_order);
+// #endif
     if(IS_HEAD((uint64)b_head->flags)==0){ //Not a block's header
         head_idx=b_head_idx-GET_OFFSET((uint64)b_head->flags);
         head=&kmem.mem_bitmaps[head_idx];
         cur_order=GET_ORDER((uint64)head->flags);
 
-        tail_idx=b_head_idx+(1ull<<cur_order);
+        tail_idx=head_idx+(1ull<<cur_order);
         mid_idx=(head_idx+tail_idx)/2;
         b_tail_idx=b_head_idx+(1ull<<req_order);
         while(cur_order>req_order){
@@ -213,49 +268,47 @@ void free_pages(void *pa, uint64 size){
         }
         //breakout form loop, must check pa is new block's header,size="size"
         if(head_idx!=b_head_idx || tail_idx!=b_tail_idx)
-            panic("free_page: fail!");
+            panic("free_page: (non-header page)fail!");
+        reset_flags_in_range(b_head, req_order, 1);
+    }
+    else if(GET_ORDER((uint64)b_head->flags)!=req_order){
+        //Block header(also need consider,unmapping a portion from the begining is possible!)
+        cur_order=GET_ORDER((uint64)b_head->flags);
+        if(req_order > cur_order){  //Dismatched
+            panic("free_pages_nolock:order error!");
+        }
+        tail_idx=b_head_idx+(1ull<<cur_order);
+        mid_idx=tail_idx;
+        b_tail_idx=b_head_idx+(1ull<<req_order);
+        while(cur_order>req_order){
+            cur_order--;
+            mid_idx=(b_head_idx+mid_idx)/2;
+            reset_flags_in_range(&kmem.mem_bitmaps[b_head_idx], cur_order, 0);
+            reset_flags_in_range(&kmem.mem_bitmaps[mid_idx], cur_order, 0);
+        }
+        if(mid_idx!=b_tail_idx)
+            panic("free_page: (header page)fail!");
         reset_flags_in_range(b_head, req_order, 1);
     }
     //Attempt to merge current block woth its adjacent block to reduce fragmentation.
     while(req_order<MAX_ORDER){
         b_buddy_idx= b_head_idx ^ (1ull<<req_order);
-        if(b_buddy_idx>=512*64) break;;
+        if(b_buddy_idx>=total_pages) break;;
         b_buddy=&kmem.mem_bitmaps[b_buddy_idx];
         if(!IS_FREE((uint64)b_buddy->flags) || GET_ORDER((uint64)b_buddy->flags)!=req_order)
             break;
-        //remove current_page form the correspond free_list
+        //remove current_page from the correspond free_list
         del_from_list_nolock(b_buddy, req_order);
         b_head_idx=b_buddy_idx & b_head_idx;    //update for the next loop
         req_order++;
-    }
-    //concatenation
-    add_to_list_nolock(&kmem.mem_bitmaps[b_head_idx], req_order);
+    }//concatenation
     reset_flags_in_range(&kmem.mem_bitmaps[b_head_idx], req_order, 1);
+    add_to_list_nolock(&kmem.mem_bitmaps[b_head_idx], req_order);
+}
+void free_pages(void *pa, uint64 size){
+    acquire(&kmem.lock);
+    free_pages_nolock(pa, size);
     release(&kmem.lock);
-    // uint64 mem_idx=((uint64)(pa)-KERNBASE) / PGSIZE, buddy_idx;
-    // acquire(&kmem.lock);
-    // struct page *cur_page=&kmem.mem_bitmaps[mem_idx], *buddy_page;
-    // uint16 cur_order=ORDER_MASK(cur_page->flags);
-    // if(cur_order== MAGIC_MERGED){
-    //     // while(1);
-    //     panic("Kfree:trying to free a middle chunk!");
-    // }
-    // if(FREE_MASK(cur_page->flags))
-    //     panic("double free!");
-    // while(cur_order<MAX_ORDER){
-    //     buddy_idx=mem_idx ^ (1ull << cur_order);
-    //     if(buddy_idx>=512*64)   break;
-    //     buddy_page=&kmem.mem_bitmaps[buddy_idx];
-    //     if(!FREE_MASK(buddy_page->flags) || ORDER_MASK(buddy_page->flags)!=cur_order)
-    //         break;  //stop 
-    //     //remove current_page form the correspond free_list
-    //     del_form_list_nolock(buddy_page, cur_order);
-    //     mem_idx=buddy_idx & mem_idx;    //update for the next loop
-    //     cur_order++;
-    // }
-    // //concatenation
-    // add_to_list_nolock(&kmem.mem_bitmaps[mem_idx], cur_order);
-    // release(&kmem.lock);
 }
 int is_all_same_swar(const uint8 *data, uint64 len){
     if(len==0)  return 1;
@@ -288,17 +341,14 @@ void kinit() {
     KALLOC_TRACE("initializing memory allocator\n");
 #endif
     initlock(&kmem.lock, "kmem");
-    init_whole_area();
+    init_whole_area((uint64)end, PHYSTOP);
 #ifdef DEBUG_KALLOC
     KALLOC_TRACE("initialization complete\n");
 #endif
 }
-void freerange(void *pa_start, void *pa_end) {
-    char *p;
-    p = (char *)PGROUNDUP((uint64)pa_start);
-    for (; p + PGSIZE <= (char *)pa_end; p += PGSIZE) {
-        kfree(p);
-    }
+uint8 is_managed_memory(uint64 pa){
+    if(pa<free_start_addr || pa>=PHYSTOP)   return 0;
+    return 1;
 }
 // Free the page of physical memory pointed at by pa,
 // which normally should have been returned by a

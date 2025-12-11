@@ -6,7 +6,7 @@
                 "${workspaceFolder}/**",
                 "${workspaceFolder}"
             ],
-            "defines": [],
+            "defines": ["LAB_PGTBL"],
             "compilerPath": "/usr/lib/ccache/gcc",
             "cStandard": "c17",
             "cppStandard": "gnu++17",

@@ -69,7 +69,9 @@ void            kfree(void *);
 void            kinit(void);
 void            free_pages(void *pa, uint64 sz); //for huge page
 void*           alloc_memory(uint64);
-uint16          get_order(uint64);
+uint16          get_order(uint64 pa);
+uint8           is_head(uint64 pa);
+uint8           is_managed_memory(uint64 pa);
 // log.c
 void            initlog(int, struct superblock*);
 void            log_write(struct buf*);

@@ -263,7 +263,7 @@ typedef uint64 *pagetable_t;  // 512 PTEs
 // }
 #ifndef __ASSEMBLER__
 //exclude S files using the complier builtin macro
-inline uint8 __attribute__((always_inline)) find_last_set(uint64 x){
+inline uint8 __attribute__((always_inline)) i_log2(uint64 x){
     if(x==0)    return 0;
     uint8 n=0;
     if(x & 0xffffffff00000000ull)   {n+=32;x>>=32;}
