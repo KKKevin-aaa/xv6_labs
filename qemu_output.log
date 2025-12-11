@@ -972,6 +972,5 @@ xv6 kernel is booting
 [VM:walk] pagetable=0x0000000087fb0000 va=0x0000000000004000 alloc=0 target_level=0
 [EXEC:kexec] Now freeing OLD pagetable=0x0000000087fb3000 with oldsz=0x0 pages
 [VM:uvmunmap] va=0x0000003ffffff000 size=0x1000 do_free=0
-panic: get order:try to get non-header's order!
 QEMU: Terminated
 
