@@ -72,6 +72,7 @@ void*           alloc_memory(uint64);
 uint16          get_order(uint64 pa);
 uint8           is_head(uint64 pa);
 uint8           is_managed_memory(uint64 pa);
+void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz, int level);
 // log.c
 void            initlog(int, struct superblock*);
 void            log_write(struct buf*);

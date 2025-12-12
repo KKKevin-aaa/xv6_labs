@@ -1,3 +1,16 @@
 {
-    "CodeGPT.apiKey": "Google AI Studio"
+    "CodeGPT.apiKey": "Google AI Studio",
+
+    // 1. 字体设置：首选 Anonymous Pro，备选 Go Mono
+    //"editor.fontFamily": " 'Courier Prime', 'Go Mono', 'Anonymous Pro', 'Droid Sans Mono', monospace",
+    "editor.fontFamily": " 'Go Mono', 'Courier Prime', 'Anonymous Pro', 'Droid Sans Mono', monospace",
+    //"editor.fontFamily": " 'Anonymous Pro', 'Courier Prime', 'Go Mono', 'Droid Sans Mono', monospace",
+    // 2. 核心：强制关闭连字 (这对 Monaspace 尤其重要)
+    "editor.fontLigatures": false,
+
+    // 3. 字号建议：Anonymous Pro 偏小，建议设为 16
+    "editor.fontFontSize": 18,
+    
+    // 4. 加粗：这款字体加粗一点点更好看 (可选)
+    //"editor.fontWeight": "bold"
 }

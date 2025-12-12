@@ -277,6 +277,7 @@ inline uint8 __attribute__((always_inline)) i_log2(uint64 x){
 #endif
 #define MAX_ORDER 12
 #define ORDER_BASE 12
+#define MAX_LEVEL 3
 #define ORDER_LIMIT (MAX_ORDER+ORDER_BASE+3)
 #define MEGAPGSIZE (1ULL << 21)
 #define GIGAPGSIZE (1ULL << 30)

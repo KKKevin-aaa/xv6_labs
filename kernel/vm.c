@@ -241,7 +241,51 @@ int mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
     }
     return 0;
 }
+void migrate_data(pagetable_t pagetable, pte_t pte, uint64 cur_level, uint64 start_va, uint64 total_size){
+    uint64 copied_size=0, data_pa=PTE2PA(pte);
+    uint64 cur_max_size=i_log2(start_va), alloc_size, cur_va=start_va;
+    uint16 cur_order;
+    char *mem;
+    while(copied_size<total_size){
+        alloc_size=cur_max_size;
+        while(alloc_size+copied_size>total_size && alloc_size>PGSIZE)
+            alloc_size/=2;
+        mem=alloc_memory(alloc_size);
+        if (mem == 0) {
+            VM_TRACE("migrate_data: failed to allocate cur_va=0x%lx size=0x%lx\n", cur_va, alloc_size);
+            freewalk(pagetable, 1, start_va, copied_size, cur_level);
+            panic("can't handle!");
+        }
+        memset(mem, 0, alloc_size);
+        if(mappages(pagetable, cur_va, alloc_size, alloc_size, PTE_FLAGS(pte))!=0){
+            free_pages(mem, alloc_size);
+            freewalk(pagetable, 1, start_va, copied_size, cur_level);
+            panic("cannot handle!");
+        }
+        //start migrating data
+        memmove(mem, (void *)(data_pa+copied_size), alloc_size);
+        if(copied_size+alloc_size<total_size)  copied_size+=alloc_size;
+        else    break;
+        cur_va+=alloc_size;
+        cur_order=i_log2(cur_va);
+        cur_order=(cur_order > MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):cur_order;
+        cur_max_size=1ull<<cur_order;
+    }
+}
 
+pagetable_t split_into_blocks(pagetable_t pagetable, pte_t pte, uint64 cur_level){
+    if(PTE_LEAF(pte))  panic("split into block: non-leaf!");
+    if(!(cur_level >0 && cur_level < MAX_LEVEL))    panic("split into block:invalid level");
+    //Align start and size to ensure alignment!
+    uint64 cur_pa=PTE2PA(pte), basic_stride=get_step_size(cur_level-1);
+    pagetable_t new_pagetable=(pagetable_t)alloc_memory(PGSIZE);
+    if(new_pagetable==0)    panic("out-of-memory");
+    for(int i=0;i<512;i++){
+        new_pagetable[i]=PA2PTE(cur_pa) | PTE_FLAGS(pte);
+        cur_pa+=basic_stride;
+    }
+    return new_pagetable;
+}
 
 // create an empty user page table.
 // returns 0 if out of memory.
@@ -258,39 +302,52 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int do_free){
     VM_TRACE("va=%p size=0x%lx do_free=%d\n", (void *)va, size, do_free);
 #endif
     pte_t *pte, *dire_table=pagetable; //Return physical memory in a single batch while processing PTEs in multiple steps
-    uint64 step, pa;
+    uint64 step, pa, basic_stride;
     uint16 cur_order, pte_step=0, cur_idx;
     if(size%PGSIZE!=0)  panic("mappages: size not aligned");
     if (size == 0) panic("mappages: size");
-    while(size >0){ //layer probing:
+    while(size >0 ){ //layer probing:
         dire_table=pagetable;
         for(int cur_level=2;cur_level>=0;cur_level--){
+            basic_stride=get_step_size(cur_level);
             if(cur_level!=2)    dire_table=(pagetable_t)PTE2PA(*pte);
             cur_idx=PX(cur_level, va);
             pte=&dire_table[cur_idx];   //first try
             if((*pte & PTE_V)==0){  //Invalid
                 //Capable of handling sys_munmap(support freeing sub-regions within block)
-                step=get_step_size(cur_level);
+                step=basic_stride;
+                if(size<step)   return;
                 size-=step;va+=step;
                 break;
             }
             if(PTE_LEAF(*pte)!=0){   //leaf
                 pa=PTE2PA(*pte);
-                if(do_free!=0)  free_pages((void *)pa, get_step_size(cur_level)); //free 
-                if(is_managed_memory(pa)==0){
-                    pte_step=1;
-                    step=get_step_size(cur_level);
+                if(size >= basic_stride){
+                    if(do_free!=0)  free_pages((void *)pa, size); //free 
+                    if(is_managed_memory(pa)==0){
+                        pte_step=1;
+                        step=basic_stride;
+                    }
+                    else{   //Only in specific managed region can call this funtion
+                        cur_order=get_order(pa);
+                        pte_step=1ull < (cur_order- cur_level*9);
+                        step=1ull<<(ORDER_BASE+cur_order);
+                    }
+                    if(step>size)   step=size;
+                    for(int i=0;i<pte_step;i++)
+                        if(cur_idx+i<512) pte[i]=0;
+                    size-=step;va+=step;
+                    break;
                 }
-                else{   //Only in specific managed region can call this funtion
-                    cur_order=get_order(pa);
-                    pte_step=1ull<<(cur_order-cur_level*9);
-                    step=1ull<<(ORDER_BASE+cur_order);
-                }
-                if(step>size)   step=size;
-                for(int i=0;i<pte_step;i++)
-                    if(cur_idx+i<512) pte[i]=0;
-                size-=step;va+=step;
-                break;
+                else{ // below is size < basic_stride
+                    // Perform partial removal and split large page
+                    // tables into smaller blocks to implement data migrations.
+                    pte_t tmp_pte=*pte;
+                    *pte=0; //Unmap to prevent remap error!
+                    *pte=PA2PTE((uint64)split_into_blocks(pagetable, tmp_pte, cur_level)) | PTE_V;
+                    pte=&dire_table[cur_idx];   //reset pte;
+                    //Use the same logic, alloc firstly,then uvmunmap and free(if necessary)
+                } 
             }
         }
     }

@@ -190,6 +190,7 @@ void superpg_free() {
     a = sbrk(0);
     printf("current a is %p\n", (void *)a);
     if (*(a - PGSIZE + 1) != '9') {
+        printf("current *(a-pgsize+1) is %c\n", (char)*(a-PGSIZE+1));
         err("lost content after freeing part of super page");
     }
 
