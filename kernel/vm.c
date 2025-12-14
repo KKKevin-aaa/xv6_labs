@@ -105,9 +105,9 @@ void kvminithart() {
 // To support superpage, we introduce new paras: target_level
 // and stop while level equals to target_level(0 for 4kB, 1 for 2MB, 2 for 1GB)
 pte_t *walk(pagetable_t pagetable, uint64 va, int alloc, int target_level) {
-#ifdef DEBUG_VM
-    VM_TRACE("pagetable=%p va=%p alloc=%d target_level=%d\n", pagetable, (void *)va, alloc, target_level);
-#endif
+// #ifdef DEBUG_VM
+//     VM_TRACE("pagetable=%p va=%p alloc=%d target_level=%d\n", pagetable, (void *)va, alloc, target_level);
+// #endif
     if (va >= MAXVA) panic("walk");
     for (int level = 2; level > target_level; level--) {    //Tips: start level can be changed!
         pte_t *pte = &pagetable[PX(level, va)]; //math
@@ -208,7 +208,6 @@ void vmprint(pagetable_t pagetable) {
 void kvmmap(pagetable_t kpgtbl, uint64 va, uint64 pa, uint64 sz, int perm) {
     if (mappages(kpgtbl, va, sz, pa, perm) != 0) panic("kvmmap");
 }
-
 int mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm){
 #ifdef DEBUG_VM
     VM_TRACE("va=%p size=0x%lx pa=%p perm=0x%x\n", (void *)va, size, (void *)pa, perm);
@@ -272,9 +271,8 @@ void migrate_data(pagetable_t pagetable, pte_t pte, uint64 cur_level, uint64 sta
         cur_max_size=1ull<<cur_order;
     }
 }
-
 pagetable_t split_into_blocks(pagetable_t pagetable, pte_t pte, uint64 cur_level){
-    if(PTE_LEAF(pte))  panic("split into block: non-leaf!");
+    if(PTE_LEAF(pte)==0)  panic("split into block: non-leaf!");
     if(!(cur_level >0 && cur_level < MAX_LEVEL))    panic("split into block:invalid level");
     //Align start and size to ensure alignment!
     uint64 cur_pa=PTE2PA(pte), basic_stride=get_step_size(cur_level-1);
@@ -323,29 +321,31 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int do_free){
             if(PTE_LEAF(*pte)!=0){   //leaf
                 pa=PTE2PA(*pte);
                 if(size >= basic_stride){
-                    if(do_free!=0)  free_pages((void *)pa, size); //free 
                     if(is_managed_memory(pa)==0){
-                        pte_step=1;
-                        step=basic_stride;
+                        pte[0]=0;
+                        va+=basic_stride;
+                        size-=basic_stride;
                     }
                     else{   //Only in specific managed region can call this funtion
                         cur_order=get_order(pa);
-                        pte_step=1ull < (cur_order- cur_level*9);
+                        //if(do_free!=0)  free_pages((void *)pa, size); //free 
+                        if(do_free!=0)  free_pages((void *)pa, basic_stride); //free 
+                        pte_step=1ull << (cur_order- cur_level*9);
                         step=1ull<<(ORDER_BASE+cur_order);
+                        if(step>size)   step=size;
+                        for(int i=0;i<pte_step;i++)
+                            if(cur_idx+i<512) pte[i]=0;
+                        size-=step;va+=step;
                     }
-                    if(step>size)   step=size;
-                    for(int i=0;i<pte_step;i++)
-                        if(cur_idx+i<512) pte[i]=0;
-                    size-=step;va+=step;
                     break;
                 }
-                else{ // below is size < basic_stride
+                else{ // size < basic_stride
                     // Perform partial removal and split large page
                     // tables into smaller blocks to implement data migrations.
                     pte_t tmp_pte=*pte;
                     *pte=0; //Unmap to prevent remap error!
                     *pte=PA2PTE((uint64)split_into_blocks(pagetable, tmp_pte, cur_level)) | PTE_V;
-                    pte=&dire_table[cur_idx];   //reset pte;
+                    //pte=&dire_table[cur_idx];   //reset pte;
                     //Use the same logic, alloc firstly,then uvmunmap and free(if necessary)
                 } 
             }
@@ -516,10 +516,10 @@ int copywalk(pagetable_t old_pg, pagetable_t new_pg, uint64 base_va, void *ret_v
             flags=PTE_FLAGS(pte);
             new_pte=PA2PTE((uint64)mem) | flags | PTE_V;
             new_pg[idx]=new_pte;
-#ifdef DEBUG_VM
-            VM_TRACE("Directory:(start va=0x%lx]copywalk copying pa=%p, pte=0x%lx, max_sz=0x%lx, ret_va=0x%lx\n",
-                cur_va, (void *)pa, new_pte, max_sz, *(uint64 *)ret_va);
-#endif
+            #ifdef DEBUG_VM
+                VM_TRACE("Directory:(start va=0x%lx]copywalk copying pa=%p, pte=0x%lx, max_sz=0x%lx, ret_va=0x%lx\n",
+                    cur_va, (void *)pa, new_pte, max_sz, *(uint64 *)ret_va);
+            #endif
             if(copywalk((pagetable_t)pa, (pagetable_t)mem, cur_va, ret_va, max_sz, level-1)<0)   return -1;
             //fast exit and releasing all allocated resources.
             step=1;
@@ -617,9 +617,9 @@ void uvmclear(pagetable_t pagetable, uint64 va) {
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
 int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
-#ifdef DEBUG_VM
-    VM_TRACE("dstva=%p len=0x%lx\n", (void *)dstva, len);
-#endif
+// #ifdef DEBUG_VM
+//     VM_TRACE("dstva=%p len=0x%lx\n", (void *)dstva, len);
+// #endif
     uint64 aligned_dstva=PGROUNDDOWN(dstva);
     uint8 cur_order=i_log2(aligned_dstva & -aligned_dstva);
     cur_order=(cur_order==0 || cur_order>MAX_ORDER+ORDER_BASE)
@@ -636,7 +636,7 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
             alloc_size=cur_max_size;
             while(len < alloc_size && alloc_size>PGSIZE)
                 alloc_size/= 2;
-            VM_TRACE("copyout needs alloc for basepage_va=0x%lx size=0x%lx\n", basepage_va, alloc_size);
+            // VM_TRACE("copyout needs alloc for basepage_va=0x%lx size=0x%lx\n", basepage_va, alloc_size);
             mem=alloc_memory(alloc_size);
             if(mem==0){
                 uvmdealloc(pagetable, cur_va, dstva);
@@ -674,9 +674,9 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
 // Copy len bytes to dst from virtual address srcva in a given page table.
 // Return 0 on success, -1 on error.
 int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
-#ifdef DEBUG_VM
-    VM_TRACE("srcva=%p len=0x%lx\n", (void *)srcva, len);
-#endif
+// #ifdef DEBUG_VM
+//     VM_TRACE("srcva=%p len=0x%lx\n", (void *)srcva, len);
+// #endif
     uint64 aligned_srcva=PGROUNDDOWN(srcva);
     uint8 cur_order=i_log2(aligned_srcva & -aligned_srcva);
     cur_order=(cur_order==0 || cur_order>MAX_ORDER+ORDER_BASE)
@@ -694,7 +694,7 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
             alloc_size=1ull<<cur_order;
             while(len < alloc_size && alloc_size>PGSIZE)
                 alloc_size/=2;
-            VM_TRACE("copyin needs alloc for basepage_va=0x%lx size=0x%lx\n", basepage_va, alloc_size);
+            // VM_TRACE("copyin needs alloc for basepage_va=0x%lx size=0x%lx\n", basepage_va, alloc_size);
             mem=alloc_memory(alloc_size);
             if(mem==0){
                 uvmdealloc(pagetable, basepage_va, srcva);
