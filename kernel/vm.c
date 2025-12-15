@@ -19,6 +19,8 @@
     do { \
     } while (0)
 #endif
+// 用于生成缩进字符串，level 2 缩进少，level 0 缩进多
+#define INDENT_STR(lvl) ((lvl)==2 ? "" : ((lvl)==1 ? "  |-- " : "  |    |-- "))
 /*
  * the kernel's page table.
  */
@@ -271,11 +273,14 @@ void migrate_data(pagetable_t pagetable, pte_t pte, uint64 cur_level, uint64 sta
         cur_max_size=1ull<<cur_order;
     }
 }
-pagetable_t split_into_blocks(pagetable_t pagetable, pte_t pte, uint64 cur_level){
+pagetable_t split_into_blocks(pte_t pte, uint64 cur_level){
     if(PTE_LEAF(pte)==0)  panic("split into block: non-leaf!");
     if(!(cur_level >0 && cur_level < MAX_LEVEL))    panic("split into block:invalid level");
     //Align start and size to ensure alignment!
     uint64 cur_pa=PTE2PA(pte), basic_stride=get_step_size(cur_level-1);
+    #ifdef DEBUG_VM
+        VM_TRACE("alloc new pagetable to replace leaf-pte\n");
+    #endif
     pagetable_t new_pagetable=(pagetable_t)alloc_memory(PGSIZE);
     if(new_pagetable==0)    panic("out-of-memory");
     for(int i=0;i<512;i++){
@@ -284,7 +289,29 @@ pagetable_t split_into_blocks(pagetable_t pagetable, pte_t pte, uint64 cur_level
     }
     return new_pagetable;
 }
-
+pagetable_t split_and_prune(pte_t pte, uint64 start_vpn, uint64 end_vpn, uint64 cur_level){
+    if(PTE_LEAF(pte)==0)  panic("split into block: non-leaf!");
+    if(!(cur_level >0 && cur_level < MAX_LEVEL))    panic("split into block:invalid level");
+    if(start_vpn < 0 || end_vpn>512 || start_vpn>end_vpn)
+        panic("split_and_prune:invalid vpn_range");
+    //Align start and size to ensure alignment!
+    uint64 cur_pa=PTE2PA(pte), basic_stride=get_step_size(cur_level-1);
+    #ifdef DEBUG_VM
+        VM_TRACE("alloc new pagetable to replace leaf-pte\n");
+    #endif
+    pagetable_t new_pagetable=(pagetable_t)alloc_memory(PGSIZE);
+    if(new_pagetable==0)    panic("out-of-memory");
+    for(int i=0;i<start_vpn;i++){
+        new_pagetable[i]=PA2PTE(cur_pa) | PTE_FLAGS(pte);
+        cur_pa+=basic_stride;
+    }
+    cur_pa+=(end_vpn-start_vpn)*get_step_size(cur_level-1);
+    for(int i=end_vpn;i<512;i++){
+        new_pagetable[i]=PA2PTE(cur_pa) | PTE_FLAGS(pte);
+        cur_pa+=basic_stride;
+    }
+    return new_pagetable;
+}
 // create an empty user page table.
 // returns 0 if out of memory.
 pagetable_t uvmcreate() {
@@ -294,63 +321,91 @@ pagetable_t uvmcreate() {
     memset(pagetable, 0, PGSIZE);
     return pagetable;
 }
+uint64 uvmunmap_helper(pagetable_t pagetable, uint64 va, uint64 size, int cur_level, int do_free){
+#ifdef DEBUG_VM
+    VM_TRACE("va=%p size=0x%lx do_free=%d, cur_level is %d\n", (void *)va, size, do_free, cur_level);
+#endif
+    uint64 basic_stride=get_step_size(cur_level);
+    uint64 cur_vpn=PX(cur_level, va);
+    pte_t *pte;
+    uint64 end_vpn=cur_vpn+(size+basic_stride-1)/basic_stride;
+    if(end_vpn>512){
+        #ifdef DEBUG_VM
+            VM_TRACE("Out-of-bounds deletion caused by the upper's failure to split the data:\n");
+            VM_TRACE("size=0x%lx, cur_level=%d, end_vpn=0x%lx\n", size, cur_level, end_vpn);
+        #endif
+        panic("uvmunmap_helper!");
+        return -1;
+    }
+    uint64 pa, vpn_incr, cur_order=0, del_size=0, intersection;
+    do{
+        pte=&pagetable[cur_vpn];
+        if((*pte & PTE_V)==0){
+            cur_vpn++;
+            intersection=(basic_stride > size-del_size) ? (size-del_size) :basic_stride;
+            del_size+=intersection;
+            va+=intersection;
+        }
+        else if(PTE_LEAF(*pte)){
+            pa=PTE2PA(*pte);
+            if(is_managed_memory(pa)==0){
+                pte[0]=0;
+                va+=basic_stride;
+                del_size+=basic_stride;
+                cur_vpn++;
+            }
+            else if(size-del_size<basic_stride){    //Partial Unmap and use Pruned Spltting Strategy
+                pte_t tmp_pte=*pte; //Old bigger page pte
+                *pte=0; //Unmap to prevent remap error!
+                //*pte=PA2PTE((uint64)split_into_blocks(tmp_pte, cur_level)) | PTE_V;
+                if(cur_level<=0)    panic("Try to Split the minimun Unit");
+                uint64 start_vpn=PX(cur_level-1, va), end_vpn=PX(cur_level-1, va+size-del_size);
+                end_vpn=(end_vpn==0)?512:end_vpn;
+                *pte=PA2PTE((uint64)split_and_prune(tmp_pte, start_vpn, end_vpn, cur_level)) | PTE_V;
+                if(do_free){    //Calculate the free_start_pa(the Only place still remember the original physical address)
+                    uint64 free_start_pa=PTE2PA(tmp_pte)+start_vpn*get_step_size(cur_level-1);
+                    free_pages((void *)free_start_pa, size-del_size);
+                }
+                return size;    //Must be end!Since no pte can unmap.
+            }
+            else{   //full Unmap(basic_stride < size-del_size)
+                cur_order=get_order(pa);
+                intersection=1ull << (cur_order +ORDER_BASE);
+                intersection=(intersection>size-del_size)?(size-del_size):intersection;
+                if(do_free!=0)  free_pages((void *)pa, intersection); //free 
+                vpn_incr=1ull << (cur_order - cur_level*9);
+                for(int i=0;i<vpn_incr;i++)
+                    if(cur_vpn+i<end_vpn) pte[i]=0;
+                del_size+=intersection;
+                va+=intersection;
+                cur_vpn+=vpn_incr;
+            }
+        }
+        else{   //directory page:Split and delegate the task to the next-level page table! 
+            intersection=(basic_stride > size-del_size) ? (size-del_size) :basic_stride;
+            uvmunmap_helper((pagetable_t)PTE2PA(*pte), va, intersection, cur_level-1, do_free);
+            if(is_pagetable_empty((pagetable_t)PTE2PA(*pte))){
+                uint64 child_pa=PTE2PA(*pte);
+                free_pages((void *)child_pa, PGSIZE);
+                *pte=0; //clear the pte
+            }
+            va+=intersection;
+            del_size+=intersection;
+            cur_vpn++;
+        }
+    }while(cur_vpn<end_vpn);
+    return del_size;
+}
 
 void uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int do_free){
 #ifdef DEBUG_VM
     VM_TRACE("va=%p size=0x%lx do_free=%d\n", (void *)va, size, do_free);
 #endif
-    pte_t *pte, *dire_table=pagetable; //Return physical memory in a single batch while processing PTEs in multiple steps
-    uint64 step, pa, basic_stride;
-    uint16 cur_order, pte_step=0, cur_idx;
     if(size%PGSIZE!=0)  panic("mappages: size not aligned");
     if (size == 0) panic("mappages: size");
-    while(size >0 ){ //layer probing:
-        dire_table=pagetable;
-        for(int cur_level=2;cur_level>=0;cur_level--){
-            basic_stride=get_step_size(cur_level);
-            if(cur_level!=2)    dire_table=(pagetable_t)PTE2PA(*pte);
-            cur_idx=PX(cur_level, va);
-            pte=&dire_table[cur_idx];   //first try
-            if((*pte & PTE_V)==0){  //Invalid
-                //Capable of handling sys_munmap(support freeing sub-regions within block)
-                step=basic_stride;
-                if(size<step)   return;
-                size-=step;va+=step;
-                break;
-            }
-            if(PTE_LEAF(*pte)!=0){   //leaf
-                pa=PTE2PA(*pte);
-                if(size >= basic_stride){
-                    if(is_managed_memory(pa)==0){
-                        pte[0]=0;
-                        va+=basic_stride;
-                        size-=basic_stride;
-                    }
-                    else{   //Only in specific managed region can call this funtion
-                        cur_order=get_order(pa);
-                        //if(do_free!=0)  free_pages((void *)pa, size); //free 
-                        if(do_free!=0)  free_pages((void *)pa, basic_stride); //free 
-                        pte_step=1ull << (cur_order- cur_level*9);
-                        step=1ull<<(ORDER_BASE+cur_order);
-                        if(step>size)   step=size;
-                        for(int i=0;i<pte_step;i++)
-                            if(cur_idx+i<512) pte[i]=0;
-                        size-=step;va+=step;
-                    }
-                    break;
-                }
-                else{ // size < basic_stride
-                    // Perform partial removal and split large page
-                    // tables into smaller blocks to implement data migrations.
-                    pte_t tmp_pte=*pte;
-                    *pte=0; //Unmap to prevent remap error!
-                    *pte=PA2PTE((uint64)split_into_blocks(pagetable, tmp_pte, cur_level)) | PTE_V;
-                    //pte=&dire_table[cur_idx];   //reset pte;
-                    //Use the same logic, alloc firstly,then uvmunmap and free(if necessary)
-                } 
-            }
-        }
-    }
+    uint64 del_size=uvmunmap_helper(pagetable, va, size, 2, do_free);
+    if(del_size!=size)
+        panic("uvmunmap: cannot unmap required size!");
 }
 
 // Allocate PTEs and physical memory to grow process from oldsz to
@@ -445,7 +500,8 @@ uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
 // physical memory, so just free the header and clear the next ptes)
 void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz, int level) {
 #ifdef DEBUG_VM
-    VM_TRACE("pagetable=%p do_free=%d base_va=0x%lx max_sz=0x%lx level=%d\n", (void *)pagetable, do_free, base_va, max_sz, level);
+    if (base_va == 0 && level == 2)
+        VM_TRACE("Freewalk Start: pt=%p base_va=0x%lx max_sz=0x%lx\n", pagetable, base_va, max_sz);
 #endif
     pte_t pte;// there are 2^9 = 512 PTEs in a page table.
     uint64 pa, num_4k_page, page_per_slot, step;
@@ -458,6 +514,9 @@ void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz,
         pa = PTE2PA(pte);    //child pagetable or physical
         if ((pte & PTE_V) && (pte & (PTE_R | PTE_W | PTE_X)) == 0) {
             // this PTE points to a lower-level page table.
+            #ifdef DEBUG_VM
+                VM_TRACE("%sDir: idx=%d va=0x%lx -> next_pa=%p\n", INDENT_STR(level), idx, cur_va, (void*)pa);
+            #endif
             freewalk((pagetable_t)pa, do_free, cur_va, max_sz, level-1);
             step=1;
             va_step=standard_stride;
@@ -469,9 +528,10 @@ void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz,
             page_per_slot=1ull<<(level*9);
             step=num_4k_page/page_per_slot;
             if(step<=0) step=1; //at least advance one
-#ifdef DEBUG_VM
-            VM_TRACE("freewalk freeing pa=%p size=0x%lx\n", (void *)pa, va_step);
-#endif
+            #ifdef DEBUG_VM
+            VM_TRACE("%sLeaf: idx=%d va=0x%lx pa=%p order=%d size=0x%lx (step=%ld)\n", 
+                     INDENT_STR(level), idx, cur_va, (void*)pa, cur_order, va_step, step);
+            #endif
             free_pages((void *)pa, va_step); //record statement before freeing, 
             // as the merging process potentially alter the metadata.
         }
@@ -481,8 +541,6 @@ void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz,
         }
         for(int j=0;j<step;j++){
             if(idx+j==512){
-                printf("PANIC: Physical block spans across page table pages!\n");
-                printf("Level: %d, Idx: %d, Step: %ld, PA: %p\n", level, idx, step, (void *)pa);
                 panic("freewalk: alignment error");
                 break;
             }
@@ -503,70 +561,59 @@ int copywalk(pagetable_t old_pg, pagetable_t new_pg, uint64 base_va, void *ret_v
     char *mem;
     uint flags;
     int idx=0;
-    while(idx<512) {
-        if(cur_va>=max_sz)   break;
+    while(idx < 512) {
+        if(cur_va >= max_sz) break;
         pte = old_pg[idx];
-        pa = PTE2PA(pte);    //child pagetable or physical
-        flags=PTE_FLAGS(pte);
-        if ((pte & PTE_V) && (pte & (PTE_R | PTE_W | PTE_X)) == 0) {
-            // this PTE points to a lower-level page table.
-            mem=alloc_memory(PGSIZE);
-            if(mem==0)  return -1;  //create next-level pte as directory
+        pa = PTE2PA(pte);    // child pagetable or physical
+        flags = PTE_FLAGS(pte);
+        if ((pte & PTE_V) && PTE_LEAF(pte)==0) {
+            // Case 1: Directory
+            mem = alloc_memory(PGSIZE);
+            if(mem == 0) return -1;
             memset(mem, 0, PGSIZE);
-            flags=PTE_FLAGS(pte);
-            new_pte=PA2PTE((uint64)mem) | flags | PTE_V;
-            new_pg[idx]=new_pte;
+            new_pte = PA2PTE((uint64)mem) | flags | PTE_V;
+            new_pg[idx] = new_pte;
             #ifdef DEBUG_VM
-                VM_TRACE("Directory:(start va=0x%lx]copywalk copying pa=%p, pte=0x%lx, max_sz=0x%lx, ret_va=0x%lx\n",
-                    cur_va, (void *)pa, new_pte, max_sz, *(uint64 *)ret_va);
+                VM_TRACE("%s[DIR ] L%d idx=%d: va=0x%lx -> new_tbl=%p (recurse)\n", 
+                     INDENT_STR(level), level, idx, cur_va, mem);
             #endif
-            if(copywalk((pagetable_t)pa, (pagetable_t)mem, cur_va, ret_va, max_sz, level-1)<0)   return -1;
-            //fast exit and releasing all allocated resources.
-            step=1;
-            va_step=standard_stride;
-        } else if (pte & PTE_V) {   //leaf-node,release the physical page
-            // The same is as freewalk, and param:sz can guarantee it!
-            cur_order=get_order(pa);
-            va_step=1ull<<(cur_order+ORDER_BASE);
-            if(cur_va % va_step !=0)   panic("copywalk: unaligned address!");
-            mem=alloc_memory(va_step);
-            if(mem==0)  return -1;
+            if(copywalk((pagetable_t)pa, (pagetable_t)mem, cur_va, ret_va, max_sz, level-1) < 0) return -1;
+            step = 1;
+            va_step = standard_stride;
+        } 
+        else if (pte & PTE_V) {   
+            // Case 2: Leaf Node
+            cur_order = get_order(pa);
+            va_step = 1ull << (cur_order + ORDER_BASE);
+            if(cur_va % va_step != 0) panic("copywalk: unaligned address!");
+            mem = alloc_memory(va_step);
+            if(mem == 0) return -1;
             memset(mem, 0, va_step);
             memmove(mem, (char *)pa, va_step);
-            num_4k_page=1ull<<cur_order;
-            page_per_slot=1ull<<(level*9);
-            step=num_4k_page/page_per_slot;
-            if(step<=0) step=1; //at least advance one
+            num_4k_page = 1ull << cur_order;
+            page_per_slot = 1ull << (level * 9);
+            step = num_4k_page / page_per_slot;
+            if(step <= 0) step = 1;
             #ifdef DEBUG_VM
-                VM_TRACE("Leaf-node:step=0x%lx, cur_order=0x%lx, mem=%p, start_va=0x%lx, max_sz=0x%lx\n",
-                    step, cur_order, (void *)mem, cur_va, max_sz);
+                VM_TRACE("%s[COPY] L%d idx=%d: va=0x%lx src_pa=0x%lx -> dst_pa=%p size=0x%lx (Order %lx)\n", 
+                     INDENT_STR(level), level, idx, cur_va, pa, mem, va_step, cur_order);
             #endif
-            for(int i=0;i<step;i++){
-                flags=PTE_FLAGS(old_pg[i+idx]); //reset the pte!
-                //Although initially allocated contiguously, permission bits have become inconsistent
-                //due to the subsequent operations(Physical continuity does not imply logical uniformity)
-                uint64 inner_pa=(uint64)mem+i*page_per_slot*PGSIZE;
-                new_pte=PA2PTE(inner_pa) | flags | PTE_V;
-                new_pg[i+idx]=new_pte;
-            #ifdef DEBUG_VM
-                VM_TRACE("Leaf-node:copywalk No.%d step, copying pa=%p, ptes=0x%lx, ret_va=0x%lx\n",
-                    i, (void *)inner_pa, new_pte, *(uint64 *)ret_va);
-                VM_TRACE("current pa=0x%lx,  dealing with NO.%d entry(in page)\n",
-                    pa, i+idx);
-            #endif
+            for(int i = 0; i < step; i++){
+                // Reset flags from original entry
+                flags = PTE_FLAGS(old_pg[i+idx]); 
+                uint64 inner_pa = (uint64)mem + i * page_per_slot * PGSIZE;
+                new_pte = PA2PTE(inner_pa) | flags | PTE_V;
+                new_pg[i+idx] = new_pte;
             }
         }
-        else{   //Invalid and not a directory pte
-            step=1;
-            va_step=standard_stride;
+        else {   
+            // Case 3: Invalid / Gap
+            step = 1;
+            va_step = standard_stride;
         }
-        cur_va+=va_step;
-        idx+=step;
-        *(uint64 *)ret_va=cur_va;
-#ifdef DEBUG_VM
-        VM_TRACE("END.level=%d, cur_va change to 0x%lx(max_sz=0x%lx), idx=%d, *ret_va=0x%lx\n",
-            level, cur_va, max_sz, idx, *(uint64 *)ret_va);
-#endif
+        cur_va += va_step;
+        idx += step;
+        *(uint64 *)ret_va = cur_va;
     }
     return 0;
 }

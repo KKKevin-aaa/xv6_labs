@@ -204,6 +204,10 @@ uint8 is_head(uint64 pa){
     release(&kmem.lock);
     return ret;
 }
+void print_memorytable(){   //with lock
+    acquire(&kmem.lock);
+    release(&kmem.lock);
+}
 void *alloc_memory(uint64 size){
     //check first, should be 4kB-aligned
     //And it must be ensured that only a single page is allocated within alloc_memory.
@@ -278,50 +282,34 @@ void free_pages_nolock(void *pa, uint64 size){
     }
     b_tail_pfn=b_head_pfn+(1ull<<req_order);
     ensure_pfn_valid(b_tail_pfn-1);
-    if(IS_HEAD((uint64)b_head->flags)==0){ //Not a block's header
-        head_pfn=b_head_pfn-GET_OFFSET((uint64)b_head->flags);
-        head=get_page_descriptor_assert_nolock(head_pfn);
-        cur_order=GET_ORDER((uint64)head->flags);
-
-        tail_pfn=head_pfn+(1ull<<cur_order);
-        ensure_pfn_valid(tail_pfn-1);
-        mid_pfn=(head_pfn+tail_pfn)/2;
-        while(cur_order>req_order){
-            //"It is guaranteed that the desired sub-block can be 
-            // obtained through repeated binary splitting
-            cur_order--;
-            reset_flags_in_range_nolock(&kmem.mem_bitmaps[head_pfn], cur_order, 0);
-            reset_flags_in_range_nolock(&kmem.mem_bitmaps[mid_pfn], cur_order, 0);
-            if(mid_pfn>b_head_pfn)  //block locate on the left half
-                tail_pfn=mid_pfn;
-            else
-                head_pfn=mid_pfn;   //block locate on the right half
-            mid_pfn=(head_pfn+tail_pfn)/2;
-        }
-        //breakout form loop, must check pa is new block's header,size="size"
-        if(head_pfn!=b_head_pfn || tail_pfn!=b_tail_pfn)
-            panic("free_page: (non-header page)fail!");
-        reset_flags_in_range_nolock(b_head, req_order, 1);
+    if(IS_HEAD((uint64)b_head->flags)==0) 
+        head_pfn=b_head_pfn-GET_OFFSET((uint64)b_head->flags);//Not a block's header
+    else
+        head_pfn=b_head_pfn;//Block header(also need consider,unmapping a portion from the begining is possible!)
+    head=get_page_descriptor_assert_nolock(head_pfn);
+    cur_order=GET_ORDER((uint64)head->flags);
+    if(req_order > cur_order){  //Dismatched
+        panic("free_pages_nolock:order error!");
     }
-    else if(GET_ORDER((uint64)b_head->flags)!=req_order){
-        //Block header(also need consider,unmapping a portion from the begining is possible!)
-        cur_order=GET_ORDER((uint64)b_head->flags);
-        if(req_order > cur_order){  //Dismatched
-            panic("free_pages_nolock:order error!");
-        }
-        tail_pfn=b_head_pfn+(1ull<<cur_order);
-        ensure_pfn_valid(tail_pfn-1);
-        mid_pfn=tail_pfn;
-        while(cur_order>req_order){
-            cur_order--;
-            mid_pfn=(b_head_pfn+mid_pfn)/2;
-            reset_flags_in_range_nolock(&kmem.mem_bitmaps[b_head_pfn], cur_order, 0);
-            reset_flags_in_range_nolock(&kmem.mem_bitmaps[mid_pfn], cur_order, 0);
-        }
-        if(mid_pfn!=b_tail_pfn)
-            panic("free_page: (header page)fail!");
-        reset_flags_in_range_nolock(b_head, req_order, 1);
+    tail_pfn=head_pfn+(1ull<<cur_order);
+    ensure_pfn_valid(tail_pfn-1);
+    mid_pfn=head_pfn + (tail_pfn-head_pfn)/2;
+    while(cur_order>req_order){
+        //"It is guaranteed that the desired sub-block can be 
+        // obtained through repeated binary splitting
+        cur_order--;
+        reset_flags_in_range_nolock(&kmem.mem_bitmaps[head_pfn], cur_order, 0);
+        reset_flags_in_range_nolock(&kmem.mem_bitmaps[mid_pfn], cur_order, 0);
+        if(mid_pfn>b_head_pfn)  //block locate on the left half
+            tail_pfn=mid_pfn;
+        else
+            head_pfn=mid_pfn;   //block locate on the right half
+        mid_pfn=head_pfn + (tail_pfn-head_pfn)/2;
     }
+    //breakout form loop, must check pa is new block's header,size="size"
+    if(head_pfn!=b_head_pfn || tail_pfn!=b_tail_pfn)
+        panic("free_page: (non-header page)fail!");
+    reset_flags_in_range_nolock(b_head, req_order, 1);
     //Attempt to merge current block with its adjacent block to reduce fragmentation.
     while(req_order<MAX_ORDER){
         b_buddy_pfn= b_head_pfn ^ (1ull<<req_order);
@@ -343,7 +331,7 @@ void free_pages(void *pa, uint64 size){
     free_pages_nolock(pa, size);
     release(&kmem.lock);
 }
-int is_all_same_swar(const uint8 *data, uint64 len){
+int is_all_same_swar(const uint8 *data, uint64 len){    //SIMD Within A Register
     if(len==0)  return 1;
     uint8 ref=data[0];
     uint64 pattern=ref;
@@ -360,12 +348,22 @@ int is_all_same_swar(const uint8 *data, uint64 len){
         if(*ptr64!=pattern) 
             return 0;
         ptr64++;
+        len-=8;
     }
     ptr=(uint8 *)ptr64; //deal with epilog
     while(len >0){
-        if(*ptr!=pattern)
+        if(*ptr!=ref)
             return 0;
         len--;ptr++;
+    }
+    return 1;
+}
+int is_pagetable_empty(pagetable_t pagetable){
+    uint64 *ptr64=(uint64 *)pagetable;
+    for(int i=0;i<512;i+=8){    //Using Cache Line(the minimum unit data transfer,typically 64 bytes in size)
+        if(ptr64[i] | ptr64[i+1] | ptr64[i+2] | ptr64[i+3] | 
+            ptr64[i+4] | ptr64[i+5] | ptr64[i+6] | ptr64[i+7])
+        return 0;
     }
     return 1;
 }

@@ -260,84 +260,72 @@ int kfork(void) {
     struct proc *np;
     struct proc *p = myproc();
     #ifdef PROC_TEST_TIME
-        uint64 kfork_start_time=r_cycle();
+    uint64 kfork_start_time = r_cycle();
     #endif
-#ifdef DEBUG_FORK
-    FORK_TRACE("parent pid=%d name=%s sz=0x%lx syscall_mask=0x%x\n", p->pid, p->name, p->sz, p->syscall_mask);
-#endif
+    #ifdef DEBUG_FORK
+    FORK_TRACE("ENTRY parent pid=%d name='%s' sz=0x%lx mask=0x%x\n", 
+               p->pid, p->name, p->sz, p->syscall_mask);
+    #endif
     // Allocate process(process control block).
     // Critical: allocproc() acquires p->lock of the new process.
-    // This prevent the scheduler from picking up this "half-baked" process.
     if ((np = allocproc()) == 0) {
+        #ifdef DEBUG_FORK
+        FORK_TRACE("FAIL allocproc returned 0 (no free procs)\n");
+        #endif
         return -1;
     }
-#ifdef DEBUG_FORK
-    FORK_TRACE("allocproc returned child pid=%d pagetable=%p\n", np->pid, np->pagetable);
-    FORK_TRACE("kfork -> uvmcopy for pid=%d\n", np->pid);
-#endif
-
+    #ifdef DEBUG_FORK
+    FORK_TRACE("allocproc success: child pid=%d pt=%p\n", np->pid, np->pagetable);
+    FORK_TRACE("START uvmcopy: parent_pt=%p -> child_pt=%p sz=0x%lx\n", 
+               p->pagetable, np->pagetable, p->sz);
+    #endif
     // Copy user memory from parent to child.
     if (uvmcopy(p->pagetable, np->pagetable, p->sz) < 0) {
-    #ifdef DEBUG_FORK
-        FORK_TRACE("uvmcopy failed for child pid=%d\n", np->pid);
-#endif
+        #ifdef DEBUG_FORK
+        FORK_TRACE("FAIL uvmcopy error for child pid=%d\n", np->pid);
+        #endif
         freeproc(np);
         release(&np->lock);
         return -1;
     }
     np->sz = p->sz;
-
-#ifdef DEBUG_FORK
-    FORK_TRACE("copied pagetable for child pid=%d sz=0x%lx\n", np->pid, np->sz);
-#endif
-    // copy saved user registers.
-    // Ensure the child resumes execution at the exact same point
+    #ifdef DEBUG_FORK
+    FORK_TRACE("END uvmcopy: success. child sz=0x%lx\n", np->sz);
+    #endif
+    // Copy saved user registers.
     *(np->trapframe) = *(p->trapframe);
-
     // Cause fork to return 0 in the child.
-    // Make child process know it is the child process.
     np->trapframe->a0 = 0;
-
-    // increment reference counts on open file descriptors.
+    // Increment reference counts on open file descriptors.
     for (i = 0; i < NOFILE; i++)
         if (p->ofile[i]) np->ofile[i] = filedup(p->ofile[i]);
-    // Duplicate the current working directory.(increment reference count)
+    // Duplicate the current working directory.
     np->cwd = idup(p->cwd);
-
-    //Copy the process name for debugging purpose
+    // Copy the process name
     safestrcpy(np->name, p->name, sizeof(p->name));
-
     pid = np->pid;
-    
-    np->syscall_mask=p->syscall_mask;
-    #ifdef PROC_DEBUG
-    printf("In fork now pid is %d, pagetale is %p\n", np->pid, np->pagetable);
-    #endif
+    np->syscall_mask = p->syscall_mask;
     safestrcpy(np->allow_path_str, p->allow_path_str, MAXPATH);
     // Lock Ordering Dance (Deadlock Avoidance)
-    // We must release np->lock before acquiring wait_lock to obey the global lock order.
-    // Order: wait_lock -> proc->lock.
     release(&np->lock);
-
     acquire(&wait_lock);
     np->parent = p;
     release(&wait_lock);
-
     acquire(&np->lock);
-    np->state = RUNNABLE;   //The scheduler can now pick up this process.
-#ifdef DEBUG_FORK
-    FORK_TRACE("child pid=%d is RUNNABLE and ready\n", np->pid);
-#endif
+    np->state = RUNNABLE;
+    #ifdef DEBUG_FORK
+    FORK_TRACE("STATE UPDATE: child pid=%d is now RUNNABLE\n", np->pid);
+    #endif
     #ifdef PROC_TEST_TIME
-        uint64 kfork_end_time=r_cycle();
-        if(kfork_end_time-kfork_start_time>10000){
-            printf("PERF: fork pid %d took %ld cycles\n", np->pid, kfork_end_time-kfork_start_time);
-        }
+    uint64 kfork_end_time = r_cycle();
+    if(kfork_end_time - kfork_start_time > 10000){
+        printf("PERF: fork pid %d took %ld cycles\n", np->pid, kfork_end_time - kfork_start_time);
+    }
     #endif
     release(&np->lock);
-#ifdef DEBUG_FORK
-    FORK_TRACE("kfork returns pid=%d\n", pid);
-#endif
+    #ifdef DEBUG_FORK
+    FORK_TRACE("EXIT returns child pid=%d\n", pid);
+    #endif
     return pid;
 }
 

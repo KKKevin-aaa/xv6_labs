@@ -28,9 +28,7 @@ int flags2perm(int flags) {
     return perm;
 }
 
-//
 // the implementation of the exec() system call
-//
 int kexec(char *path, char **argv) {
     char *s, *last;
     int i, off;
@@ -41,29 +39,26 @@ int kexec(char *path, char **argv) {
     pagetable_t pagetable = 0, oldpagetable;
     struct proc *p = myproc();
     #ifdef EXEC_TEST_TIME
-        uint64 kexec_start_time=r_cycle();
+    uint64 kexec_start_time = r_cycle();
     #endif
-    EXEC_TRACE("kexec start pid=%d path=%s argv=%p\n", p->pid, path, argv);
+    #ifdef DEBUG_EXEC
+    EXEC_TRACE("ENTRY pid=%d path='%s' argv=%p\n", p->pid, path, argv);
+    #endif
     begin_op();
-
-    // Open the executable file.
     if ((ip = namei(path)) == 0) {
-    EXEC_TRACE("namei failed for %s\n", path);
+        #ifdef DEBUG_EXEC
+        EXEC_TRACE("FAIL namei not found path=%s\n", path);
+        #endif
         end_op();
         return -1;
     }
     ilock(ip);
-
-    // Read the ELF header.
     if (readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf)) goto bad;
-
-    // Is this really an ELF file?
     if (elf.magic != ELF_MAGIC) goto bad;
-
     if ((pagetable = proc_pagetable(p)) == 0) goto bad;
+    #ifdef DEBUG_EXEC
     EXEC_TRACE("new pagetable %p created for pid=%d\n", pagetable, p->pid);
-
-    // Load program into memory.
+    #endif
     for (i = 0, off = elf.phoff; i < elf.phnum; i++, off += sizeof(ph)) {
         if (readi(ip, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph)) goto bad;
         if (ph.type != ELF_PROG_LOAD) continue;
@@ -71,83 +66,68 @@ int kexec(char *path, char **argv) {
         if (ph.vaddr + ph.memsz < ph.vaddr) goto bad;
         if (ph.vaddr % PGSIZE != 0) goto bad;
         uint64 sz1;
-        if ((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz, flags2perm(ph.flags))) == 0)
-            goto bad;
+        if ((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz, flags2perm(ph.flags))) == 0) goto bad;
         sz = sz1;
-        EXEC_TRACE("mapped segment va=%p memsz=0x%lx filesz=0x%lx\n", (void *)ph.vaddr, ph.memsz, ph.filesz);
         if (loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0) goto bad;
+        #ifdef DEBUG_EXEC
+        EXEC_TRACE("LOAD seg: va=%p memsz=0x%lx filesz=0x%lx\n", (void *)ph.vaddr, ph.memsz, ph.filesz);
+        #endif
     }
     iunlockput(ip);
     end_op();
     ip = 0;
-
     p = myproc();
     uint64 oldsz = p->sz;
-
-    // Allocate some pages at the next page boundary.
-    // Make the first inaccessible as a stack guard.
-    // Use the rest as the user stack.
     sz = PGROUNDUP(sz);
-        EXEC_TRACE("Process %s(pid=%d): OLD sz=0x%lx pages, NEW text/data sz=0x%lx pages\n", 
-            p->name, p->pid, oldsz/PGSIZE, sz/PGSIZE);
     uint64 sz1;
     if ((sz1 = uvmalloc(pagetable, sz, sz + (USERSTACK + 1) * PGSIZE, PTE_W)) == 0) goto bad;
     sz = sz1;
-    EXEC_TRACE("After adding stack: NEW total sz=0x%lx pages\n", sz/PGSIZE);
     uvmclear(pagetable, sz - (USERSTACK + 1) * PGSIZE);
     sp = sz;
-    stackbase = sp - USERSTACK * PGSIZE;    //the end of user_stack,should not arrived!
-    EXEC_TRACE("stack window base=%p top=%p\n", (void *)stackbase, (void *)sp);
-
-    // Copy argument strings into new stack, remember their
-    // addresses in ustack[].
+    stackbase = sp - USERSTACK * PGSIZE;
+    #ifdef DEBUG_EXEC
+    EXEC_TRACE("STACK setup: base=%p top=%p total_sz=0x%lx pages\n", (void *)stackbase, (void *)sp, sz/PGSIZE);
+    #endif
     for (argc = 0; argv[argc]; argc++) {
         if (argc >= MAXARG) goto bad;
         sp -= strlen(argv[argc]) + 1;
-        sp -= sp % 16;  // riscv sp must be 16-byte aligned
+        sp -= sp % 16;
         if (sp < stackbase) goto bad;
         if (copyout(pagetable, sp, argv[argc], strlen(argv[argc]) + 1) < 0) goto bad;
         ustack[argc] = sp;
     }
     ustack[argc] = 0;
-
-    // push a copy of ustack[], the array of argv[] pointers.
     sp -= (argc + 1) * sizeof(uint64);
     sp -= sp % 16;
     if (sp < stackbase) goto bad;
     if (copyout(pagetable, sp, (char *)ustack, (argc + 1) * sizeof(uint64)) < 0) goto bad;
-
-    // a0 and a1 contain arguments to user main(argc, argv)
-    // argc is returned via the system call return
-    // value, which goes in a0.
     p->trapframe->a1 = sp;
-
-    // Save program name for debugging.
     for (last = s = path; *s; s++)
         if (*s == '/') last = s + 1;
     safestrcpy(p->name, last, sizeof(p->name));
-
-    // Commit to the user image.
     oldpagetable = p->pagetable;
     p->pagetable = pagetable;
     p->sz = sz;
-    p->trapframe->epc = elf.entry;  // initial program counter = main
-    p->trapframe->sp = sp;          // initial stack pointer
-        EXEC_TRACE("Now freeing OLD pagetable=%p with oldsz=0x%lx pages\n", 
-            oldpagetable, oldsz/PGSIZE);
-    proc_freepagetable(oldpagetable, oldsz);
-        EXEC_TRACE("Process %s(pid=%d) exec complete. Final sz=0x%lx pages\n", 
-            p->name, p->pid, sz/PGSIZE);
-    #ifdef EXEC_TEST_TIME
-        uint64 kexec_end_time=r_cycle();
-        if(kexec_end_time-kexec_start_time>10000){
-            printf("PERF: exec pid %d took 0x%lx cycles\n", p->pid, kexec_end_time-kexec_start_time);
-        }
+    p->trapframe->epc = elf.entry;
+    p->trapframe->sp = sp;
+    #ifdef DEBUG_EXEC
+    EXEC_TRACE("COMMIT: switch pt, freeing old=%p oldsz=0x%lx\n", oldpagetable, oldsz/PGSIZE);
     #endif
-    return argc;  // this ends up in a0, the first argument to main(argc, argv)
-
+    proc_freepagetable(oldpagetable, oldsz);
+    #ifdef DEBUG_EXEC
+    EXEC_TRACE("SUCCESS: pid=%d exec complete. entry=0x%lx\n", p->pid, p->trapframe->epc);
+    #endif
+    #ifdef EXEC_TEST_TIME
+    uint64 kexec_end_time = r_cycle();
+    if(kexec_end_time - kexec_start_time > 10000){
+        printf("PERF: exec pid %d took 0x%lx cycles\n", p->pid, kexec_end_time - kexec_start_time);
+    }
+    #endif
+    return argc;
 bad:
-    EXEC_TRACE("exec failed for path=%s pid=%d\n", path, p->pid);
+    #ifdef DEBUG_EXEC
+    EXEC_TRACE("FAIL exec path=%s pid=%d\n", path, p->pid);
+    #endif
     if (pagetable) proc_freepagetable(pagetable, sz);
     if (ip) {
         iunlockput(ip);
