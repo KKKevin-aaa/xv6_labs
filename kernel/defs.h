@@ -74,6 +74,7 @@ uint8           is_head(uint64 pa);
 uint8           is_managed_memory(uint64 pa);
 void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz, int level);
 int             is_pagetable_empty(pagetable_t pagetable);
+void            dump_memory_map();
 // log.c
 void            initlog(int, struct superblock*);
 void            log_write(struct buf*);
@@ -198,6 +199,9 @@ void            vmprint(pagetable_t);
 #ifdef LAB_PGTBL
 pte_t*          pgpte(pagetable_t, uint64);
 #endif
+void            init_res_array(uint64 init_heap_start);
+uint64          alloc_res_memory(pagetable_t, uint64, uint64, uint64, int);
+uint64          free_res_memory(pagetable_t, uint64, uint64, uint64);
 
 // plic.c
 void            plicinit(void);

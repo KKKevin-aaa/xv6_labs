@@ -5,7 +5,6 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
-// 调试开关：注释下面这一行可关闭所有 fork 日志
 // #define DEBUG_FORK
 #ifdef DEBUG_FORK
 #define FORK_TRACE(fmt, ...) \

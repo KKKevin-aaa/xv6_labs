@@ -246,6 +246,17 @@ static inline void sfence_vma() {
 typedef uint64 pte_t;
 typedef uint64 *pagetable_t;  // 512 PTEs
 
+#define RESERVE
+#define RES_BITMAP_WORDS 8
+#define THRESHLOD 64
+#define MAX_RES_BLOCK 32
+typedef struct Reservation{
+    uint64 pa, va;  //for the block header
+    int promoted;   //upgrade to huge page or not
+    int is_used;  // 0=free, 1=used
+    uint64 pop_count;
+    uint8 bitmap[512];  //0=free, 1=used
+}res_block;
 #endif  // __ASSEMBLER__
 
 #define PGSIZE 4096 // bytes per page
@@ -295,7 +306,9 @@ inline uint8 __attribute__((always_inline)) i_log2(uint64 x){
 #define PTE_W (1L << 2)
 #define PTE_X (1L << 3)
 #define PTE_U (1L << 4) // user can access
-
+#define PTE_G (1L << 5)
+#define PTE_A (1L << 6)
+#define PTE_D (1L << 7)
 
 
 #if defined(LAB_MMAP) || defined(LAB_PGTBL) || defined(LAB_COW)

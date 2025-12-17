@@ -296,7 +296,7 @@ void buddy_coalesce_test() {
     sbrk(- (1024 * 1024));
     // 再释放 2MB
     sbrk(- (2 * 1024 * 1024));
-
+    print_kpgtbl();
     // 此时堆应该回到了 start
     if (sbrk(0) != start) err("sbrk pointer mismatch after free");
 
@@ -306,7 +306,7 @@ void buddy_coalesce_test() {
     // Buddy Allocator 通常倾向于重用刚刚释放的低地址块。
     char *ptr2 = sbrk(huge_sz);
     if (ptr2 == (char*)-1) err("re-alloc sbrk 4MB failed");
-
+    print_kpgtbl();
     uint64 pa_new = GET_PA(ptr2);
     printf("  [Info] Re-Alloc 4MB at PA: 0x%lx\n", pa_new);
 

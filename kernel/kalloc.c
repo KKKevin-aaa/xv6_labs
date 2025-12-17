@@ -42,6 +42,7 @@ uint64 free_start_addr;
 uint64 start_pfn;   //NOTE:start from start_pfn instead of 0
 extern char end[];  // first address after kernel.
                     // defined by kernel.ld.
+extern res_block rb_array[MAX_RES_BLOCK];
 struct page{
     uint16 flags;   //If bit 15 is 1,record order, size is 2^(order + order_base)
     //To support partial deallocation, embed the head offset within order metadata.(bit 15 is 0)
@@ -83,7 +84,7 @@ static inline uint64 paddr_to_pfn(uint64 pa){    //paddr convert to Page Frame N
 }
 //Defensive Programming, provide two interface(must exist and try get)
 static inline uint64 pfn_to_paddr(uint64 pfn){
-    if(pfn>=total_pages)    panic("pfn_to_paddr: Segment fault");
+    if(pfn>total_pages)    panic("pfn_to_paddr: Segment fault");
     return (pfn*PGSIZE + KERNBASE);
 }
 static inline void ensure_pfn_valid(uint64 pfn){
@@ -410,4 +411,38 @@ void *kalloc(void) {
     KALLOC_TRACE("pid=%d(%s) requesting PGSIZE\n", pid, name);
 #endif
     return alloc_memory(PGSIZE);
+}
+void *smart_alloc(uint64 ){    //for vm_fault
+
+
+}
+void dump_memory_map(){ //holding the lock
+    printf("Address Range           Size      State    Order\n");
+    printf("------------------------------------------------\n");
+    uint64 cur_pfn=start_pfn, end_pfn, size, cur_order;
+    struct page *p;
+    acquire(&kmem.lock);
+    printf("0x0 - 0x%lx  0x%lx pages  [Program]   -1\n", 
+        (uint64)(kmem.mem_bitmaps), (uint64)(kmem.mem_bitmaps)/PGSIZE);
+    printf("0x%lx - 0x%lx  0x%lx pages  [Membitmaps]   -1\n", 
+        (uint64)(kmem.mem_bitmaps), free_start_addr, (free_start_addr-(uint64)(kmem.mem_bitmaps))/PGSIZE);
+    while(cur_pfn<total_pages){
+        p=get_page_descriptor_assert_nolock(cur_pfn);
+        if(IS_HEAD(p->flags)){
+            cur_order=GET_ORDER(p->flags);
+            size=1ull<<(cur_order+ORDER_BASE);
+            end_pfn=cur_pfn+(1ull<<cur_order);
+            ensure_pfn_valid(end_pfn-1);
+            if(IS_FREE(p->flags))
+                printf("0x%lx - 0x%lx  0x%lx pages  [FREE]   0x%lx\n", 
+                    pfn_to_paddr(cur_pfn), pfn_to_paddr(end_pfn), size/PGSIZE, cur_order);
+            else
+            printf("0x%lx - 0x%lx  0x%lx pages  [USED]   0x%lx\n", 
+                pfn_to_paddr(cur_pfn), pfn_to_paddr(end_pfn), size/PGSIZE, cur_order);
+            //Advance the pfn
+            cur_pfn=end_pfn;
+        }
+        else    panic("Unorganized memory!");
+    }
+    release(&kmem.lock);
 }

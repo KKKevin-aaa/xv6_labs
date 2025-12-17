@@ -100,6 +100,7 @@ struct proc { //Process control block(PCB)
   // these are private to the process, so p->lock need not be held.
   uint64 kstack;               // Virtual address of kernel stack
   uint64 sz;                   // Size of process memory (bytes),indicates the top of the user heap, modified by sbrk()
+  uint64 init_heap_start;      // To support reserved area, track the init heap start.(Minimal change)
   pagetable_t pagetable;       // User page table
   struct trapframe *trapframe; // data page for trampoline.S(Mode switch)
   //(switch form User to kernel,like syscall) still belong to this process,"what I am doing before enter kernel"

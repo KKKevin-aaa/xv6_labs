@@ -133,6 +133,8 @@ bad:
         iunlockput(ip);
         end_op();
     }
+    //init the reserved area
+    init_res_array(p->sz);
     return -1;
 }
 
