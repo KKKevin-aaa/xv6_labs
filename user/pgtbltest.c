@@ -116,7 +116,7 @@ void superpg_fork() {
     printf("superpg_fork starting\n");
     testname = "superpg_fork";
 
-    char *end = sbrk(SZ);
+    char *end = sbrklazy(SZ);
     if (end == 0 || end == SBRK_ERROR) err("sbrk failed");
 
     // check if parent has super pages
@@ -136,7 +136,7 @@ void superpg_fork() {
     }
 
     // free super pages
-    sbrk(-SZ);
+    sbrklazy(-SZ);
     printf("1 \n");
     if ((pid = fork()) < 0) {
         err("fork");
@@ -163,16 +163,16 @@ void superpg_free() {
     printf("superpg_free starting\n");
     testname = "superpg_free";
 
-    char *end = sbrk(SZ);
+    char *end = sbrklazy(SZ);
     if (end == 0 || end == SBRK_ERROR) err("sbrk failed");
 
     // free pages beyond a super page
-    char *a = sbrk(0);
+    char *a = sbrklazy(0);
     printf("current a is %p\n", (void *)a);
     uint64 s = SUPERPGROUNDDOWN((uint64)a);
     printf("current s is 0x%lx, next-sbrk is 0x%lx\n", s, -((uint64)a - s));
-    sbrk(-((uint64)a - s));
-    a = sbrk(0);
+    sbrklazy(-((uint64)a - s));
+    a = sbrklazy(0);
     printf("current a is %p\n", (void *)a);
     pte_t pte1 = (pte_t)pgpte((void *)a - PGSIZE);
     pte_t pte2 = (pte_t)pgpte((void *)a - 2 * PGSIZE);
@@ -185,8 +185,8 @@ void superpg_free() {
     *(a - 2 * PGSIZE + 1) = '9';
 
     // free last 4096 bytes of a super page
-    sbrk(-PGSIZE);
-    a = sbrk(0);
+    sbrklazy(-PGSIZE);
+    a = sbrklazy(0);
     printf("current a is %p\n", (void *)a);
     if (*(a - PGSIZE + 1) != '9') {
         printf("current *(a-pgsize+1) is %c\n", (char)*(a-PGSIZE+1));
@@ -219,8 +219,8 @@ void superpg_free() {
 
     s = SUPERPGROUNDDOWN((uint64)a);
     for (; (uint64)a > s; a -= PGSIZE) {
-        a = sbrk(-PGSIZE);
-        pte1 = (pte_t)pgpte(sbrk(0));
+        a = sbrklazy(-PGSIZE);
+        pte1 = (pte_t)pgpte(sbrklazy(0));
         if (pte1 != 0) {
             err("page hasn't been freed");
         }
@@ -228,26 +228,26 @@ void superpg_free() {
 
     printf("superpg_free: OK\n");
 }
-char *align_sbrk(uint64 boundary){
-    char *curr=sbrk(0);
+char *align_sbrklazy(uint64 boundary){
+    char *curr=sbrklazy(0);
     uint64 curr_val=(uint64)curr, rem=curr_val % boundary;
     if(rem!=0){
         uint64 padding=boundary-rem;
-        char *ret=sbrk(padding);
+        char *ret=sbrklazy(padding);
         if(ret==NULL){
             fprintf(1, "sbrk padding fail!");
             exit(1);
         }
     }
-    return sbrk(0);
+    return sbrklazy(0);
 }
 void buddy_alignment_test(){
     printf("buddy alignment test starting:\n");
     testname = "buddy_alignment_test";
     // 1. 申请 64KB (Order 4)
     uint64 sz_64k = 64 * 1024; 
-    align_sbrk(sz_64k);
-    char *p1 = sbrk(sz_64k);
+    align_sbrklazy(sz_64k);
+    char *p1 = sbrklazy(sz_64k);
     
     if (p1 == (char*)-1) err("sbrk 64k failed");
     
@@ -261,8 +261,8 @@ void buddy_alignment_test(){
 
     // 2. 申请 2MB (Order 9 / Superpage)
     uint64 sz_2m = 2 * 1024 * 1024;
-    align_sbrk(sz_2m);
-    char *p2 = sbrk(sz_2m);
+    align_sbrklazy(sz_2m);
+    char *p2 = sbrklazy(sz_2m);
     if (p2 == (char*)-1) err("sbrk 2m failed");
 
     uint64 pa2 = GET_PA(p2);
@@ -281,8 +281,8 @@ void buddy_coalesce_test() {
     uint64 huge_sz = 4 * 1024 * 1024; 
     
     // 1. 首次申请 4MB
-    char *start = sbrk(0);
-    char *ptr = sbrk(huge_sz);
+    char *start = sbrklazy(0);
+    char *ptr = sbrklazy(huge_sz);
     if (ptr == (char*)-1) err("initial sbrk 4MB failed");
     
     uint64 pa_orig = GET_PA(ptr);
@@ -291,20 +291,20 @@ void buddy_coalesce_test() {
     // 2. 逐步释放 (模拟碎片化释放)
     // sbrk 只能从顶部缩小，但我们可以分多次缩小来触发多次 free_pages
     // 先释放 1MB
-    sbrk(- (1024 * 1024));
+    sbrklazy(- (1024 * 1024));
     // 再释放 1MB
-    sbrk(- (1024 * 1024));
+    sbrklazy(- (1024 * 1024));
     // 再释放 2MB
-    sbrk(- (2 * 1024 * 1024));
+    sbrklazy(- (2 * 1024 * 1024));
     print_kpgtbl();
     // 此时堆应该回到了 start
-    if (sbrk(0) != start) err("sbrk pointer mismatch after free");
+    if (sbrklazy(0) != start) err("sbrk pointer mismatch after free");
 
     // 3. 再次申请 4MB
     // 如果合并逻辑(Coalescing)是正确的，之前释放的碎片应该合并成了 
     // 一个大的 4MB 块（或者两个 2MB）。
     // Buddy Allocator 通常倾向于重用刚刚释放的低地址块。
-    char *ptr2 = sbrk(huge_sz);
+    char *ptr2 = sbrklazy(huge_sz);
     if (ptr2 == (char*)-1) err("re-alloc sbrk 4MB failed");
     print_kpgtbl();
     uint64 pa_new = GET_PA(ptr2);
@@ -320,7 +320,7 @@ void buddy_coalesce_test() {
     }
 
     // 清理
-    sbrk(-huge_sz);
+    sbrklazy(-huge_sz);
     printf("buddy_coalesce_test: OK\n");
 }
 void buddy_odd_size_test() {
@@ -332,7 +332,7 @@ void buddy_odd_size_test() {
     // 或者你的 sbrk 可能会循环调用三次 kalloc(4k)。
     // 这里我们通过检查物理连续性来推断它的行为。
     uint64 req_sz = 3 * PGSIZE;
-    char *p = sbrk(req_sz);
+    char *p = sbrklazy(req_sz);
     if (p == (char*)-1) err("sbrk 3 pages failed");
 
     uint64 pa1 = GET_PA(p);
@@ -344,12 +344,12 @@ void buddy_odd_size_test() {
     // 验证物理连续性 (Buddy System 的特征)
     if (pa2 != pa1 + PGSIZE || pa3 != pa2 + PGSIZE) {
         // 如果物理地址不连续，说明你的 sbrk 是一页一页分配的，而不是向 Buddy 要了一块大的
-        printf("  [Note] sbrk(3*PGSIZE) returned non-contiguous physical pages.\n");
+        printf("  [Note] sbrklazy(3*PGSIZE) returned non-contiguous physical pages.\n");
     } else {
-        printf("  [Note] sbrk(3*PGSIZE) returned contiguous physical pages (Good).\n");
+        printf("  [Note] sbrklazy(3*PGSIZE) returned contiguous physical pages (Good).\n");
     }
 
     // 释放
-    sbrk(-req_sz);
+    sbrklazy(-req_sz);
     printf("buddy_odd_size_test: OK\n");
 }

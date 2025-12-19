@@ -1,11 +1,3 @@
-// #include "defs.h"
-// #include "memlayout.h"
-// #include "param.h"
-// #include "proc.h"
-// #include "riscv.h"
-// #include "spinlock.h"
-// #include "types.h"
-// #include "vm.h"
 #include "types.h"
 #include "riscv.h"
 #include "param.h"
@@ -54,8 +46,9 @@ uint64 sys_sbrk(void) {
         // Lazily allocate memory for this process: increase its memory
         // size but don't allocate memory. If the processes uses the
         // memory, vmfault() will allocate it.
-        if (addr + n < addr) return -1;
-        myproc()->sz += n;
+        struct proc *p=myproc();
+        if(n<0) free_res_memory(p->rb_array, p->pagetable, p->init_heap_start, p->sz, p->sz+n);
+        p += n;
     }
     #endif
     return addr;

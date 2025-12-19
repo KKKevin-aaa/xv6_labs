@@ -37,6 +37,7 @@ int kexec(char *path, char **argv) {
     struct inode *ip;
     struct proghdr ph;
     pagetable_t pagetable = 0, oldpagetable;
+    res_block *old_rbarray=NULL;
     struct proc *p = myproc();
     #ifdef EXEC_TEST_TIME
     uint64 kexec_start_time = r_cycle();
@@ -88,6 +89,7 @@ int kexec(char *path, char **argv) {
     #ifdef DEBUG_EXEC
     EXEC_TRACE("STACK setup: base=%p top=%p total_sz=0x%lx pages\n", (void *)stackbase, (void *)sp, sz/PGSIZE);
     #endif
+    //Pass arguments on the stack;no heap involvement.
     for (argc = 0; argv[argc]; argc++) {
         if (argc >= MAXARG) goto bad;
         sp -= strlen(argv[argc]) + 1;
@@ -106,6 +108,7 @@ int kexec(char *path, char **argv) {
         if (*s == '/') last = s + 1;
     safestrcpy(p->name, last, sizeof(p->name));
     oldpagetable = p->pagetable;
+    old_rbarray = p->rb_array;  //outdate rb_array, store first 
     p->pagetable = pagetable;
     p->sz = sz;
     p->trapframe->epc = elf.entry;
@@ -113,7 +116,9 @@ int kexec(char *path, char **argv) {
     #ifdef DEBUG_EXEC
     EXEC_TRACE("COMMIT: switch pt, freeing old=%p oldsz=0x%lx\n", oldpagetable, oldsz/PGSIZE);
     #endif
-    proc_freepagetable(oldpagetable, oldsz);
+    proc_freepagetable(old_rbarray, oldpagetable, oldsz);
+    //init the reserved area(after delete the previous resource)
+    init_res_array(p->rb_array, p->sz);
     #ifdef DEBUG_EXEC
     EXEC_TRACE("SUCCESS: pid=%d exec complete. entry=0x%lx\n", p->pid, p->trapframe->epc);
     #endif
@@ -128,13 +133,11 @@ bad:
     #ifdef DEBUG_EXEC
     EXEC_TRACE("FAIL exec path=%s pid=%d\n", path, p->pid);
     #endif
-    if (pagetable) proc_freepagetable(pagetable, sz);
+    if (pagetable) proc_freepagetable(old_rbarray, pagetable, sz);
     if (ip) {
         iunlockput(ip);
         end_op();
     }
-    //init the reserved area
-    init_res_array(p->sz);
     return -1;
 }
 

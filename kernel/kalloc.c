@@ -412,10 +412,6 @@ void *kalloc(void) {
 #endif
     return alloc_memory(PGSIZE);
 }
-void *smart_alloc(uint64 ){    //for vm_fault
-
-
-}
 void dump_memory_map(){ //holding the lock
     printf("Address Range           Size      State    Order\n");
     printf("------------------------------------------------\n");

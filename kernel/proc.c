@@ -155,7 +155,7 @@ static void freeproc(struct proc *p) {
     #ifdef PROC_DEBUG
     printf("in freeproc oldpagetbale is %p\n", p->pagetable);
     #endif
-    if (p->pagetable) proc_freepagetable(p->pagetable, p->sz);
+    if (p->pagetable) proc_freepagetable(p->rb_array, p->pagetable, p->sz);
     #ifdef PROC_DEBUG
     printf("Done free this process's memory!\n");
     #endif
@@ -187,7 +187,7 @@ pagetable_t proc_pagetable(struct proc *p) {
     // only the supervisor uses it, on the way
     // to/from user space, so not PTE_U.
     if (mappages(pagetable, TRAMPOLINE, PGSIZE, (uint64)trampoline, PTE_R | PTE_X) < 0) {
-        uvmfree(pagetable, 0);
+        uvmfree(p->rb_array, pagetable, 0);
         return 0;
     }
 
@@ -195,7 +195,7 @@ pagetable_t proc_pagetable(struct proc *p) {
     // trampoline.S.
     if (mappages(pagetable, TRAPFRAME, PGSIZE, (uint64)(p->trapframe), PTE_R | PTE_W) < 0) {
         uvmunmap(pagetable, TRAMPOLINE, 1, 0);
-        uvmfree(pagetable, 0);
+        uvmfree(p->rb_array, pagetable, 0);
         return 0;
     }
 
@@ -203,7 +203,7 @@ pagetable_t proc_pagetable(struct proc *p) {
     if(mappages(pagetable, USYSCALL, PGSIZE, (uint64)usyscall_pa, PTE_R | PTE_U)<0){
         uvmunmap(pagetable, TRAMPOLINE, 1, 0);
         uvmunmap(pagetable, TRAPFRAME,  1, 0);
-        uvmfree(pagetable, 0);  //have not alloc memory, so size equal zero!
+        uvmfree(p->rb_array, pagetable, 0);  //have not alloc memory, so size equal zero!
         return 0;
     }
 
@@ -212,12 +212,12 @@ pagetable_t proc_pagetable(struct proc *p) {
 
 // Free a process's page table, and free the
 // physical memory it refers to.
-void proc_freepagetable(pagetable_t pagetable, uint64 sz) {
+void proc_freepagetable(res_block *rb_array, pagetable_t pagetable, uint64 sz) {
     uvmunmap(pagetable, TRAMPOLINE, PGSIZE, 0);
     uvmunmap(pagetable, TRAPFRAME, PGSIZE, 0);
     uvmunmap(pagetable, USYSCALL, PGSIZE, 0);
     //All process share one usyscall page,so don' free here!
-    uvmfree(pagetable, sz);
+    uvmfree(rb_array, pagetable, sz);
 }
 
 // Set up first user process.
@@ -279,7 +279,8 @@ int kfork(void) {
                p->pagetable, np->pagetable, p->sz);
     #endif
     // Copy user memory from parent to child.
-    if (uvmcopy(p->pagetable, np->pagetable, p->sz) < 0) {
+    memmove(np->rb_array, p->rb_array, sizeof(struct Reservation)*MAX_RES_BLOCK);   //copy the rb_array first
+    if (uvmcopy(np->rb_array, p->pagetable, np->pagetable, p->sz) < 0) {
         #ifdef DEBUG_FORK
         FORK_TRACE("FAIL uvmcopy error for child pid=%d\n", np->pid);
         #endif

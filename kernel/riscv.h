@@ -251,11 +251,13 @@ typedef uint64 *pagetable_t;  // 512 PTEs
 #define RES_BITMAP_WORDS 8
 #define THRESHLOD 64
 #define MAX_RES_BLOCK 32
+#define MAX_ALLOWED_ALLOCATIONS 4
 typedef struct Reservation{
     uint64 pa, va;  //for the block header
     int promoted;   //upgrade to huge page or not
     int is_scattered;   //1=scattered(limit to the memory, allocate superpage fail)
     uint64 pop_count;
+    uint64 alloc_attempts;  //Huge page promotion attempts
     uint8 bitmap[512];  //0=free, 1=used
 }res_block;
 #endif  // __ASSEMBLER__

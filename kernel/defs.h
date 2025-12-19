@@ -1,5 +1,5 @@
 #ifdef LAB_MMAP
-gtypedef unsigned long size_t;
+typedef unsigned long size_t;
 typedef long int off_t;
 #endif
 struct buf;
@@ -12,10 +12,12 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct vm_dupl_ctx;
 #ifdef LAB_LOCK
 struct rwspinlock;
 #endif
-
+#define MAX(a, b) (((a) < (b)) ? (b) : (a))
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
@@ -99,7 +101,7 @@ int             kfork(void);
 int             growproc(int);
 void            proc_mapstacks(pagetable_t);
 pagetable_t     proc_pagetable(struct proc *);
-void            proc_freepagetable(pagetable_t, uint64);
+void            proc_freepagetable(res_block * , pagetable_t, uint64);
 int             kkill(int);
 int             killed(struct proc*);
 void            setkilled(struct proc*);
@@ -182,8 +184,8 @@ int             mappages(pagetable_t, uint64, uint64, uint64, int);
 pagetable_t     uvmcreate(void);
 uint64          uvmalloc(pagetable_t, uint64, uint64, int);
 uint64          uvmdealloc(pagetable_t, uint64, uint64);
-int             uvmcopy(pagetable_t, pagetable_t, uint64);
-void            uvmfree(pagetable_t, uint64);
+int             uvmcopy(res_block *, pagetable_t, pagetable_t, uint64);
+void            uvmfree(res_block *, pagetable_t, uint64);
 void            uvmunmap(pagetable_t, uint64, uint64, int);
 void            uvmclear(pagetable_t, uint64);
 pte_t *         walk(pagetable_t, uint64, int, int);
@@ -192,16 +194,18 @@ int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
 int             ismapped(pagetable_t, uint64);
-uint64          vmfault(pagetable_t, uint64, int);
+uint64          vmfault(res_block *, pagetable_t, uint64, int);
 #if defined(LAB_PGTBL) || defined(SOL_MMAP)
 void            vmprint(pagetable_t);
 #endif
 #ifdef LAB_PGTBL
 pte_t*          pgpte(pagetable_t, uint64);
 #endif
-void            init_res_array(uint64 init_heap_start);
-uint64          alloc_res_memory(pagetable_t, uint64, uint64, uint64, int);
-uint64          free_res_memory(pagetable_t, uint64, uint64, uint64);
+void            init_res_array(res_block *, uint64 init_heap_start);
+uint64          alloc_res_memory(res_block *, pagetable_t, uint64, uint64, uint64, int);
+uint64          free_res_memory(res_block *, pagetable_t, uint64, uint64, uint64);
+void reclaim_res_memory_range(res_block *rb_array, pagetable_t pagetable, uint64 start_va, uint64 end_va);
+uint64          Simp_alloc_res_memory(res_block *, pagetable_t, uint64, int);
 
 // plic.c
 void            plicinit(void);
