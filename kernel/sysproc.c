@@ -35,10 +35,9 @@ uint64 sys_sbrk(void) {
     argint(0, &n);
     argint(1, &t);
     addr = myproc()->sz;
-    #ifdef RES
-    
-    #else
-    if (t == SBRK_EAGER || n < 0) {
+    if(addr+n>=MAXVA)   return -1;  
+    //Prevent excessive n from overwriting kernel memory
+    if (t == SBRK_EAGER) {
         if (growproc(n) < 0) {
             return -1;
         }
@@ -47,10 +46,16 @@ uint64 sys_sbrk(void) {
         // size but don't allocate memory. If the processes uses the
         // memory, vmfault() will allocate it.
         struct proc *p=myproc();
-        if(n<0) free_res_memory(p->rb_array, p->pagetable, p->init_heap_start, p->sz, p->sz+n);
-        p += n;
+        if(n<0){
+        #ifdef RESERVE
+            free_res_memory(p->rb_array, p->pagetable, p->rb_array[0].va, p->sz, p->sz+n);
+            p->sz += n; //In lazy shrink
+        #else
+            if(growproc(n)<0)   return -1;  //non-reserve
+        #endif
+        }
+        else    p->sz += n; //In lazy grow
     }
-    #endif
     return addr;
 }
 

@@ -116,7 +116,7 @@ LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
-CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -gdwarf-2
+CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer
 
 ifdef LAB
 LABUPPER = $(shell echo $(LAB) | tr a-z A-Z)
@@ -163,11 +163,11 @@ ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]nopie'),)
 CFLAGS += -fno-pie -nopie
 endif
 
-BUILD_DIR := build
+BUILD_ROOT_DIR := build
 
 ifeq ($(DEBUG), 1)
-  CFLAGS += -DDEBUG_FORK -DDEBUG_VM -DDEBUG_KALLOC -DDEBUG_EXEC -O0
-  OBJ_DIR := $(BUILD_DIR)/DEBUG
+  CFLAGS += -DDEBUG_FORK -DDEBUG_VM -DDEBUG_KALLOC -DDEBUG_EXEC -O0 -g3 -gdwarf-4
+  OBJ_DIR := $(BUILD_ROOT_DIR)/DEBUG
   LOG_FILE := qemu_output.log
   ifeq ($(PIPE), 1)
     LOG_SUFFIX := 2>&1 | tee $(LOG_FILE)
@@ -175,9 +175,9 @@ ifeq ($(DEBUG), 1)
     LOG_SUFFIX := 2>&1 > $(LOG_FILE)
   endif
 else
-CFLAGS += -O2
-OBJ_DIR := $(BUILD_DIR)/release
-LOG_SUFFIX :=
+  CFLAGS += -O2 -ggdb -gdwarf-4
+  OBJ_DIR := $(BUILD_ROOT_DIR)/release
+  LOG_SUFFIX :=
 endif
 
 LDFLAGS = -z max-page-size=4096
@@ -196,7 +196,7 @@ $(K)/$(OBJ_DIR)/%.o: $(K)/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) $(EXTRAFLAG) -c -o $@ $<
 
 $(K)/$(OBJ_DIR)/%.o: $(K)/%.S | $(OBJ_DIR)
-	$(CC) -g -c -o $@ $<
+	$(CC) -c -o $@ $<
 
 tags: $(OBJS) | $(OBJ_DIR)
 	etags kernel/*.S kernel/*.c
@@ -256,7 +256,8 @@ UPROGS=\
 	$(U)/$(OBJ_DIR)/_logstress\
 	$(U)/$(OBJ_DIR)/_forphan\
 	$(U)/$(OBJ_DIR)/_dorphan\
-	$(U)/$(OBJ_DIR)/_sandbox
+	$(U)/$(OBJ_DIR)/_sandbox\
+	$(U)/$(OBJ_DIR)/_reserve_test
 
 
 
@@ -360,11 +361,14 @@ fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS) | $(OBJ_DIR)
 newfs.img: 
 	-mv -f fs.img fs.img.bk
 
--include kernel/*.d user/*.d
+# -include kernel/*.d user/*.d
+ifneq ($(MAKECMDGOALS), clean)
+  -include $(K)/$(OBJ_DIR)/*.d $(U)/$(OBJ_DIR)/*.d
+endif
 
 clean:
 	rm -rf *.tex *.dvi *.idx *.aux *.log *.ind *.ilg *.dSYM *.zip *.pcap \
-	*/*.o */*.d */*.asm */*.sym \
+	*/*.o */*.d */*.asm */*.sym $(K)/$(BUILD_ROOT_DIR) $(U)/$(BUILD_ROOT_DIR) \
 	$(K)/$(OBJ_DIR)/kernel fs.img \
 	mkfs/mkfs .gdbinit \
         $(U)/$(OBJ_DIR)/usys.S \

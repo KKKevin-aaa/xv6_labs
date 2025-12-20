@@ -103,7 +103,6 @@ struct proc {              // Process control block(PCB)
     uint64 kstack;  // Virtual address of kernel stack
     uint64 sz;  // Size of process memory (bytes),indicates the top of the user heap, modified by
                 // sbrk()
-    uint64 init_heap_start;  // To support reserved area, track the init heap start.(Minimal change)
     pagetable_t pagetable;   // User page table
     struct trapframe *trapframe;  // data page for trampoline.S(Mode switch)
     //(switch form User to kernel,like syscall) still belong to this process,"what I am doing before
@@ -114,7 +113,7 @@ struct proc {              // Process control block(PCB)
     struct file *ofile[NOFILE];  // Open files
     struct inode *cwd;           // Current directory
     char name[16];               // Process name (debugging)
-    res_block rb_array[MAX_RES_BLOCK];
+    res_block rb_array[MAX_RES_BLOCK];// To support reserved area,this can track the init heap start.
 };
 
 struct vm_dupl_ctx {

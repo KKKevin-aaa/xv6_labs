@@ -117,6 +117,8 @@ int kexec(char *path, char **argv) {
     EXEC_TRACE("COMMIT: switch pt, freeing old=%p oldsz=0x%lx\n", oldpagetable, oldsz/PGSIZE);
     #endif
     proc_freepagetable(old_rbarray, oldpagetable, oldsz);
+    pte_t *tmp=walk(p->pagetable, TRAPFRAME, 0, 0);
+    (void )tmp;
     //init the reserved area(after delete the previous resource)
     init_res_array(p->rb_array, p->sz);
     #ifdef DEBUG_EXEC

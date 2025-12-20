@@ -210,6 +210,7 @@ void init_res_array(res_block *rb_array, uint64 init_heap_start){    //Assuming 
     memset((void *)rb_array, 0, sizeof(res_block)*MAX_RES_BLOCK);
     for(int i=0;i<MAX_RES_BLOCK;i++){
         rb_array[i].va=align_2mb_hs;
+        rb_array[i].is_scattered=1;
         align_2mb_hs+=SUPERPGSIZE;
     }
 }
@@ -479,12 +480,12 @@ uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
     int aligned_newsz=PGROUNDUP(newsz), aligned_oldsz=PGROUNDUP(oldsz);
     if (aligned_newsz < aligned_oldsz) {
         // Perform the release step-by-step, following the reverse logic of alloc.
-        uint8 oldsz_order=i_log2(aligned_oldsz & -aligned_oldsz);
-        oldsz_order=(oldsz_order==0 || oldsz_order>MAX_ORDER+ORDER_BASE)
-            ?(MAX_ORDER+ORDER_BASE):oldsz_order;
-        uint64 cur_max_size=1ull << oldsz_order;
+        uint8 newsz_order=i_log2(aligned_newsz & -aligned_newsz);
+        newsz_order=(newsz_order==0 || newsz_order>MAX_ORDER+ORDER_BASE)
+            ?(MAX_ORDER+ORDER_BASE):newsz_order;
+        uint64 cur_max_size=1ull << newsz_order;
         uint64 remain_size=aligned_oldsz-aligned_newsz, free_size=cur_max_size;
-        uint64 cur_va=aligned_oldsz, cur_order=0;
+        uint64 cur_va=aligned_newsz, cur_order=0;
         while(remain_size>0){
             free_size=cur_max_size;
             while(remain_size < free_size && free_size>PGSIZE)
@@ -493,10 +494,10 @@ uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
                 VM_TRACE("uvmdealloc -> uvmunmap va=0x%lx size=0x%lx, remain size is 0x%lx\n", 
                     cur_va-free_size, free_size, remain_size);
             #endif
-            uvmunmap(pagetable, cur_va-free_size, free_size, 1);
+            uvmunmap(pagetable, cur_va, free_size, 1);
             if(remain_size>free_size)  remain_size-=free_size;
             else    break;
-            cur_va-=free_size;
+            cur_va+=free_size;
             cur_order=i_log2(cur_va & -cur_va);
             cur_order=(cur_order > MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):cur_order;
             cur_max_size=1ull << cur_order;
@@ -640,6 +641,12 @@ int copywalk(struct vm_dupl_ctx v1){
                         .level=v1.level-1, .rb_array=v1.rb_array};
                     if(copywalk(sub_v) < 0) return -1;
                 }
+            }
+            else{
+                struct vm_dupl_ctx sub_v={.old_pg=(pagetable_t)pa, .new_pg=(pagetable_t)mem,
+                    .base_va=cur_va, .ret_va=v1.ret_va, .max_sz=v1.max_sz, 
+                    .level=v1.level-1, .rb_array=v1.rb_array};
+                if(copywalk(sub_v) < 0) return -1;
             }
             step = 1;
             va_step = standard_stride;
@@ -1071,7 +1078,7 @@ uint64 alloc_res_memory(res_block *rb_array, pagetable_t pagetable, uint64 init_
 uint64 free_res_memory(res_block *rb_array, pagetable_t pagetable, uint64 init_heap_start, 
         uint64 oldsz, uint64 newsz){
     //Eager Demotion!
-    init_heap_start=PGROUNDUP(init_heap_start);
+    if(init_heap_start % SUPERPGSIZE !=0 )  panic("free_res_memory:pass the unaligned address!");
     uint64 align_oldsz=PGROUNDUP(oldsz), align_newsz=PGROUNDUP(newsz);
     uint64 req_size=align_oldsz-align_newsz, start_va, end_va;
     //dealloc backward,maintain consistent handling logic
@@ -1095,16 +1102,14 @@ uint64 free_res_memory(res_block *rb_array, pagetable_t pagetable, uint64 init_h
         }
         else    end_va=align_oldsz;
         vpn_step=(end_va-start_va)/PGSIZE;
-        if(rb_array[idx].promoted==1){  
+        if(rb_array[idx].promoted==1){  //Demotion is merely a preliminary step for reclamation.
             //Split regradless of release size due to the lack of intermidate state.
-            rb_array[idx].pop_count-=vpn_step;
-            split_into_blocks(rb_array, pagetable, start_va, 1);  //fixed as SUPERPAGE
+            split_into_blocks(rb_array, pagetable, start_va, 1);  // Demotion for partial uvmunmap
             rb_array[idx].promoted=0;
-            memset(rb_array[idx].bitmap+start_vpn, 0, vpn_step);
         }
-        else{   //don't promotion
-            uvmdealloc(pagetable, end_va, start_va);
-        }
+        rb_array[idx].pop_count-=vpn_step;
+        uvmdealloc(pagetable, end_va, start_va);//don't promotion
+        memset(rb_array[idx].bitmap+start_vpn, 0, vpn_step);
         req_size-=(end_va-start_va);
         start_va=end_va;
         idx++;
@@ -1152,7 +1157,7 @@ uint64 Simp_alloc_res_memory(res_block *rb_array, pagetable_t pagetable,
     //Triggered by a single page fault and allocate exactly one pages.
     va=PGROUNDDOWN(va);
     uint64 new_block=0;
-    if(va<rb_array[0].va){
+    if(va<rb_array[0].va || va>=rb_array[MAX_RES_BLOCK-1].va+SUPERPGSIZE){
         new_block=(uint64)alloc_memory(PGSIZE);
         if(new_block==0) return 0;
         memset((void *)new_block, 0, PGSIZE);
@@ -1167,7 +1172,7 @@ uint64 Simp_alloc_res_memory(res_block *rb_array, pagetable_t pagetable,
     if(rb_array[idx].promoted==0){  //enter reservable region, evaluate reservation strategy
         rb_array[idx].pop_count++;
         if(rb_array[idx].is_scattered==1){
-            if(rb_array[idx].alloc_attempts<MAX_ALLOWED_ALLOCATIONS){
+            if(rb_array[idx].pop_count>=THRESHLOD && rb_array[idx].alloc_attempts<MAX_ALLOWED_ALLOCATIONS){
                 new_block=(uint64)alloc_memory(SUPERPGSIZE);
                 if(new_block!=0){
                     memset((void *)new_block, 0, SUPERPGSIZE);
@@ -1195,7 +1200,7 @@ uint64 Simp_alloc_res_memory(res_block *rb_array, pagetable_t pagetable,
             return new_block;
         }
         else{
-            if(rb_array[idx].pop_count>THRESHLOD){
+            if(rb_array[idx].pop_count>=THRESHLOD){
                 //Supposing existing the huge already,Upgrade page table
                 merge_into_hugepages_In(rb_array, pagetable, va, xperm);
                 rb_array[idx].promoted=1;

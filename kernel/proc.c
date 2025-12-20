@@ -344,7 +344,7 @@ void reparent(struct proc *p) {
 
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state
-// until its parent calls wait().
+// until its parent calls wait().NOTE:
 void kexit(int status) {
     struct proc *p = myproc();
 
@@ -370,11 +370,11 @@ void kexit(int status) {
     reparent(p);
 
     // Parent might be sleeping in wait().
-    wakeup(p->parent);
+    wakeup(p->parent);  //or send SIGCHLD to wake up(LINUX)
 
     acquire(&p->lock);
 
-    p->xstate = status;
+    p->xstate = status; //eXit state
     p->state = ZOMBIE;
 
     release(&wait_lock);
@@ -395,7 +395,7 @@ int kwait(uint64 addr) {
 
     for (;;) {
         // Scan through table looking for exited children.
-        havekids = 0;
+        havekids = 0;   //Initially assume no children are ready.
         for (pp = proc; pp < &proc[NPROC]; pp++) {
             if (pp->parent == p) {
                 // make sure the child isn't still in exit() or swtch().
