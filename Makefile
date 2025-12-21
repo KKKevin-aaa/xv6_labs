@@ -168,16 +168,15 @@ BUILD_ROOT_DIR := build
 ifeq ($(DEBUG), 1)
   CFLAGS += -DDEBUG_FORK -DDEBUG_VM -DDEBUG_KALLOC -DDEBUG_EXEC -O0 -g3 -gdwarf-4
   OBJ_DIR := $(BUILD_ROOT_DIR)/DEBUG
-  LOG_FILE := qemu_output.log
-  ifeq ($(PIPE), 1)
-    LOG_SUFFIX := 2>&1 | tee $(LOG_FILE)
-  else
-    LOG_SUFFIX := 2>&1 > $(LOG_FILE)
-  endif
 else
   CFLAGS += -O2 -ggdb -gdwarf-4
   OBJ_DIR := $(BUILD_ROOT_DIR)/release
-  LOG_SUFFIX :=
+endif
+LOG_FILE := qemu_output.log
+ifeq ($(PIPE), 1)
+LOG_SUFFIX := 2>&1 | tee $(LOG_FILE)
+else
+LOG_SUFFIX := 2>&1 > $(LOG_FILE)
 endif
 
 LDFLAGS = -z max-page-size=4096
