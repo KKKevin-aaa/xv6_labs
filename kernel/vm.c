@@ -26,7 +26,7 @@
 pagetable_t kernel_pagetable;
 void *usyscall_pa=NULL;
 extern char etext[];  // kernel.ld sets this to end of kernel code.
-// res_block rb_array[MAX_RES_BLOCK] __attribute__((unused)) ={0};  //static Global variable
+// res_block rblocks[MAX_RES_BLOCK] __attribute__((unused)) ={0};  //static Global variable
 
 extern char trampoline[];  // trampoline.S
 void walk_all_page(uint64 start_va, pagetable_t pagetable, int level);
@@ -106,7 +106,7 @@ void kvminithart() {
 //    0..11 -- 12 bits of byte offset within the page.
 // To support superpage, we introduce new paras: target_level
 // and stop while level equals to target_level(0 for 4kB, 1 for 2MB, 2 for 1GB)
-pte_t *walk(pagetable_t pagetable, uint64 va, int alloc, int target_level) {
+pte_t *walk_internal(pagetable_t pagetable, uint64 va, int alloc, int target_level, int *found_level) {
 // #ifdef DEBUG_VM
 //     VM_TRACE("pagetable=%p va=%p alloc=%d target_level=%d\n", pagetable, (void *)va, alloc, target_level);
 // #endif
@@ -114,10 +114,13 @@ pte_t *walk(pagetable_t pagetable, uint64 va, int alloc, int target_level) {
     for (int level = 2; level > target_level; level--) {    //Tips: start level can be changed!
         pte_t *pte = &pagetable[PX(level, va)]; //math
         if (*pte & PTE_V) { //Locate the next level page table using pte(create and init if necessary)
-            pagetable = (pagetable_t)PTE2PA(*pte);
-        #ifdef LAB_PGTBL    //Superpage support
-            if (PTE_LEAF(*pte))
+        //Superpage support
+        #ifdef LAB_PGTBL
+            if (PTE_LEAF(*pte)){    //early stop(record the current-level)
+                if(found_level!=NULL)   *found_level=level;
                 return pte;
+            }
+            pagetable = (pagetable_t)PTE2PA(*pte);
         #endif
         } else {
             if (!alloc || (pagetable = (pde_t *)kalloc()) == 0) return 0;
@@ -126,9 +129,18 @@ pte_t *walk(pagetable_t pagetable, uint64 va, int alloc, int target_level) {
             //Don't set R/W/X, so this is directory entry,not a superpage
         }
     }
+    if(found_level!=NULL)   *found_level=target_level;
     return &pagetable[PX(target_level, va)];
 }
-
+pte_t *walk(pagetable_t pagetable, uint64 va, int alloc, int target_level){
+    return walk_internal(pagetable, va, alloc, target_level, NULL);//wrapper
+}
+uint64 get_step_size(int level){
+    if(level==2)    return 1ull<<30;
+    else if(level==1)   return 1ull<<21;
+    else if(level==0)   return 1ull<<12;
+    return 0;
+}
 // Look up a virtual address, return the physical address,
 // or 0 if not mapped.
 // Can only be used to look up user pages.
@@ -137,12 +149,13 @@ uint64 walkaddr(pagetable_t pagetable, uint64 va) {
     uint64 pa;
 
     if (va >= MAXVA) return 0;
-
-    pte = walk(pagetable, va, 0, 0);
+    int found_level=0;  //Consider hugeleaf
+    pte = walk_internal(pagetable, va, 0, 0, &found_level);
     if (pte == 0) return 0;
     if ((*pte & PTE_V) == 0) return 0;
     if ((*pte & PTE_U) == 0) return 0;
     pa = PTE2PA(*pte);
+    if(found_level!=0)  pa+=(va % get_step_size(found_level));
     return pa;
 }
 #if defined(LAB_PGTBL) || defined(SOL_MMAP) || defined(SOL_COW)
@@ -150,12 +163,7 @@ void prefix_helper(char c, int count){
     int i=count;
     while(i-- > 0)  printf("%c", c);
 }
-uint64 get_step_size(int level){
-    if(level==2)    return 1ull<<30;
-    else if(level==1)   return 1ull<<21;
-    else if(level==0)   return 1ull<<12;
-    return 0;
-}
+
 void walk_all_page(uint64 start_va, pagetable_t pagetable, int level){
     int idx=0, step=1;
     uint64 va_step, standard_stride=get_step_size(level);
@@ -185,7 +193,8 @@ void walk_all_page(uint64 start_va, pagetable_t pagetable, int level){
                     if(step<=0) step=1;
                     va_step=num_4k_page*PGSIZE;
                 }
-                printf("(data)%p: pte %p pa %p, size is 0x%lx\n", (void *)start_va, (void *)pte, (void *)pa, va_step);
+                printf("(data)%p: pte %p pa %p, size is 0x%lx\n", 
+                    (void *)start_va, (void *)pte, (void *)pa, va_step);
             }
         }
         else{
@@ -204,13 +213,13 @@ void vmprint(pagetable_t pagetable) {
     dump_memory_map();
 }
 #endif
-void init_res_array(res_block *rb_array, uint64 init_heap_start){    //Assuming A fixed-size stack
+void init_res_array(res_block *rblocks, uint64 init_heap_start){    //Assuming A fixed-size stack
     //Limited by the physical memory, cannot reach MAXVA
     uint64 align_2mb_hs=SUPERPGROUNDUP(init_heap_start);
-    memset((void *)rb_array, 0, sizeof(res_block)*MAX_RES_BLOCK);
+    memset((void *)rblocks, 0, sizeof(res_block)*MAX_RES_BLOCK);
     for(int i=0;i<MAX_RES_BLOCK;i++){
-        rb_array[i].va=align_2mb_hs;
-        rb_array[i].is_scattered=1;
+        rblocks[i].va=align_2mb_hs;
+        rblocks[i].is_scattered=1;
         align_2mb_hs+=SUPERPGSIZE;
     }
 }
@@ -284,21 +293,23 @@ void migrate_data(pagetable_t pagetable, pte_t pte, uint64 cur_level, uint64 sta
         cur_max_size=1ull<<cur_order;
     }
 }
-void split_into_blocks(res_block * rb_array, pagetable_t pagetable, uint64 va, uint64 cur_level){
-    uint16 idx=(va-rb_array[0].va)/SUPERPGSIZE;
+void split_into_blocks(res_block * rblocks, pagetable_t pagetable, uint64 va, uint64 cur_level){
+    uint16 idx=(va-rblocks[0].va)/SUPERPGSIZE;
     pte_t *old_pte=walk(pagetable, va, 0, cur_level);
     pagetable_t new_pagetable=alloc_memory(PGSIZE);
+    if(new_pagetable==NULL) panic("Split-into-blocks:OOM");
+    memset((void *)new_pagetable, 0, PGSIZE);
     uint64 cur_pa=PTE2PA(*old_pte), basic_stride=get_step_size(cur_level-1), delete_pa=cur_pa;
     void *new_block_pa;
     if(new_pagetable==NULL) panic("Out-of-memory!");
     for(int i=0;i<512;i++){
-        if(rb_array[idx].bitmap[i]!=0){
+        if(rblocks[idx].bitmap[i]!=0){
             //Inherits RXW permissions from the original huge page, becoming a new small leaf.
             new_block_pa=alloc_memory(basic_stride);
             if(new_block_pa==NULL)  panic("out-of-memory!");
             //Insufficient intermediate space.Update failed.
             memmove(new_block_pa, (void *)cur_pa, basic_stride);
-            new_pagetable[i]=PA2PTE(new_block_pa) | PTE_FLAGS(*old_pte);
+            new_pagetable[i]=PA2PTE((uint64)new_block_pa) | PTE_FLAGS(*old_pte);
         }
         cur_pa+=basic_stride;
     }
@@ -424,7 +435,8 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int do_free){
     if(del_size!=size)
         panic("uvmunmap: cannot unmap required size!");
 }
-void buddy_alloc(pagetable_t pagetable, uint64 va, uint64 size, int xperm){
+int buddy_alloc(pagetable_t pagetable, uint64 va, uint64 size, int xperm){
+    //return 0 when Success , and return -1 when it fail!
     if(va%PGSIZE!=0)    panic("Split_alloc: unaligned address!");
     uint8 va_order=i_log2(va & -va);
     va_order=(va_order==0 || va_order>MAX_ORDER+ORDER_BASE)?
@@ -439,7 +451,7 @@ void buddy_alloc(pagetable_t pagetable, uint64 va, uint64 size, int xperm){
         if (mem == 0) {
             VM_TRACE("uvmalloc failed to allocate cur_va=0x%lx size=0x%lx\n", cur_va, alloc_size);
             uvmdealloc(pagetable, cur_va, va);
-            return 0;
+            return -1;
         }
         memset(mem, 0, alloc_size);
         VM_TRACE("uvmalloc -> mappages cur_va=0x%lx alloc_size=0x%lx\n", cur_va, alloc_size);
@@ -447,7 +459,7 @@ void buddy_alloc(pagetable_t pagetable, uint64 va, uint64 size, int xperm){
             free_pages(mem, alloc_size);
             VM_TRACE("uvmalloc mappages failed at cur_va=0x%lx size=0x%lx\n", cur_va, alloc_size);
             uvmdealloc(pagetable, cur_va, va);
-            return 0;
+            return -1;
         }
         if(size>alloc_size)  size-=alloc_size;
         else    break;
@@ -456,13 +468,15 @@ void buddy_alloc(pagetable_t pagetable, uint64 va, uint64 size, int xperm){
         va_order=(va_order > MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):va_order;
         cur_max_size=1ull << va_order;
     }
+    return 0;
 }
 int recursive_copy_map(pte_t *dst_pg, pte_t *src_pg, uint64 size, int level){
+    //Raw version(mixed two difficult situation, cannot work)
     uint64 basic_stride=get_step_size(level);
-    uint64 src_pa=PTE2PA(*src_pg);
     int i=0;
     while(i<512 && size>0){ //start with zero(always)
-        pte_t src_entry=src_pg[i], src_pa=PTE2PA(src_entry);
+        pte_t src_entry=src_pg[i];
+        uint64 src_pa=PTE2PA(src_entry);
         if(size >= basic_stride){   //Perfect fit(considering buddy_system)
             uint64 src_phy_size;
             if(level==0)    src_phy_size=1ull<<(get_order(src_pa) + ORDER_BASE);
@@ -491,69 +505,111 @@ int recursive_copy_map(pte_t *dst_pg, pte_t *src_pg, uint64 size, int level){
             }
             else{
                 void *dst_mem=alloc_memory(PGSIZE);
-                memmove(dst_mem, src_pa, PGSIZE);
+                memmove(dst_mem, (void *)src_pa, PGSIZE);
                 src_pg[i]=PA2PTE((uint64)dst_mem) | PTE_FLAGS(src_pg[i]);
                 return 0;
             }
         }
     }
+    return 0;
 }
-int copy_partial_block(pte_t *dst_pg, pte_t *src_pg, uint64 va, uint64 size, int level){
-    uint64 basic_stride=get_step_size(level);
-    uint64 src_pa=PTE2PA(*src_pg);
+// int copy_partial_block(pte_t *dst_pg, pte_t *src_pg, uint64 src_pa, uint64 va, uint64 size, int level){
+int copy_partial_block(struct vm_partial_copy_ctx p1){   //Reuse ret_va as src
+    uint64 basic_stride=get_step_size(p1.level);
+    uint64 src_flags=PTE_FLAGS(*p1.src_pt);
     int i=0;
-    while(i<512 && size>0){ //start with zero(always)
-        if(size >= basic_stride){   //Perfect fit(considering buddy_system)
-            uint64 src_phy_size=1ull<<i_log2(va & -va);
-            while(src_phy_size > size)
-                src_phy_size/=2;
-            uint64 num_4k_page=src_phy_size/PGSIZE, page_per_slot=1ull<<(9*level);
-            uint64 step=num_4k_page/page_per_slot;
-            void *mem=alloc_memory(src_phy_size);
-            if(mem==NULL)   return -1;
-            memmove(mem, (void *)src_pa, src_phy_size);
-            if(step <= 0) step = 1;
-            for(int j = 0; j < step; j++){
-                // Reset flags from original entry
-                uint64 inner_pa = (uint64)mem + j * page_per_slot * PGSIZE;
-                dst_pg[j] = PA2PTE(inner_pa) | PTE_FLAGS(src_pg[i+j]);
+    while(i<512 && p1.size>0){ //start with zero(always)
+        if(p1.size >= basic_stride){   //Perfect fit(considering buddy_system)
+            if(p1.base_va >= p1.rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE)
+                panic("copy_partial_block: out-of-range!");
+            uint64 chunk_size;
+            if(p1.level== 0 && p1.base_va >= p1.rblocks[0].va){ //heap reservation Interception
+                if(i!=0)    panic("Error in partial copy reservation area!");
+                chunk_size=p1.size; //fixed as superpgsize(for reservation mechanism)
+                uint64 rb_idx=(p1.base_va - p1.rblocks[0].va)/SUPERPGSIZE;
+                void *mem=alloc_memory(SUPERPGSIZE);
+                if(mem==NULL)   return -1;
+                memset(mem, 0, SUPERPGSIZE);    //partial copy,should initialize first
+                memmove(mem, (void *)p1.src_pa, chunk_size);
+                p1.rblocks[rb_idx].pa=(uint64)mem;
+                p1.rblocks[rb_idx].promoted=0;
+                p1.rblocks[rb_idx].is_scattered=0;
+                p1.rblocks[rb_idx].pop_count=0;
+                uint64 valid_pte_size=p1.size/PGSIZE;
+                if(valid_pte_size>=512) panic("");
+                for(int j=0;j<valid_pte_size;j++){
+                    uint64 inner_pa=(uint64)mem + j*PGSIZE;
+                    p1.dst_pt[j]=PA2PTE(inner_pa) | src_flags;
+                    p1.rblocks[rb_idx].pop_count++;
+                }
+                memset((void *)&p1.rblocks[rb_idx].bitmap[valid_pte_size], 0, 512-valid_pte_size);
+                return 0;
+            }else{
+                uint64 alignment_limit=(p1.src_pa | p1.base_va);
+                uint64 max_order=i_log2(alignment_limit & -alignment_limit);
+                if(max_order==0)    max_order=(ORDER_BASE+MAX_ORDER);
+                chunk_size=1ull<<max_order;
+                while(chunk_size > p1.size)
+                    chunk_size/=2;
+                uint64 num_4k_page=chunk_size/PGSIZE, page_per_slot=1ull<<(9*p1.level);
+                uint64 step=num_4k_page/page_per_slot;
+                void *mem=alloc_memory(chunk_size);
+                if(mem==NULL)   return -1;
+                memmove(mem, (void *)p1.src_pa, chunk_size);
+                if(step <= 0) step = 1;
+                for(int j = 0; j < step; j++){
+                    // Reset flags from original entry
+                    uint64 inner_pa = (uint64)mem + j * page_per_slot * PGSIZE;
+                    p1.dst_pt[i+j] = PA2PTE(inner_pa) | src_flags;
+                }
+                i+=step;
+                p1.size-=chunk_size;
+                p1.src_pa+=chunk_size;
+                p1.base_va+=chunk_size;
             }
-            i+=step;
-            size-=src_phy_size;
-            src_pa+=src_phy_size;va+=src_phy_size;
         }
-        else{   //Partial/Split(size < basic_stride)
-            if(level!=0){
-                pte_t *new_dst_pg=(pte_t *)alloc_memory(PGSIZE);
-                if(new_dst_pg==NULL)    return -1;
-                dst_pg[i]=PA2PTE((uint64)new_dst_pg) | PTE_V;
-                return recursive_copy_map(new_dst_pg, src_pg, size, level-1);
+        else{   //Partial/Split(p1.max_sz < basic_stride)
+            if(p1.level!=0){
+                pte_t *new_dst_pt=(pte_t *)alloc_memory(PGSIZE);
+                if(new_dst_pt==NULL)    return -1;
+                memset((void *)new_dst_pt, 0, PGSIZE);
+                p1.dst_pt[i]=PA2PTE((uint64)new_dst_pt) | PTE_V;
+                p1.level--;
+                p1.dst_pt=new_dst_pt;
+                return copy_partial_block(p1);
             }
             else{
                 void *dst_mem=alloc_memory(PGSIZE);
-                memmove(dst_mem, src_pa, PGSIZE);
-                dst_pg[i]=PA2PTE((uint64)dst_mem) | PTE_FLAGS(src_pg[i]);
+                memmove(dst_mem, (void *)p1.src_pa, PGSIZE);
+                p1.dst_pt[i]=PA2PTE((uint64)dst_mem) | src_flags;
                 return 0;
             }
         }
     }
+    return 0;
 }
-int copy_whole_block(pte_t *dst_pg, pte_t *src_pg, uint64 size, int level){
-    uint64 basic_stride=get_step_size(level);
-    uint64 src_pa=PTE2PA(*src_pg);
+// int copy_whole_block(pte_t *dst_pg, pte_t *src_pg, uint64 size, int level){
+int copy_whole_block(struct vm_whole_copy_ctx w1){
+    uint64 src_pa=PTE2PA(*w1.src_pt);  //Extract the start pa
     //Perfect fit(considering buddy_system)
-    uint64 num_4k_page=size/PGSIZE, page_per_slot=1ull<<(9*level);
+    uint64 num_4k_page=w1.size/PGSIZE, page_per_slot=1ull<<(9*w1.level);
     uint64 step=num_4k_page/page_per_slot;
-    void *mem=alloc_memory(size);
+    void *mem=alloc_memory(w1.size);
     if(mem==NULL)   return -1;
-    memmove(mem, (void *)src_pa, size);
+    memmove(mem, (void *)src_pa, w1.size);
     if(step <= 0) step = 1;
     for(int j = 0; j < step; j++){
         // Reset flags from original entry
         uint64 inner_pa = (uint64)mem + j * page_per_slot * PGSIZE;
-        dst_pg[j] = PA2PTE(inner_pa) | PTE_FLAGS(src_pg[j]);
+        w1.dst_pt[j] = PA2PTE(inner_pa) | PTE_FLAGS(w1.src_pt[j]);
     }
-
+    if(w1.base_va >= w1.rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE)    panic("out-of-range!");
+    if(w1.level==1 && w1.base_va >= w1.rblocks[0].va){
+        if(w1.size!=SUPERPGSIZE)    panic("Sequential huge pages detected in the heap!");
+        uint64 rb_idx=(w1.base_va - w1.rblocks[0].va)/SUPERPGSIZE;
+        w1.rblocks[rb_idx].pa=(uint64)mem;
+    }
+    return 0;
 }
 // Allocate PTEs and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
@@ -565,7 +621,8 @@ uint64 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm) {
     uint64 aligned_oldsz=PGROUNDUP(oldsz), aligned_newsz=PGROUNDUP(newsz);
     if(aligned_oldsz==aligned_newsz)    return newsz;
     uint64 remain_size=aligned_newsz-aligned_oldsz;
-    buddy_alloc(pagetable, aligned_oldsz, remain_size, xperm | PTE_R | PTE_U);
+    if(buddy_alloc(pagetable, aligned_oldsz, remain_size, xperm | PTE_R | PTE_U)!=0)
+        return 0;
     VM_TRACE("uvmalloc exiting success newsz=0x%lx\n", newsz);
     return newsz;
 }
@@ -690,19 +747,19 @@ int copywalk(struct vm_dupl_ctx v1){
                 VM_TRACE("%s[DIR ] L%d idx=%d: va=0x%lx -> new_tbl=%p (recurse)\n", 
                      INDENT_STR(v1.level), v1.level, idx, cur_va, mem);
             #endif
-            if(v1.level==1 && cur_va>=v1.rb_array[0].va){   //enter heap region(Recursion Short-circuiting)
+            if(v1.level==1 && cur_va>=v1.rblocks[0].va){   //enter heap region(Recursion Short-circuiting)
                 // promote==0 must be true upon entering this block.
-                if(cur_va>=v1.rb_array[MAX_RES_BLOCK-1].va+SUPERPGSIZE) return -1;
-                uint64 rb_idx=(cur_va-v1.rb_array[0].va)/SUPERPGSIZE;   //Alignment satisfied
-                if(cur_va + SUPERPGSIZE < v1.max_sz
-                        && v1.rb_array[rb_idx].is_scattered==0 && v1.rb_array[rb_idx].pa!=0){
+                if(cur_va>=v1.rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE) return -1;
+                uint64 rb_idx=(cur_va-v1.rblocks[0].va)/SUPERPGSIZE;   //Alignment satisfied
+                if(cur_va + SUPERPGSIZE < v1.max_sz && v1.rblocks[rb_idx].is_scattered==0
+                        && v1.rblocks[rb_idx].pa!=0){  //have allocated hugepage
                     uint64 new_superpage=(uint64)alloc_memory(SUPERPGSIZE);
                     if(new_superpage==0)    return -1;
-                    memmove((void *)new_superpage, (void *)(v1.rb_array[rb_idx].pa), SUPERPGSIZE);    //migrate data
+                    memmove((void *)new_superpage, (void *)(v1.rblocks[rb_idx].pa), SUPERPGSIZE);    //migrate data
                     uint64 bp_idx=0, cur_order, bp_step;
                     pte_t *src_leaf_pte=(pte_t *)pa, *dst_leaf_pte=(pte_t *)mem;
                     while(bp_idx<512){
-                        if(v1.rb_array[rb_idx].bitmap[bp_idx]!=0){
+                        if(v1.rblocks[rb_idx].bitmap[bp_idx]!=0){
                             cur_order=get_order(PTE2PA(src_leaf_pte[bp_idx]));
                             bp_step=1ull<<cur_order;
                             uint64 cur_pa=new_superpage+PGSIZE*bp_idx, src_flags=PTE_FLAGS(src_leaf_pte[bp_idx]);
@@ -715,55 +772,62 @@ int copywalk(struct vm_dupl_ctx v1){
                         else    bp_step=1;
                         bp_idx+=bp_step;
                     }
-                    v1.rb_array[rb_idx].pa=new_superpage;//Update PA last;preserve remaining parameters.
+                    v1.rblocks[rb_idx].pa=new_superpage;//Update PA last;preserve remaining parameters.
                 }
-                else{
-                    v1.rb_array[rb_idx].pa=0;
-                    v1.rb_array[rb_idx].is_scattered=1;
-                    v1.rb_array[rb_idx].promoted=0;
+                else{   //Scrattered Situation
+                    v1.rblocks[rb_idx].pa=0;
+                    v1.rblocks[rb_idx].is_scattered=1;
+                    v1.rblocks[rb_idx].promoted=0;
                     if(cur_va + SUPERPGSIZE >=v1.max_sz){  //Synchronisz data within size limits
-                        v1.rb_array[rb_idx].pop_count=0;
+                        v1.rblocks[rb_idx].pop_count=0;
                         uint64 bp_idx=0, cur_order, bp_step;
                         pte_t *src_leaf_pte=(pte_t *)pa;
                         while(bp_idx<512 && cur_va+PGSIZE * bp_idx < v1.max_sz){
-                            if(v1.rb_array[rb_idx].bitmap[bp_idx]!=0){
+                            if(v1.rblocks[rb_idx].bitmap[bp_idx]!=0){
                                 cur_order=get_order(PTE2PA(src_leaf_pte[bp_idx]));
                                 bp_step=1ull<<cur_order;
                                 if(cur_va+PGSIZE * bp_idx +(1ull<<(ORDER_BASE+cur_order))>=v1.max_sz)
                                     panic("copywalk: cannot handle partial copy!");
-                                v1.rb_array[rb_idx].pop_count+=bp_step;
+                                v1.rblocks[rb_idx].pop_count+=bp_step;
                             }
                             else    bp_step=1;
                             bp_idx+=bp_step;
                         }
-                        memset((void *)(v1.rb_array[rb_idx].bitmap + bp_idx), 0, 512-bp_idx);
+                        memset((void *)(v1.rblocks[rb_idx].bitmap + bp_idx), 0, 512-bp_idx);
                     }
                     struct vm_dupl_ctx sub_v={.old_pg=(pagetable_t)pa, .new_pg=(pagetable_t)mem,
                         .base_va=cur_va, .ret_va=v1.ret_va, .max_sz=v1.max_sz, 
-                        .level=v1.level-1, .rb_array=v1.rb_array};
+                        .level=v1.level-1, .rblocks=v1.rblocks};
                     if(copywalk(sub_v) < 0) return -1;
                 }
             }
-            else{
+            else{   //Normal area(treat as Stardard Page Directory)
                 struct vm_dupl_ctx sub_v={.old_pg=(pagetable_t)pa, .new_pg=(pagetable_t)mem,
                     .base_va=cur_va, .ret_va=v1.ret_va, .max_sz=v1.max_sz, 
-                    .level=v1.level-1, .rb_array=v1.rb_array};
+                    .level=v1.level-1, .rblocks=v1.rblocks};
                 if(copywalk(sub_v) < 0) return -1;
             }
             step = 1;
             va_step = standard_stride;
         } 
         else if (pte & PTE_V) {   // Case 2: Leaf Node(and can be upgraded to hugepage,remember check!)
-            uint64 src_phys_size=1ull<<(get_order(pa) + ORDER_BASE);
+            uint64 chunk_size=1ull<<(get_order(pa) + ORDER_BASE);
             uint64 remain_size=v1.max_sz - cur_va;
             int ret=0;
-            if(src_phys_size > remain_size){
-                ret=copy_partial_block(v1.new_pg, v1.old_pg, cur_va, remain_size, v1.level);
+            if(chunk_size > remain_size){
+                struct vm_partial_copy_ctx p1={.dst_pt=(pte_t *)&v1.new_pg[idx], 
+                    .src_pt=(pte_t *)&v1.old_pg[idx], .src_pa=pa, 
+                    .base_va=cur_va, .size=remain_size, 
+                    .level=v1.level, .rblocks=v1.rblocks};
+                ret=copy_partial_block(p1);
                 va_step=remain_size;
             }
             else{
-                ret=copy_whole_block(&v1.new_pg[idx], &v1.old_pg[idx], src_phys_size, v1.level);
-                va_step=src_phys_size;
+                struct vm_whole_copy_ctx w1={.dst_pt=(pte_t *)&v1.new_pg[idx], 
+                    .src_pt=(pte_t *)&v1.old_pg[idx], .base_va=cur_va, 
+                    .size=chunk_size, .level=v1.level, .rblocks=v1.rblocks};
+                ret=copy_whole_block(w1);
+                va_step=chunk_size;
             }
             if(ret==0){
                 uint64 page_per_slot=1ull<<(v1.level*9);
@@ -789,8 +853,8 @@ int copywalk(struct vm_dupl_ctx v1){
 // an non-zero sz implies the need to release the corresponding page)
 // Even though the release process itself does not requires the sz parameter.
 // Must free page-table pages.
-void uvmfree(res_block *rb_array, pagetable_t pagetable, uint64 sz) {
-    reclaim_res_memory_range(rb_array, pagetable, 0, sz);
+void uvmfree(res_block *rblocks, pagetable_t pagetable, uint64 sz) {
+    reclaim_res_memory_range(rblocks, pagetable, 0, sz);
     if (sz > 0) freewalk(pagetable, 1, 0, sz, 2);
     else    freewalk(pagetable, 0, 0, sz, 2);
 }
@@ -800,7 +864,7 @@ void uvmfree(res_block *rb_array, pagetable_t pagetable, uint64 sz) {
 // physical memory.
 // returns 0 on success, -1 on failure.
 // frees any allocated pages on failure.
-int uvmcopy(res_block *rb_array, pagetable_t old_pg, pagetable_t new_pg, uint64 sz) {
+int uvmcopy(res_block *rblocks, pagetable_t old_pg, pagetable_t new_pg, uint64 sz) {
 #ifdef DEBUG_VM
     VM_TRACE("old_pg=%p new_pg=%p sz=0x%lx\n", (void *)old_pg, (void *)new_pg, sz);
 #endif
@@ -808,9 +872,9 @@ int uvmcopy(res_block *rb_array, pagetable_t old_pg, pagetable_t new_pg, uint64 
     uint64 ret_va=0;
     sz=PGROUNDUP(sz);   //Aligned firstly
     struct vm_dupl_ctx v1={.old_pg=old_pg, new_pg=new_pg, .base_va=start_va, .ret_va=&ret_va,
-        .max_sz=sz, .level=2, .rb_array=rb_array};
+        .max_sz=sz, .level=2, .rblocks=rblocks};
     if(copywalk(v1)<0){//prevent resources leaks and waste
-        uvmfree(rb_array, new_pg, ret_va-start_va);
+        uvmfree(rblocks, new_pg, ret_va-start_va);
         //Error occurs, size are guaranteed not to exceed the original size
         return -1;
     }
@@ -982,16 +1046,16 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max) {
 // that was lazily allocated in sys_sbrk().
 // returns 0 if va is invalid or already mapped, or if
 // out of physical memory, and physical address if successful.
-uint64 vmfault(res_block *rb_array, pagetable_t pagetable, uint64 va, int read) {
+uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
     struct proc *p = myproc();
-    //Pass arugment rb_array etc explicitly instead of implicitly retriving them via myproc()
+    //Pass arugment rblocks etc explicitly instead of implicitly retriving them via myproc()
     if (va >= p->sz) return 0;
     va = PGROUNDDOWN(va);
     if (ismapped(pagetable, va)) {
         return 0;
     }
     #ifdef RESERVE
-        return Simp_alloc_res_memory(rb_array, pagetable, va, PTE_W|PTE_R|PTE_U);
+        return Simp_alloc_res_memory(rblocks, pagetable, va, PTE_W|PTE_R|PTE_U);
     #else
         uint64 mem = (uint64)kalloc();
         if (mem == 0) return 0;
@@ -1018,19 +1082,21 @@ int ismapped(pagetable_t pagetable, uint64 va) {
 #ifdef LAB_PGTBL
 pte_t *pgpte(pagetable_t pagetable, uint64 va) { return walk(pagetable, va, 0, 0); }
 #endif
-void merge_into_hugepages_Out(res_block *rb_array, pagetable_t pagetable, uint64 va, uint64 alloced_pa){
+int merge_into_hugepages_Out(res_block *rblocks, pagetable_t pagetable, uint64 va, uint64 alloced_pa){
     //for out-of-place promoted.Expensive copy or move cost.
-    if(va% SUPERPGSIZE!=0)  panic("must be 2mb aligned!");
-    uint16 idx=(va-rb_array[0].va)/SUPERPGSIZE, cur_order;
+    uint16 idx=(va-rblocks[0].va)/SUPERPGSIZE, cur_order;
+    if(idx>=MAX_RES_BLOCK)  return -1;
     pte_t *parent_pte=walk(pagetable, va, 1, 1);
-    pte_t *old_pte=walk(pagetable, rb_array[idx].va, 1, 0);
+    pte_t *old_pte=walk(pagetable, rblocks[idx].va, 1, 0);
+    if(parent_pte==NULL || old_pte==NULL)   return -1;
     //mapping trigger va using stale xperm(keep same processing flow)
     //Attribute Consistency Check and Accumulation of A/D bits
     uint16 check_perm_mask= PTE_W | PTE_R | PTE_X | PTE_U;
     uint64 expe_perm=0, accu_ad=0, bp_idx=0, delete_pa=PTE2PA(*parent_pte);
+    if(delete_pa==0)    return -1;
     uint8 is_expe_perm_fix=0;
     while(bp_idx<512){
-        if(rb_array[idx].bitmap[bp_idx]!=0){
+        if(rblocks[idx].bitmap[bp_idx]!=0){
             uint64 flags=PTE_FLAGS(old_pte[bp_idx]);
             if(!(flags & PTE_V))    panic("Bitmap valid but hardware PTE invalid!");
             if(is_expe_perm_fix==0){    //Self-Adaptive Permission Capture
@@ -1041,6 +1107,7 @@ void merge_into_hugepages_Out(res_block *rb_array, pagetable_t pagetable, uint64
                 if((flags & PTE_U) != (expe_perm & PTE_U))
                     panic("Inconsisent User/Kernel Privilege!");
                 panic("Inconsisent permission!");
+                return -1;
             }
             accu_ad |= (flags & (PTE_A | PTE_D));
             //data transfer and release the unused resource
@@ -1051,12 +1118,13 @@ void merge_into_hugepages_Out(res_block *rb_array, pagetable_t pagetable, uint64
         }
         else    bp_idx++;
     }
+    //Commit Phase
     expe_perm |= (accu_ad)?(PTE_A | PTE_D):0;
     *parent_pte=expe_perm | PA2PTE(alloced_pa) | PTE_V;
     sfence_vma();   //keep the proper sequence, avoid reusing the freed memory(which record in tlb)
     bp_idx=0;
     while(bp_idx<512){
-        if(rb_array[idx].bitmap[bp_idx]!=0){
+        if(rblocks[idx].bitmap[bp_idx]!=0){
             uint64 prev_pa=PTE2PA(old_pte[bp_idx]);
             cur_order=get_order(prev_pa);
             free_pages((void *)prev_pa, 1ull<<(ORDER_BASE+cur_order));
@@ -1064,21 +1132,27 @@ void merge_into_hugepages_Out(res_block *rb_array, pagetable_t pagetable, uint64
         }
         else bp_idx++;
     }
-    free_pages((void *)delete_pa, PGSIZE);    //free the dirty pagetable
-    //data transfer and release the unused resource
+    free_pages((void *)delete_pa, PGSIZE);    //free the dirty and scrattered pagetable
+    return 0;
 }
-void merge_into_hugepages_In(res_block *rb_array, pagetable_t pagetable, uint64 va){
+int merge_into_hugepages_In(res_block *rblocks, pagetable_t pagetable, uint64 va){
     //for in-place promoted, clear the mapping,save the leaf-pte only
     pte_t *parent_pte=walk(pagetable, va, 0, 1);
     uint16 check_perm_mask=PTE_W | PTE_R | PTE_X | PTE_U, cur_order;
     uint64 expe_perm=0, accu_ad=0, bp_idx=0, delete_pa=PTE2PA(*parent_pte);
-    uint16 idx=(va-rb_array[0].va)/SUPERPGSIZE;
+    if(parent_pte==NULL || delete_pa==0)    return -1;
+    uint16 idx=(va-rblocks[0].va)/SUPERPGSIZE;
+    if(idx>=512)    return -1;
     uint8 is_expe_perm_fix=0;
-    pte_t *old_pte=walk(pagetable, rb_array[idx].va, 0, 0);
+    pte_t *old_pte=walk(pagetable, rblocks[idx].va, 0, 0);
+    if(old_pte==NULL)   return -1;
     while(bp_idx<512){
-        if(rb_array[idx].bitmap[bp_idx]!=0){
+        if(rblocks[idx].bitmap[bp_idx]!=0){
             uint64 flags=PTE_FLAGS(old_pte[bp_idx]);
-            if(!(flags & PTE_V))    panic("Bitmap valid but hardware PTE invalid!");
+            if(!(flags & PTE_V)){
+                panic("Bitmap valid but hardware PTE invalid!");
+                return -1;
+            }
             if(is_expe_perm_fix==0){    //Self-Adaptive Permission Capture
                 expe_perm=(flags & check_perm_mask);
                 is_expe_perm_fix=1; //Guarantee single initialization
@@ -1087,6 +1161,7 @@ void merge_into_hugepages_In(res_block *rb_array, pagetable_t pagetable, uint64 
                 if((flags & PTE_U) != (expe_perm & PTE_U))
                     panic("Inconsisent User/Kernel Privilege!");
                 panic("Inconsisent permission!");
+                return -1;
             }
             accu_ad |= (flags & (PTE_A | PTE_D));
             //data transfer and release the unused resource
@@ -1096,46 +1171,63 @@ void merge_into_hugepages_In(res_block *rb_array, pagetable_t pagetable, uint64 
         }
         else    bp_idx++;
     }
-    *parent_pte=PA2PTE(rb_array[idx].pa) | PTE_V | accu_ad | expe_perm;
+    *parent_pte=PA2PTE(rblocks[idx].pa) | PTE_V | accu_ad | expe_perm;
     sfence_vma();
     free_pages((void *)delete_pa, PGSIZE);
+    return 0;
 }
-void move_and_aggregate(res_block *rb_array, pagetable_t pagetable, uint64 va, uint64 alloced_pa){
-    //Used in upgrade is_scattered to zero(aggregrate the seperate data together)
-    if(va>rb_array[MAX_RES_BLOCK-1].va+SUPERPGSIZE || va<rb_array[0].va)
+int move_and_aggregate(res_block *rblocks, pagetable_t pagetable, uint64 va, uint64 alloced_pa){
+    //Prepare the shadow copy, may trigger faults;not absolutely safe.
+    if(va>rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE || va<rblocks[0].va){
         panic("aggregate_data failed:invalid va");
-    uint64 idx=(va-rb_array[0].va)/SUPERPGSIZE;
-    pte_t *old_pte=walk(pagetable, rb_array[idx].va, 0, 0);
-    uint64 bp_idx=0, tmp_flags, tmp_pa;
-    uint16 cur_order, step;
+        return -1;
+    }
+    uint64 rb_idx=(va-rblocks[0].va)/SUPERPGSIZE;
+    pte_t *old_pte=walk(pagetable, rblocks[rb_idx].va, 0, 0);
+    if(old_pte==NULL)   return -1;
+    uint64 bp_idx=0 ,tmp_pa, step=0;
     while(bp_idx<512){
-        if(rb_array[idx].bitmap[bp_idx]!=0){
-            tmp_flags=PTE_FLAGS(old_pte[bp_idx]);
+        if(rblocks[rb_idx].bitmap[bp_idx]!=0){
+            if(old_pte[bp_idx]==0)  return -1;
+            if((PTE_FLAGS(old_pte[bp_idx]) & PTE_V)==0) return -1;
             tmp_pa=PTE2PA(old_pte[bp_idx]);
-            if(tmp_pa==0)   panic("store invalid ptr!");
-            cur_order=get_order(tmp_pa);
-            step=1ull<<(ORDER_BASE+cur_order);
-            memmove((void *)alloced_pa, (void *)tmp_pa, step);
-            old_pte[bp_idx]=PA2PTE(alloced_pa) | tmp_flags;
+            if(tmp_pa==0)   return -1;
+            step=1ull<<(get_order(tmp_pa)+ORDER_BASE);
+            for(int j=0;j<step/PGSIZE;j++){
+                if(j+bp_idx>=512)   return -1;
+                if((PTE_FLAGS(old_pte[bp_idx+j]) & PTE_V)==0)  return -1;
+            }
+            memmove((void *)(alloced_pa+bp_idx*PGSIZE), (void *)tmp_pa, step);
+        }
+        else    step=PGSIZE;
+        bp_idx+=step/PGSIZE;
+    }
+    return 0;
+}
+void safe_update_and_free(res_block *rblocks, pagetable_t pagetable, uint64 va, uint64 alloced_pa){
+    //No need to store intermidate data, 'Casue it was designed as NO-Fail(Commit Point)
+    //update pte and reclaim resouces at the same.
+    uint64 idx=(va-rblocks[0].va)/SUPERPGSIZE;
+    pte_t *old_pte=walk(pagetable, rblocks[idx].va, 0, 0);
+    uint64 bp_idx=0, tmp_flags, tmp_pa;
+    uint64 step;
+    while(bp_idx<512){
+        if(rblocks[idx].bitmap[bp_idx]!=0){
+            tmp_pa=PTE2PA(old_pte[bp_idx]);
+            step=1ull<<(ORDER_BASE+get_order(tmp_pa));
+            for(int j=0;j<step/PGSIZE;j++){
+                tmp_flags=PTE_FLAGS(old_pte[bp_idx+j]);
+                old_pte[bp_idx+j]=PA2PTE(alloced_pa+j*PGSIZE) | tmp_flags;
+            }
+            free_pages((void *)tmp_pa, step);
         }
         else    step=PGSIZE;
         alloced_pa+=step;
         bp_idx+=step/PGSIZE;
     }
     sfence_vma();
-    bp_idx=0;   //reset and restart
-    while(bp_idx<512){
-        if(rb_array[idx].bitmap[bp_idx]!=0){
-            tmp_pa=PTE2PA(old_pte[bp_idx]);
-            cur_order=get_order(tmp_pa);
-            step=1ull<<(ORDER_BASE+cur_order);
-            free_pages((void *)tmp_pa, step);
-        }
-        else    step=PGSIZE;
-        bp_idx+=step/PGSIZE;
-    }
 }
-uint64 alloc_res_memory(res_block *rb_array, pagetable_t pagetable, uint64 init_heap_start, 
+uint64 alloc_res_memory(res_block *rblocks, pagetable_t pagetable, uint64 init_heap_start, 
         uint64 oldsz, uint64 newsz, int xperm){ //sync---64(backward)
     //Lazy promotion.
     uint64 align_2mb_heap_start=SUPERPGROUNDUP(init_heap_start);
@@ -1153,37 +1245,44 @@ uint64 alloc_res_memory(res_block *rb_array, pagetable_t pagetable, uint64 init_
     uint64 start_vpn, vpn_step, new_block;
     int split_alloc;
     start_va=align_oldsz;
+    if(idx>=MAX_RES_BLOCK)  return 0;
     while(idx<MAX_RES_BLOCK && req_size>0){
         split_alloc=(SUPERPGROUNDDOWN(start_va)==SUPERPGROUNDDOWN(newsz))?0:1;
         if(split_alloc){
-            end_va=(idx+1==MAX_RES_BLOCK)?(rb_array[idx].va+SUPERPGSIZE):rb_array[idx+1].va;
+            end_va=(idx+1==MAX_RES_BLOCK)?(rblocks[idx].va+SUPERPGSIZE):rblocks[idx+1].va;
             vpn_step=(end_va-start_va)/PGSIZE;
         }
         else{
             end_va=align_newsz;
             vpn_step=(align_newsz-start_va)/PGSIZE;
         }
-        start_vpn=(start_va-rb_array[idx].va)/PGSIZE;
-        if(rb_array[idx].promoted==0){
-            rb_array[idx].pop_count+=vpn_step;
-            if(rb_array[idx].pop_count>THRESHLOD){
+        start_vpn=(start_va-rblocks[idx].va)/PGSIZE;
+        if(rblocks[idx].promoted==0){
+            if(rblocks[idx].pop_count>=THRESHLOD){
                 //use the huge page(2mb)
                 new_block=(uint64)alloc_memory(SUPERPGSIZE);
                 if(new_block==0){   //promoted fail!
                     new_block=(uint64)alloc_memory(vpn_step*PGSIZE);
                     if(new_block==0)    panic("out-of-memory");
                 }
-                else{
-                    rb_array[idx].pa=new_block;
-                    rb_array[idx].promoted=1;
-                    merge_into_hugepages_Out(rb_array, pagetable, SUPERPGROUNDDOWN(start_va), new_block); 
-                    //update the mapping_table
-                    memset(rb_array[idx].bitmap+start_vpn, 1, vpn_step);    //update the bitmaps
+                else{   //Hugepage allocate success
+                    if(merge_into_hugepages_Out(rblocks, pagetable, SUPERPGROUNDDOWN(start_va), new_block)==0){
+                        rblocks[idx].pa=new_block;
+                        rblocks[idx].promoted=1;
+                        rblocks[idx].pop_count+=vpn_step;
+                        //update the mapping_table
+                        memset(rblocks[idx].bitmap+start_vpn, 1, vpn_step);    //update the bitmaps
+                    }
+                    else{   //Merge fail, reclaim the allocated resource
+                        free_pages((void *)new_block, SUPERPGSIZE);
+                    }
                 }
             }
             else{//use the simple allocator(split_alloc must be zero)
-                memset(rb_array[idx].bitmap+start_vpn, 1, vpn_step);
-                return uvmalloc(pagetable, oldsz, newsz, xperm);
+                int tmp_ret=uvmalloc(pagetable, oldsz, newsz, xperm);
+                if(tmp_ret!=newsz)  return 0;
+                memset(rblocks[idx].bitmap+start_vpn, 1, vpn_step);
+                rblocks[idx].pop_count+=vpn_step;
             }
         }   //for promoted pages, do nothing!
         req_size-=(end_va-start_va);
@@ -1194,7 +1293,7 @@ uint64 alloc_res_memory(res_block *rb_array, pagetable_t pagetable, uint64 init_
     return newsz;
 }
 
-uint64 free_res_memory(res_block *rb_array, pagetable_t pagetable, uint64 init_heap_start, 
+uint64 free_res_memory(res_block *rblocks, pagetable_t pagetable, uint64 init_heap_start, 
         uint64 oldsz, uint64 newsz){
     //Eager Demotion!
     if(init_heap_start % SUPERPGSIZE !=0 )  panic("free_res_memory:pass the unaligned address!");
@@ -1214,81 +1313,83 @@ uint64 free_res_memory(res_block *rb_array, pagetable_t pagetable, uint64 init_h
     int split_dealloc;
     start_va=align_newsz;
     while(idx<MAX_RES_BLOCK && req_size>0){
-        start_vpn=(start_va-rb_array[idx].va)/PGSIZE;
+        start_vpn=(start_va-rblocks[idx].va)/PGSIZE;
         split_dealloc=(SUPERPGROUNDDOWN(start_va)==SUPERPGROUNDDOWN(oldsz))?0:1;
         if(split_dealloc){
-            end_va=(idx+1==MAX_RES_BLOCK)?(rb_array[idx].va+SUPERPGSIZE):rb_array[idx+1].va;
+            end_va=(idx+1==MAX_RES_BLOCK)?(rblocks[idx].va+SUPERPGSIZE):rblocks[idx+1].va;
         }
         else    end_va=align_oldsz;
         vpn_step=(end_va-start_va)/PGSIZE;
-        if(rb_array[idx].promoted==1){  //Demotion is merely a preliminary step for reclamation.
+        if(rblocks[idx].promoted==1){  //Demotion is merely a preliminary step for reclamation.
             //Split regradless of release size due to the lack of intermidate state.
-            split_into_blocks(rb_array, pagetable, start_va, 1);  // Demotion for partial uvmunmap
-            rb_array[idx].promoted=0;
+            split_into_blocks(rblocks, pagetable, start_va, 1);  // Demotion for partial uvmunmap
+            rblocks[idx].promoted=0;
         }
         uint64 bp_idx=start_vpn, bp_step;
         pte_t *pte=walk(pagetable, start_va, 0, 0);
         while(bp_idx<start_vpn+vpn_step){
-            if(rb_array[idx].bitmap[bp_idx]!=0){
+            if(rblocks[idx].bitmap[bp_idx]!=0){
                 uint64 cur_bp_pa=PTE2PA(*pte);
                 uint64 cur_order=get_order(cur_bp_pa);
                 bp_step=(1ull<<cur_order);
-                rb_array[idx].pop_count-=bp_step;
+                rblocks[idx].pop_count-=bp_step;
             }
             else    bp_step=1;
             bp_idx+=bp_step;
             pte+=bp_step;
         }
         uvmdealloc(pagetable, end_va, start_va);    //Finalize the deallocation process.
-        memset(rb_array[idx].bitmap+start_vpn, 0, vpn_step);
+        memset(rblocks[idx].bitmap+start_vpn, 0, vpn_step);
         req_size-=(end_va-start_va);
         start_va=end_va;
         idx++;
     }
     return newsz;
 }
-void reclaim_res_memory_range(res_block *rb_array, pagetable_t pagetable, uint64 start_va, uint64 end_va){
-    //check if current rb_array is valid and initialize success
+void reclaim_res_memory_range(res_block *rblocks, pagetable_t pagetable, uint64 start_va, uint64 end_va){
+    //check if current rblocks is valid and initialize success
     uint64 block_start, block_end, intersect_start, intersect_end;
-    uint64 base_addr=rb_array[0].va;  //Save the initial address to enable fast assignment.
+    uint64 base_addr=rblocks[0].va;  //Save the initial address to enable fast assignment.
     for(int i=0;i<MAX_RES_BLOCK;i++){
-        if(rb_array[i].pa==0 || rb_array[i].promoted==1)    continue;
-        block_start=rb_array[i].va;
-        block_end=rb_array[i].va+SUPERPGSIZE;
+        if(rblocks[i].pa==0 || rblocks[i].promoted==1)    continue;
+        block_start=rblocks[i].va;
+        block_end=rblocks[i].va+SUPERPGSIZE;
         intersect_start=MAX(start_va, block_start);
         intersect_end=MIN(end_va, block_end);
         if(intersect_start>=intersect_end)  continue;   //No intersections, skip
         else if(intersect_end==intersect_start+SUPERPGSIZE){    //full overlap
-            pte_t *parent_pte=walk(pagetable, rb_array[i].va, 0, 1);
+            pte_t *parent_pte=walk(pagetable, rblocks[i].va, 0, 1);
             uint64 delete_pa=PTE2PA(*parent_pte);
             *parent_pte=0;
             sfence_vma();
             free_pages((void *)delete_pa, PGSIZE);
-            free_pages((void *)rb_array[i].pa, SUPERPGSIZE);
-            memset(&rb_array[i], 0, sizeof(res_block));
-            rb_array[i].va=base_addr+i*SUPERPGSIZE;
+            free_pages((void *)rblocks[i].pa, SUPERPGSIZE);
+            memset(&rblocks[i], 0, sizeof(res_block));
+            rblocks[i].va=base_addr+i*SUPERPGSIZE;
         }
-        else{   //partial Overlap
-            uint64 start_vpn=(intersect_start-rb_array[i].va)/PGSIZE;
-            uint64 end_vpn=(intersect_end-rb_array[i].va)/PGSIZE;
+        else{   //partial Overlap(exist scrattered 4K)
+            uint64 start_vpn=(intersect_start-rblocks[i].va)/PGSIZE;
+            uint64 end_vpn=(intersect_end-rblocks[i].va)/PGSIZE;
             pte_t *old_pte=walk(pagetable, block_start, 0, 0);
+            uint8 do_free=(rblocks[i].is_scattered==1);
             for(int j=start_vpn;j<end_vpn;j++){
                 if(old_pte[j]==0)   continue;
-                if(rb_array[i].bitmap[j]==0)    panic("Dismatch!");
+                if(rblocks[i].bitmap[j]==0)    panic("Dismatch!");
+                if(do_free) free_pages((void *)PTE2PA(old_pte[j]), PGSIZE);
                 old_pte[j]=0;
-                rb_array[i].bitmap[j]=0;
-                rb_array[i].pop_count--;
+                rblocks[i].bitmap[j]=0;
+                rblocks[i].pop_count--;
             }
         }
     }
 }
 #ifdef IN_PLACE_PROMOTE
-uint64 Simp_alloc_res_memory(res_block *rb_array, pagetable_t pagetable, 
+uint64 Simp_alloc_res_memory(res_block *rblocks, pagetable_t pagetable, 
         uint64 va, int xperm){
     //Triggered by a single page fault and allocate exactly one pages.
     va=PGROUNDDOWN(va);
     uint64 new_block=0;
-    if(va<rb_array[0].va || va>=rb_array[MAX_RES_BLOCK-1].va+SUPERPGSIZE){
+    if(va<rblocks[0].va || va>=rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE){
         new_block=(uint64)alloc_memory(PGSIZE);
         if(new_block==0) return 0;
         memset((void *)new_block, 0, PGSIZE);
@@ -1298,107 +1399,150 @@ uint64 Simp_alloc_res_memory(res_block *rb_array, pagetable_t pagetable,
         }
         return new_block;
     }
-    uint16 idx=(va-rb_array[0].va)/SUPERPGSIZE; //now idx must be valid!
-    uint64 cur_vpn=(va-rb_array[idx].va)/PGSIZE;
-    rb_array[idx].bitmap[cur_vpn]=1;    //Synchronisz data
-    rb_array[idx].pop_count++;
-    if(rb_array[idx].promoted==0){  //enter reservable region, evaluate reservation strategy
-        if(rb_array[idx].is_scattered==1){
-            if(rb_array[idx].alloc_attempts<MAX_ALLOWED_ALLOCATIONS){
+    uint16 idx=(va-rblocks[0].va)/SUPERPGSIZE; //now idx must be valid!
+    uint64 cur_vpn=(va-rblocks[idx].va)/PGSIZE;
+    if(rblocks[idx].promoted==0){  //enter reservable region, evaluate reservation strategy
+        if(rblocks[idx].is_scattered==1){
+            if(rblocks[idx].alloc_attempts<MAX_ALLOWED_ALLOCATIONS){
                 new_block=(uint64)alloc_memory(SUPERPGSIZE);
                 if(new_block!=0){
                     memset((void *)new_block, 0, SUPERPGSIZE);
-                    rb_array[idx].is_scattered=0;   //update
-                    rb_array[idx].pa=new_block;
-                    if(rb_array[idx].pop_count>1)
-                        move_and_aggregate(rb_array, pagetable, va, new_block);//move the data
-                    //Only update the pte when new memory is ready to avoid handling intermediate states.
+                    // update the pte Only when new memory is ready to avoid handling intermediate states.
                     if(mappages(pagetable, va, PGSIZE, new_block+cur_vpn*PGSIZE, xperm)!=0){
                         free_pages((void *)new_block, SUPERPGSIZE);
-                        rb_array[idx].alloc_attempts++;
-                        new_block=0;
+                        rblocks[idx].alloc_attempts++;
+                        goto signle_page;
                     }
-                    else return rb_array[idx].pa+cur_vpn*PGSIZE;
+                    if(rblocks[idx].pop_count>0){
+                        if(move_and_aggregate(rblocks, pagetable, va, new_block)!=0){
+                            rblocks[idx].alloc_attempts++;
+                            free_pages((void *)new_block, SUPERPGSIZE);//rollback
+                            pte_t *flight_pte=walk(pagetable, va, 0, 0);
+                            if(flight_pte)  *flight_pte=0;
+                            sfence_vma();
+                            goto signle_page;
+                        }
+                        //update the mapping(safe)
+                        safe_update_and_free(rblocks, pagetable, va, new_block);//move the data
+                    }
+                    rblocks[idx].bitmap[cur_vpn]=1;    //Synchronisz data
+                    rblocks[idx].pop_count++;
+                    rblocks[idx].is_scattered=0;   //update
+                    rblocks[idx].pa=new_block;
+                    return rblocks[idx].pa+cur_vpn*PGSIZE;
                 }
-                rb_array[idx].alloc_attempts++;
+                rblocks[idx].alloc_attempts++;
             }
+signle_page:
             new_block=(uint64)alloc_memory(PGSIZE); //when alloc fail or map fail(free already)
-            if(new_block==0)    panic("Simp_alloc_res_memory : out-of-memory");
+            if(new_block==0){
+                panic("Simp_alloc_res_memory : out-of-memory");
+                return 0;
+            }
             memset((void *)new_block, 0, PGSIZE);
             if(mappages(pagetable, va, PGSIZE, new_block, xperm)!=0){
                 free_pages((void *)new_block, PGSIZE);
-                new_block=0;
+                return 0;
             }
-            return new_block;
+            else{
+                rblocks[idx].bitmap[cur_vpn]=1;    //Synchronsize data
+                rblocks[idx].pop_count++;
+                return new_block;
+            }
         }
         else{   // is_scrattered==0
-            if(mappages(pagetable, va, PGSIZE, rb_array[idx].pa+cur_vpn*PGSIZE, xperm)!=0)
+            if(mappages(pagetable, va, PGSIZE, rblocks[idx].pa+cur_vpn*PGSIZE, xperm)!=0){
                 panic("Simp_alloc_res_memory : mapping to existing page fail!");
-            if(rb_array[idx].pop_count>=THRESHLOD){
+                return 0;
+            }
+            rblocks[idx].bitmap[cur_vpn]=1;    //Synchronisz data
+            rblocks[idx].pop_count++;
+            if(THRESHLOD==0 || rblocks[idx].pop_count>=THRESHLOD-1){
                 //Supposing existing the huge already,Upgrade page table
-                merge_into_hugepages_In(rb_array, pagetable, va);
-                rb_array[idx].promoted=1;
+                if(merge_into_hugepages_In(rblocks, pagetable, va)==0){
+                    rblocks[idx].bitmap[cur_vpn]=1;    //Synchronisz data
+                    rblocks[idx].pop_count++;
+                    rblocks[idx].promoted=1;
+                }
+                else{
+                    pte_t *flight_pte=walk(pagetable, va, 0, 0);
+                    if(*flight_pte) *flight_pte=0;
+                    sfence_vma();
+                    return 0;
+                }
             }
         }
     }
     //already promoted, exist mapping.
-    return rb_array[idx].pa+cur_vpn*PGSIZE;
+    return rblocks[idx].pa+cur_vpn*PGSIZE;
 }
 #else
-uint64 Simp_alloc_res_memory(res_block *rb_array, pagetable_t pagetable, uint64 init_heap_start, 
+uint64 Simp_alloc_res_memory(res_block *rblocks, pagetable_t pagetable,
     uint64 va, int xperm){
     //Triggered by a single page fault and allocate exactly one pages.
-    init_heap_start=SUPERPGROUNDUP(init_heap_start); //make sure aligned
     va=PGROUNDDOWN(va);
     uint64 new_block=0;
-    if(va<init_heap_start){
+    if(va<rblocks[0].va){
         new_block=(uint64)alloc_memory(PGSIZE);
-        if(new_block==NULL) return 0;
+        if(new_block==0) return 0;
         memset((void *)new_block, 0, PGSIZE);
         if(mappages(pagetable, va, PGSIZE, new_block, xperm)!=0){
-            free_pages(new_block, PGSIZE);
+            free_pages((void *)new_block, PGSIZE);
             new_block=0;
         }
         return new_block;
     }
-    uint16 idx=(va-init_heap_start)/SUPERPGSIZE;
-    uint64 start_vpn=(va-rb_array[idx].va)/PGSIZE;
-    if(rb_array[idx].promoted==0){  //enter reservable region, evaluate reservation strategy
-        rb_array[idx].pop_count++;
-        if(rb_array[idx].pop_count>THRESHLOD){
-            new_block=alloc_memory(SUPERPGSIZE);
+    uint16 idx=(va-rblocks[0].va)/SUPERPGSIZE;
+    if(idx>MAX_RES_BLOCK)   return 0;
+    uint64 start_vpn=(va-rblocks[idx].va)/PGSIZE;
+    if(idx>=512)    return 0;
+    if(rblocks[idx].promoted==0){  //enter reservable region, evaluate reservation strategy
+        if(THRESHLOD==0 || rblocks[idx].pop_count>=THRESHLOD-1){
+            new_block=(uint64)alloc_memory(SUPERPGSIZE);
             if(new_block==0){   //promoted fail!
-                new_block=alloc_memory(PGSIZE);
-                if(new_block==0)    panic("out-of-memory");
+                new_block=(uint64)alloc_memory(PGSIZE);
+                if(new_block==0){
+                    panic("out-of-memory");
+                    return 0;
+                }
                 memset((void *)new_block, 0, PGSIZE);
                 if(mappages(pagetable, va, PGSIZE, new_block, xperm)!=0){
-                    free_pages(new_block, PGSIZE);
-                    new_block=NULL;
+                    free_pages((void *)new_block, PGSIZE);
+                    return 0;
                 }
-                rb_array[idx].bitmap[start_vpn]=1;
+                rblocks[idx].bitmap[start_vpn]=1;
+                rblocks[idx].pop_count++;
                 return new_block;
             }
             //promoted success
-            memset(new_block, 0, SUPERPGSIZE);
-            rb_array[idx].pa=new_block;
-            rb_array[idx].promoted=1;
-            merge_into_hugepages(pagetable, va, new_block);
-            rb_array[idx].bitmap[start_vpn]=1;
-            return new_block+start_vpn*PGSIZE;
+            memset((void *)new_block, 0, SUPERPGSIZE);
+            if(merge_into_hugepages_Out(rblocks, pagetable, va, new_block)==0){
+                rblocks[idx].pa=new_block;
+                rblocks[idx].promoted=1;
+                rblocks[idx].bitmap[start_vpn]=1;
+                rblocks[idx].pop_count++;
+                return new_block+start_vpn*PGSIZE;
+            }
+            else{
+                free_pages((void *)new_block, SUPERPGSIZE);
+                return 0;
+            }
         }
         else{   
             //use the simple allocator
-            new_block=alloc_memory(PGSIZE);
+            new_block=(uint64)alloc_memory(PGSIZE);
             if(new_block==0)    panic("out-of-memory");
             memset((void *)new_block, 0, PGSIZE);
             if(mappages(pagetable, va, PGSIZE, new_block, xperm)!=0){
-                free_pages(new_block, PGSIZE);
-                new_block=NULL;
+                free_pages((void *)new_block, PGSIZE);
+                return 0;
             }
-            rb_array[idx].bitmap[start_vpn]=1;
+            rblocks[idx].bitmap[start_vpn]=1;
+            rblocks[idx].pop_count++;
             return new_block;
         }
     }
+    rblocks[idx].pop_count++;
     //already promoted, exist mapping.
     return new_block;
 }

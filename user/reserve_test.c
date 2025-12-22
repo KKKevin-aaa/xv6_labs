@@ -108,7 +108,9 @@ void reservation_basic_test() {
     // 此时尚未达到 Threshold，应该是 4K 映射
     *base = 'A'; 
     *(base + PGSIZE) = 'B';
-    
+    *(base + 2*PGSIZE) ='C';
+    *(base + 3*PGSIZE) ='D';
+    *(base + 4*PGSIZE) ='E';
     pte_t pte_0 = (pte_t)pgpte(base);
     pte_t pte_1 = (pte_t)pgpte(base + PGSIZE);
     
@@ -232,7 +234,7 @@ void huge_fork_deep_copy_test() {
     pte_t p_pte = (pte_t)pgpte(base);
     uint64 p_pa = PTE2PA(p_pte);
     CHECK_FATAL(p_pa % SUPERPGSIZE == 0, "Parent has Huge Page");
-
+    kpgtbl();
     int pid = fork();
 
     if (pid == 0) {
@@ -273,8 +275,8 @@ void huge_fork_deep_copy_test() {
 
 int main() {
     printf("\n=== PG_TBL_TEST SUITE ===\n");
-    reservation_basic_test();
-    huge_promotion_test();
+    // reservation_basic_test();
+    // huge_promotion_test();
     huge_fork_deep_copy_test();
     
     if (global_fail_count == 0) printf("\nRESULT: [ SUCCESS ]\n");

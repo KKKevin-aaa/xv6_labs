@@ -1,596 +1,163 @@
 
 xv6 kernel is booting
 
-[KALLOC:kinit] initializing memory allocator
-[KALLOC:kinit] initialization complete
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dfd000 order=0
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dfc000 order=0
-[VM:mappages] va=0x0000000010000000 size=0x1000 pa=0x0000000010000000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080203000 order=0
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080202000 order=0
-[VM:mappages] va=0x0000000010001000 size=0x1000 pa=0x0000000010001000 perm=0x6
-[VM:mappages] va=0x000000000c000000 size=0x4000000 pa=0x000000000c000000 perm=0x6
-[VM:mappages] va=0x0000000080000000 size=0x10000 pa=0x0000000080000000 perm=0xa
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dfb000 order=0
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dfa000 order=0
-[VM:mappages] va=0x0000000080010000 size=0x7ff0000 pa=0x0000000080010000 perm=0x6
-[VM:mappages] va=0x0000003ffffff000 size=0x1000 pa=0x000000008000f000 perm=0xa
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087df9000 order=0
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087df8000 order=0
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080207000 order=0
-[VM:mappages] va=0x0000003fffffc000 size=0x1000 pa=0x0000000080207000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080206000 order=0
-[VM:mappages] va=0x0000003fffffa000 size=0x1000 pa=0x0000000080206000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080205000 order=0
-[VM:mappages] va=0x0000003fffff8000 size=0x1000 pa=0x0000000080205000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080204000 order=0
-[VM:mappages] va=0x0000003fffff6000 size=0x1000 pa=0x0000000080204000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087df7000 order=0
-[VM:mappages] va=0x0000003fffff4000 size=0x1000 pa=0x0000000087df7000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087df6000 order=0
-[VM:mappages] va=0x0000003fffff2000 size=0x1000 pa=0x0000000087df6000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087df5000 order=0
-[VM:mappages] va=0x0000003fffff0000 size=0x1000 pa=0x0000000087df5000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087df4000 order=0
-[VM:mappages] va=0x0000003ffffee000 size=0x1000 pa=0x0000000087df4000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087df3000 order=0
-[VM:mappages] va=0x0000003ffffec000 size=0x1000 pa=0x0000000087df3000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087df2000 order=0
-[VM:mappages] va=0x0000003ffffea000 size=0x1000 pa=0x0000000087df2000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087df1000 order=0
-[VM:mappages] va=0x0000003ffffe8000 size=0x1000 pa=0x0000000087df1000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087df0000 order=0
-[VM:mappages] va=0x0000003ffffe6000 size=0x1000 pa=0x0000000087df0000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008020f000 order=0
-[VM:mappages] va=0x0000003ffffe4000 size=0x1000 pa=0x000000008020f000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008020e000 order=0
-[VM:mappages] va=0x0000003ffffe2000 size=0x1000 pa=0x000000008020e000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008020d000 order=0
-[VM:mappages] va=0x0000003ffffe0000 size=0x1000 pa=0x000000008020d000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008020c000 order=0
-[VM:mappages] va=0x0000003ffffde000 size=0x1000 pa=0x000000008020c000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008020b000 order=0
-[VM:mappages] va=0x0000003ffffdc000 size=0x1000 pa=0x000000008020b000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008020a000 order=0
-[VM:mappages] va=0x0000003ffffda000 size=0x1000 pa=0x000000008020a000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080209000 order=0
-[VM:mappages] va=0x0000003ffffd8000 size=0x1000 pa=0x0000000080209000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080208000 order=0
-[VM:mappages] va=0x0000003ffffd6000 size=0x1000 pa=0x0000000080208000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087def000 order=0
-[VM:mappages] va=0x0000003ffffd4000 size=0x1000 pa=0x0000000087def000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dee000 order=0
-[VM:mappages] va=0x0000003ffffd2000 size=0x1000 pa=0x0000000087dee000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ded000 order=0
-[VM:mappages] va=0x0000003ffffd0000 size=0x1000 pa=0x0000000087ded000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dec000 order=0
-[VM:mappages] va=0x0000003ffffce000 size=0x1000 pa=0x0000000087dec000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087deb000 order=0
-[VM:mappages] va=0x0000003ffffcc000 size=0x1000 pa=0x0000000087deb000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dea000 order=0
-[VM:mappages] va=0x0000003ffffca000 size=0x1000 pa=0x0000000087dea000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087de9000 order=0
-[VM:mappages] va=0x0000003ffffc8000 size=0x1000 pa=0x0000000087de9000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087de8000 order=0
-[VM:mappages] va=0x0000003ffffc6000 size=0x1000 pa=0x0000000087de8000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087de7000 order=0
-[VM:mappages] va=0x0000003ffffc4000 size=0x1000 pa=0x0000000087de7000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087de6000 order=0
-[VM:mappages] va=0x0000003ffffc2000 size=0x1000 pa=0x0000000087de6000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087de5000 order=0
-[VM:mappages] va=0x0000003ffffc0000 size=0x1000 pa=0x0000000087de5000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087de4000 order=0
-[VM:mappages] va=0x0000003ffffbe000 size=0x1000 pa=0x0000000087de4000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087de3000 order=0
-[VM:mappages] va=0x0000003ffffbc000 size=0x1000 pa=0x0000000087de3000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087de2000 order=0
-[VM:mappages] va=0x0000003ffffba000 size=0x1000 pa=0x0000000087de2000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087de1000 order=0
-[VM:mappages] va=0x0000003ffffb8000 size=0x1000 pa=0x0000000087de1000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087de0000 order=0
-[VM:mappages] va=0x0000003ffffb6000 size=0x1000 pa=0x0000000087de0000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008021f000 order=0
-[VM:mappages] va=0x0000003ffffb4000 size=0x1000 pa=0x000000008021f000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008021e000 order=0
-[VM:mappages] va=0x0000003ffffb2000 size=0x1000 pa=0x000000008021e000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008021d000 order=0
-[VM:mappages] va=0x0000003ffffb0000 size=0x1000 pa=0x000000008021d000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008021c000 order=0
-[VM:mappages] va=0x0000003ffffae000 size=0x1000 pa=0x000000008021c000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008021b000 order=0
-[VM:mappages] va=0x0000003ffffac000 size=0x1000 pa=0x000000008021b000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008021a000 order=0
-[VM:mappages] va=0x0000003ffffaa000 size=0x1000 pa=0x000000008021a000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080219000 order=0
-[VM:mappages] va=0x0000003ffffa8000 size=0x1000 pa=0x0000000080219000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080218000 order=0
-[VM:mappages] va=0x0000003ffffa6000 size=0x1000 pa=0x0000000080218000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080217000 order=0
-[VM:mappages] va=0x0000003ffffa4000 size=0x1000 pa=0x0000000080217000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080216000 order=0
-[VM:mappages] va=0x0000003ffffa2000 size=0x1000 pa=0x0000000080216000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080215000 order=0
-[VM:mappages] va=0x0000003ffffa0000 size=0x1000 pa=0x0000000080215000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080214000 order=0
-[VM:mappages] va=0x0000003ffff9e000 size=0x1000 pa=0x0000000080214000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080213000 order=0
-[VM:mappages] va=0x0000003ffff9c000 size=0x1000 pa=0x0000000080213000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080212000 order=0
-[VM:mappages] va=0x0000003ffff9a000 size=0x1000 pa=0x0000000080212000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080211000 order=0
-[VM:mappages] va=0x0000003ffff98000 size=0x1000 pa=0x0000000080211000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080210000 order=0
-[VM:mappages] va=0x0000003ffff96000 size=0x1000 pa=0x0000000080210000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ddf000 order=0
-[VM:mappages] va=0x0000003ffff94000 size=0x1000 pa=0x0000000087ddf000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dde000 order=0
-[VM:mappages] va=0x0000003ffff92000 size=0x1000 pa=0x0000000087dde000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ddd000 order=0
-[VM:mappages] va=0x0000003ffff90000 size=0x1000 pa=0x0000000087ddd000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ddc000 order=0
-[VM:mappages] va=0x0000003ffff8e000 size=0x1000 pa=0x0000000087ddc000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ddb000 order=0
-[VM:mappages] va=0x0000003ffff8c000 size=0x1000 pa=0x0000000087ddb000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dda000 order=0
-[VM:mappages] va=0x0000003ffff8a000 size=0x1000 pa=0x0000000087dda000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd9000 order=0
-[VM:mappages] va=0x0000003ffff88000 size=0x1000 pa=0x0000000087dd9000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd8000 order=0
-[VM:mappages] va=0x0000003ffff86000 size=0x1000 pa=0x0000000087dd8000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd7000 order=0
-[VM:mappages] va=0x0000003ffff84000 size=0x1000 pa=0x0000000087dd7000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd6000 order=0
-[VM:mappages] va=0x0000003ffff82000 size=0x1000 pa=0x0000000087dd6000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd5000 order=0
-[VM:mappages] va=0x0000003ffff80000 size=0x1000 pa=0x0000000087dd5000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd4000 order=0
-[VM:mappages] va=0x0000003ffff7e000 size=0x1000 pa=0x0000000087dd4000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd3000 order=0
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd2000 order=0
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd1000 order=0
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd0000 order=0
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dcf000 order=0
-[VM:mappages] va=0x0000003ffffff000 size=0x1000 pa=0x000000008000f000 perm=0xa
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dce000 order=0
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dcd000 order=0
-[VM:mappages] va=0x0000003fffffe000 size=0x1000 pa=0x0000000087dd0000 perm=0x6
-[VM:mappages] va=0x0000003fffffd000 size=0x1000 pa=0x0000000087dfc000 perm=0x12
-[EXEC:kexec] ENTRY pid=1 path='/init' argv=0x0000003fffffcfc8
-[KALLOC:kalloc] pid=1() requesting PGSIZE
-[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087dcc000 order=0
-[VM:mappages] va=0x0000003ffffff000 size=0x1000 pa=0x000000008000f000 perm=0xa
-[KALLOC:kalloc] pid=1() requesting PGSIZE
-[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087dcb000 order=0
-[KALLOC:kalloc] pid=1() requesting PGSIZE
-[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087dca000 order=0
-[VM:mappages] va=0x0000003fffffe000 size=0x1000 pa=0x0000000087dd0000 perm=0x6
-[VM:mappages] va=0x0000003fffffd000 size=0x1000 pa=0x0000000087dfc000 perm=0x12
-[EXEC:kexec] new pagetable 0x0000000087dcc000 created for pid=1
-[VM:uvmalloc] oldsz=0x0 newsz=0x1b0f xperm=0x8
-[KALLOC:alloc_memory] pid=1() allocated size=2000 at pa=0x0000000087dc8000 order=1
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0x0 alloc_size=0x2000
-[VM:mappages] va=0x0000000000000000 size=0x2000 pa=0x0000000087dc8000 perm=0x1a
-[KALLOC:kalloc] pid=1() requesting PGSIZE
-[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087dc7000 order=0
-[KALLOC:kalloc] pid=1() requesting PGSIZE
-[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087dc6000 order=0
-[VM:uvmalloc] uvmalloc exiting success newsz=0x1b0f
-[EXEC:kexec] LOAD seg: va=0x0000000000000000 memsz=0x1b0f filesz=0x1b0f
-[VM:uvmalloc] oldsz=0x1b0f newsz=0x2048 xperm=0x4
-[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087dc5000 order=0
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0x2000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000002000 size=0x1000 pa=0x0000000087dc5000 perm=0x16
-[VM:uvmalloc] uvmalloc exiting success newsz=0x2048
-[EXEC:kexec] LOAD seg: va=0x0000000000002000 memsz=0x48 filesz=0x21
-[VM:uvmalloc] oldsz=0x3000 newsz=0x5000 xperm=0x4
-[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087dc4000 order=0
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0x3000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000003000 size=0x1000 pa=0x0000000087dc4000 perm=0x16
-[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087dc3000 order=0
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0x4000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000004000 size=0x1000 pa=0x0000000087dc3000 perm=0x16
-[VM:uvmalloc] uvmalloc exiting success newsz=0x5000
-[EXEC:kexec] STACK setup: base=0x0000000000004000 top=0x0000000000005000 total_sz=0x5 pages
-[EXEC:kexec] COMMIT: switch pt, freeing old=0x0000000087dcf000 oldsz=0x0
-[VM:uvmunmap] va=0x0000003ffffff000 size=0x1000 do_free=0
-[VM:uvmunmap_helper] va=0x0000003ffffff000 size=0x1000 do_free=0, cur_level is 2
-[VM:uvmunmap_helper] va=0x0000003ffffff000 size=0x1000 do_free=0, cur_level is 1
-[VM:uvmunmap_helper] va=0x0000003ffffff000 size=0x1000 do_free=0, cur_level is 0
-[VM:uvmunmap] va=0x0000003fffffe000 size=0x1000 do_free=0
-[VM:uvmunmap_helper] va=0x0000003fffffe000 size=0x1000 do_free=0, cur_level is 2
-[VM:uvmunmap_helper] va=0x0000003fffffe000 size=0x1000 do_free=0, cur_level is 1
-[VM:uvmunmap_helper] va=0x0000003fffffe000 size=0x1000 do_free=0, cur_level is 0
-[VM:uvmunmap] va=0x0000003fffffd000 size=0x1000 do_free=0
-[VM:uvmunmap_helper] va=0x0000003fffffd000 size=0x1000 do_free=0, cur_level is 2
-[VM:uvmunmap_helper] va=0x0000003fffffd000 size=0x1000 do_free=0, cur_level is 1
-[VM:uvmunmap_helper] va=0x0000003fffffd000 size=0x1000 do_free=0, cur_level is 0
-[VM:freewalk] Freewalk Start: pt=0x0000000087dcf000 base_va=0x0 max_sz=0x0
-[EXEC:kexec] SUCCESS: pid=1 exec complete. entry=0xe2
 init: starting sh
-[FORK:kfork] ENTRY parent pid=1 name='init' sz=0x5000 mask=0x0
-[KALLOC:kalloc] pid=1(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087dcd000 order=0
-[KALLOC:kalloc] pid=1(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087dc2000 order=0
-[VM:mappages] va=0x0000003ffffff000 size=0x1000 pa=0x000000008000f000 perm=0xa
-[KALLOC:kalloc] pid=1(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087dcf000 order=0
-[KALLOC:kalloc] pid=1(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087dce000 order=0
-[VM:mappages] va=0x0000003fffffe000 size=0x1000 pa=0x0000000087dcd000 perm=0x6
-[VM:mappages] va=0x0000003fffffd000 size=0x1000 pa=0x0000000087dfc000 perm=0x12
-[FORK:kfork] allocproc success: child pid=2 pt=0x0000000087dc2000
-[FORK:kfork] START uvmcopy: parent_pt=0x0000000087dcc000 -> child_pt=0x0000000087dc2000 sz=0x5000
-[VM:uvmcopy] old_pg=0x0000000087dcc000 new_pg=0x0000000087dc2000 sz=0x5000
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087dc1000 order=0
-[VM:copywalk] [DIR ] L2 idx=0: va=0x0 -> new_tbl=0x0000000087dc1000 (recurse)
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087dc0000 order=0
-[VM:copywalk]   |-- [DIR ] L1 idx=0: va=0x0 -> new_tbl=0x0000000087dc0000 (recurse)
-[KALLOC:alloc_memory] pid=1(init) allocated size=2000 at pa=0x000000008023e000 order=1
-[VM:copywalk]   |    |-- [COPY] L0 idx=0: va=0x0 src_pa=0x87dc8000 -> dst_pa=0x000000008023e000 size=0x2000 (Order 1)
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x000000008023d000 order=0
-[VM:copywalk]   |    |-- [COPY] L0 idx=2: va=0x2000 src_pa=0x87dc5000 -> dst_pa=0x000000008023d000 size=0x1000 (Order 0)
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x000000008023c000 order=0
-[VM:copywalk]   |    |-- [COPY] L0 idx=3: va=0x3000 src_pa=0x87dc4000 -> dst_pa=0x000000008023c000 size=0x1000 (Order 0)
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x000000008023b000 order=0
-[VM:copywalk]   |    |-- [COPY] L0 idx=4: va=0x4000 src_pa=0x87dc3000 -> dst_pa=0x000000008023b000 size=0x1000 (Order 0)
-[VM:uvmcopy] after uvmcopy start_va is 0x0, while ret_va is 0x40000000
-[FORK:kfork] END uvmcopy: success. child sz=0x5000
-[FORK:kfork] STATE UPDATE: child pid=2 is now RUNNABLE
-[FORK:kfork] EXIT returns child pid=2
-[KALLOC:kalloc] pid=2(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x000000008023a000 order=0
-[EXEC:kexec] ENTRY pid=2 path='sh' argv=0x0000003fffffad58
-[KALLOC:kalloc] pid=2(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x0000000080239000 order=0
-[VM:mappages] va=0x0000003ffffff000 size=0x1000 pa=0x000000008000f000 perm=0xa
-[KALLOC:kalloc] pid=2(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x0000000080238000 order=0
-[KALLOC:kalloc] pid=2(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x0000000080237000 order=0
-[VM:mappages] va=0x0000003fffffe000 size=0x1000 pa=0x0000000087dcd000 perm=0x6
-[VM:mappages] va=0x0000003fffffd000 size=0x1000 pa=0x0000000087dfc000 perm=0x12
-[EXEC:kexec] new pagetable 0x0000000080239000 created for pid=2
-[VM:uvmalloc] oldsz=0x0 newsz=0x4b07 xperm=0x8
-[KALLOC:alloc_memory] pid=2(init) allocated size=4000 at pa=0x0000000080230000 order=2
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0x0 alloc_size=0x4000
-[VM:mappages] va=0x0000000000000000 size=0x4000 pa=0x0000000080230000 perm=0x1a
-[KALLOC:kalloc] pid=2(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x0000000080236000 order=0
-[KALLOC:kalloc] pid=2(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x0000000080235000 order=0
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x0000000080234000 order=0
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0x4000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000004000 size=0x1000 pa=0x0000000080234000 perm=0x1a
-[VM:uvmalloc] uvmalloc exiting success newsz=0x4b07
-[EXEC:kexec] LOAD seg: va=0x0000000000000000 memsz=0x4b07 filesz=0x4b07
-[VM:uvmalloc] oldsz=0x4b07 newsz=0x6dc8 xperm=0x4
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x000000008022f000 order=0
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0x5000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000005000 size=0x1000 pa=0x000000008022f000 perm=0x16
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x000000008022e000 order=0
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0x6000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000006000 size=0x1000 pa=0x000000008022e000 perm=0x16
-[VM:uvmalloc] uvmalloc exiting success newsz=0x6dc8
-[EXEC:kexec] LOAD seg: va=0x0000000000005000 memsz=0x1dc8 filesz=0x31
-[VM:uvmalloc] oldsz=0x7000 newsz=0x9000 xperm=0x4
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x000000008022d000 order=0
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0x7000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000007000 size=0x1000 pa=0x000000008022d000 perm=0x16
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x000000008022c000 order=0
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0x8000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000008000 size=0x1000 pa=0x000000008022c000 perm=0x16
-[VM:uvmalloc] uvmalloc exiting success newsz=0x9000
-[EXEC:kexec] STACK setup: base=0x0000000000008000 top=0x0000000000009000 total_sz=0x9 pages
-[EXEC:kexec] COMMIT: switch pt, freeing old=0x0000000087dc2000 oldsz=0x5
-[VM:uvmunmap] va=0x0000003ffffff000 size=0x1000 do_free=0
-[VM:uvmunmap_helper] va=0x0000003ffffff000 size=0x1000 do_free=0, cur_level is 2
-[VM:uvmunmap_helper] va=0x0000003ffffff000 size=0x1000 do_free=0, cur_level is 1
-[VM:uvmunmap_helper] va=0x0000003ffffff000 size=0x1000 do_free=0, cur_level is 0
-[VM:uvmunmap] va=0x0000003fffffe000 size=0x1000 do_free=0
-[VM:uvmunmap_helper] va=0x0000003fffffe000 size=0x1000 do_free=0, cur_level is 2
-[VM:uvmunmap_helper] va=0x0000003fffffe000 size=0x1000 do_free=0, cur_level is 1
-[VM:uvmunmap_helper] va=0x0000003fffffe000 size=0x1000 do_free=0, cur_level is 0
-[VM:uvmunmap] va=0x0000003fffffd000 size=0x1000 do_free=0
-[VM:uvmunmap_helper] va=0x0000003fffffd000 size=0x1000 do_free=0, cur_level is 2
-[VM:uvmunmap_helper] va=0x0000003fffffd000 size=0x1000 do_free=0, cur_level is 1
-[VM:uvmunmap_helper] va=0x0000003fffffd000 size=0x1000 do_free=0, cur_level is 0
-[VM:freewalk] Freewalk Start: pt=0x0000000087dc2000 base_va=0x0 max_sz=0x5000
-[VM:freewalk] Dir: idx=0 va=0x0 -> next_pa=0x0000000087dc1000
-[VM:freewalk]   |-- Dir: idx=0 va=0x0 -> next_pa=0x0000000087dc0000
-[VM:freewalk]   |    |-- Leaf: idx=0 va=0x0 pa=0x000000008023e000 order=1 size=0x2000 (step=2)
-[VM:freewalk]   |    |-- Leaf: idx=2 va=0x2000 pa=0x000000008023d000 order=0 size=0x1000 (step=1)
-[VM:freewalk]   |    |-- Leaf: idx=3 va=0x3000 pa=0x000000008023c000 order=0 size=0x1000 (step=1)
-[VM:freewalk]   |    |-- Leaf: idx=4 va=0x4000 pa=0x000000008023b000 order=0 size=0x1000 (step=1)
-[EXEC:kexec] SUCCESS: pid=2 exec complete. entry=0x2df8
-[KALLOC:kfree] pid=2(sh) freeing pa=0x000000008023a000
-$ reserve_test
-[FORK:kfork] ENTRY parent pid=2 name='sh' sz=0x9000 mask=0x0
-[KALLOC:kalloc] pid=2(sh) requesting PGSIZE
-[KALLOC:alloc_memory] pid=2(sh) allocated size=1000 at pa=0x0000000087dc2000 order=0
-[KALLOC:kalloc] pid=2(sh) requesting PGSIZE
-[KALLOC:alloc_memory] pid=2(sh) allocated size=1000 at pa=0x000000008023b000 order=0
-[VM:mappages] va=0x0000003ffffff000 size=0x1000 pa=0x000000008000f000 perm=0xa
-[KALLOC:kalloc] pid=2(sh) requesting PGSIZE
-[KALLOC:alloc_memory] pid=2(sh) allocated size=1000 at pa=0x000000008023a000 order=0
-[KALLOC:kalloc] pid=2(sh) requesting PGSIZE
-[KALLOC:alloc_memory] pid=2(sh) allocated size=1000 at pa=0x0000000087dc1000 order=0
-[VM:mappages] va=0x0000003fffffe000 size=0x1000 pa=0x0000000087dc2000 perm=0x6
-[VM:mappages] va=0x0000003fffffd000 size=0x1000 pa=0x0000000087dfc000 perm=0x12
-[FORK:kfork] allocproc success: child pid=3 pt=0x000000008023b000
-[FORK:kfork] START uvmcopy: parent_pt=0x0000000080239000 -> child_pt=0x000000008023b000 sz=0x9000
-[VM:uvmcopy] old_pg=0x0000000080239000 new_pg=0x000000008023b000 sz=0x9000
-[KALLOC:alloc_memory] pid=2(sh) allocated size=1000 at pa=0x0000000087dc0000 order=0
-[VM:copywalk] [DIR ] L2 idx=0: va=0x0 -> new_tbl=0x0000000087dc0000 (recurse)
-[KALLOC:alloc_memory] pid=2(sh) allocated size=1000 at pa=0x0000000087dcf000 order=0
-[VM:copywalk]   |-- [DIR ] L1 idx=0: va=0x0 -> new_tbl=0x0000000087dcf000 (recurse)
-[KALLOC:alloc_memory] pid=2(sh) allocated size=4000 at pa=0x000000008023c000 order=2
-[VM:copywalk]   |    |-- [COPY] L0 idx=0: va=0x0 src_pa=0x80230000 -> dst_pa=0x000000008023c000 size=0x4000 (Order 2)
-[KALLOC:alloc_memory] pid=2(sh) allocated size=1000 at pa=0x0000000087dce000 order=0
-[VM:copywalk]   |    |-- [COPY] L0 idx=4: va=0x4000 src_pa=0x80234000 -> dst_pa=0x0000000087dce000 size=0x1000 (Order 0)
-[KALLOC:alloc_memory] pid=2(sh) allocated size=1000 at pa=0x000000008022b000 order=0
-[VM:copywalk]   |    |-- [COPY] L0 idx=5: va=0x5000 src_pa=0x8022f000 -> dst_pa=0x000000008022b000 size=0x1000 (Order 0)
-[KALLOC:alloc_memory] pid=2(sh) allocated size=1000 at pa=0x000000008022a000 order=0
-[VM:copywalk]   |    |-- [COPY] L0 idx=6: va=0x6000 src_pa=0x8022e000 -> dst_pa=0x000000008022a000 size=0x1000 (Order 0)
-[KALLOC:alloc_memory] pid=2(sh) allocated size=1000 at pa=0x0000000080229000 order=0
-[VM:copywalk]   |    |-- [COPY] L0 idx=7: va=0x7000 src_pa=0x8022d000 -> dst_pa=0x0000000080229000 size=0x1000 (Order 0)
-[KALLOC:alloc_memory] pid=2(sh) allocated size=1000 at pa=0x0000000080228000 order=0
-[VM:copywalk]   |    |-- [COPY] L0 idx=8: va=0x8000 src_pa=0x8022c000 -> dst_pa=0x0000000080228000 size=0x1000 (Order 0)
-[VM:uvmcopy] after uvmcopy start_va is 0x0, while ret_va is 0x40000000
-[FORK:kfork] END uvmcopy: success. child sz=0x9000
-[FORK:kfork] STATE UPDATE: child pid=3 is now RUNNABLE
-[FORK:kfork] EXIT returns child pid=3
-[VM:uvmalloc] oldsz=0x9000 newsz=0x19000 xperm=0x4
-[KALLOC:alloc_memory] pid=3(sh) allocated size=1000 at pa=0x0000000080227000 order=0
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0x9000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000009000 size=0x1000 pa=0x0000000080227000 perm=0x16
-[KALLOC:alloc_memory] pid=3(sh) allocated size=2000 at pa=0x0000000080224000 order=1
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0xa000 alloc_size=0x2000
-[VM:mappages] va=0x000000000000a000 size=0x2000 pa=0x0000000080224000 perm=0x16
-[KALLOC:alloc_memory] pid=3(sh) allocated size=4000 at pa=0x0000000080220000 order=2
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0xc000 alloc_size=0x4000
-[VM:mappages] va=0x000000000000c000 size=0x4000 pa=0x0000000080220000 perm=0x16
-[KALLOC:alloc_memory] pid=3(sh) allocated size=8000 at pa=0x0000000087db8000 order=3
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0x10000 alloc_size=0x8000
-[VM:mappages] va=0x0000000000010000 size=0x8000 pa=0x0000000087db8000 perm=0x16
-[KALLOC:alloc_memory] pid=3(sh) allocated size=1000 at pa=0x0000000080226000 order=0
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0x18000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000018000 size=0x1000 pa=0x0000000080226000 perm=0x16
-[VM:uvmalloc] uvmalloc exiting success newsz=0x19000
-[KALLOC:kalloc] pid=3(sh) requesting PGSIZE
-[KALLOC:alloc_memory] pid=3(sh) allocated size=1000 at pa=0x0000000087db7000 order=0
-[EXEC:kexec] ENTRY pid=3 path='reserve_test' argv=0x0000003fffff8d58
-[KALLOC:kalloc] pid=3(sh) requesting PGSIZE
-[KALLOC:alloc_memory] pid=3(sh) allocated size=1000 at pa=0x0000000087db6000 order=0
-[VM:mappages] va=0x0000003ffffff000 size=0x1000 pa=0x000000008000f000 perm=0xa
-[KALLOC:kalloc] pid=3(sh) requesting PGSIZE
-[KALLOC:alloc_memory] pid=3(sh) allocated size=1000 at pa=0x0000000087db5000 order=0
-[KALLOC:kalloc] pid=3(sh) requesting PGSIZE
-[KALLOC:alloc_memory] pid=3(sh) allocated size=1000 at pa=0x0000000087db4000 order=0
-[VM:mappages] va=0x0000003fffffe000 size=0x1000 pa=0x0000000087dc2000 perm=0x6
-[VM:mappages] va=0x0000003fffffd000 size=0x1000 pa=0x0000000087dfc000 perm=0x12
-[EXEC:kexec] new pagetable 0x0000000087db6000 created for pid=3
-[VM:uvmalloc] oldsz=0x0 newsz=0x2827 xperm=0x8
-[KALLOC:alloc_memory] pid=3(sh) allocated size=2000 at pa=0x0000000087db2000 order=1
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0x0 alloc_size=0x2000
-[VM:mappages] va=0x0000000000000000 size=0x2000 pa=0x0000000087db2000 perm=0x1a
-[KALLOC:kalloc] pid=3(sh) requesting PGSIZE
-[KALLOC:alloc_memory] pid=3(sh) allocated size=1000 at pa=0x0000000087db1000 order=0
-[KALLOC:kalloc] pid=3(sh) requesting PGSIZE
-[KALLOC:alloc_memory] pid=3(sh) allocated size=1000 at pa=0x0000000087db0000 order=0
-[KALLOC:alloc_memory] pid=3(sh) allocated size=1000 at pa=0x0000000087daf000 order=0
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0x2000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000002000 size=0x1000 pa=0x0000000087daf000 perm=0x1a
-[VM:uvmalloc] uvmalloc exiting success newsz=0x2827
-[EXEC:kexec] LOAD seg: va=0x0000000000000000 memsz=0x2827 filesz=0x2827
-[VM:uvmalloc] oldsz=0x2827 newsz=0x3058 xperm=0x4
-[KALLOC:alloc_memory] pid=3(sh) allocated size=1000 at pa=0x0000000087dae000 order=0
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0x3000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000003000 size=0x1000 pa=0x0000000087dae000 perm=0x16
-[VM:uvmalloc] uvmalloc exiting success newsz=0x3058
-[EXEC:kexec] LOAD seg: va=0x0000000000003000 memsz=0x58 filesz=0x21
-[VM:uvmalloc] oldsz=0x4000 newsz=0x6000 xperm=0x4
-[KALLOC:alloc_memory] pid=3(sh) allocated size=2000 at pa=0x0000000087dac000 order=1
-[VM:uvmalloc] uvmalloc -> mappages cur_va=0x4000 alloc_size=0x2000
-[VM:mappages] va=0x0000000000004000 size=0x2000 pa=0x0000000087dac000 perm=0x16
-[VM:uvmalloc] uvmalloc exiting success newsz=0x6000
-[EXEC:kexec] STACK setup: base=0x0000000000005000 top=0x0000000000006000 total_sz=0x6 pages
-[EXEC:kexec] COMMIT: switch pt, freeing old=0x000000008023b000 oldsz=0x19
-[VM:uvmunmap] va=0x0000003ffffff000 size=0x1000 do_free=0
-[VM:uvmunmap_helper] va=0x0000003ffffff000 size=0x1000 do_free=0, cur_level is 2
-[VM:uvmunmap_helper] va=0x0000003ffffff000 size=0x1000 do_free=0, cur_level is 1
-[VM:uvmunmap_helper] va=0x0000003ffffff000 size=0x1000 do_free=0, cur_level is 0
-[VM:uvmunmap] va=0x0000003fffffe000 size=0x1000 do_free=0
-[VM:uvmunmap_helper] va=0x0000003fffffe000 size=0x1000 do_free=0, cur_level is 2
-[VM:uvmunmap_helper] va=0x0000003fffffe000 size=0x1000 do_free=0, cur_level is 1
-[VM:uvmunmap_helper] va=0x0000003fffffe000 size=0x1000 do_free=0, cur_level is 0
-[VM:uvmunmap] va=0x0000003fffffd000 size=0x1000 do_free=0
-[VM:uvmunmap_helper] va=0x0000003fffffd000 size=0x1000 do_free=0, cur_level is 2
-[VM:uvmunmap_helper] va=0x0000003fffffd000 size=0x1000 do_free=0, cur_level is 1
-[VM:uvmunmap_helper] va=0x0000003fffffd000 size=0x1000 do_free=0, cur_level is 0
-[VM:freewalk] Freewalk Start: pt=0x000000008023b000 base_va=0x0 max_sz=0x19000
-[VM:freewalk] Dir: idx=0 va=0x0 -> next_pa=0x0000000087dc0000
-[VM:freewalk]   |-- Dir: idx=0 va=0x0 -> next_pa=0x0000000087dcf000
-[VM:freewalk]   |    |-- Leaf: idx=0 va=0x0 pa=0x000000008023c000 order=2 size=0x4000 (step=4)
-[VM:freewalk]   |    |-- Leaf: idx=4 va=0x4000 pa=0x0000000087dce000 order=0 size=0x1000 (step=1)
-[VM:freewalk]   |    |-- Leaf: idx=5 va=0x5000 pa=0x000000008022b000 order=0 size=0x1000 (step=1)
-[VM:freewalk]   |    |-- Leaf: idx=6 va=0x6000 pa=0x000000008022a000 order=0 size=0x1000 (step=1)
-[VM:freewalk]   |    |-- Leaf: idx=7 va=0x7000 pa=0x0000000080229000 order=0 size=0x1000 (step=1)
-[VM:freewalk]   |    |-- Leaf: idx=8 va=0x8000 pa=0x0000000080228000 order=0 size=0x1000 (step=1)
-[VM:freewalk]   |    |-- Leaf: idx=9 va=0x9000 pa=0x0000000080227000 order=0 size=0x1000 (step=1)
-[VM:freewalk]   |    |-- Leaf: idx=10 va=0xa000 pa=0x0000000080224000 order=1 size=0x2000 (step=2)
-[VM:freewalk]   |    |-- Leaf: idx=12 va=0xc000 pa=0x0000000080220000 order=2 size=0x4000 (step=4)
-[VM:freewalk]   |    |-- Leaf: idx=16 va=0x10000 pa=0x0000000087db8000 order=3 size=0x8000 (step=8)
-[VM:freewalk]   |    |-- Leaf: idx=24 va=0x18000 pa=0x0000000080226000 order=0 size=0x1000 (step=1)
-[EXEC:kexec] SUCCESS: pid=3 exec complete. entry=0x7c2
-[KALLOC:kfree] pid=3(reserve_test) freeing pa=0x0000000087db7000
+$ reserve_rte   test
 
 === PG_TBL_TEST SUITE ===
 
->>> [STEP] Starting Basic Reservation Test...
-  [INFO] Test Base VA: 0x0000000000200000
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=200000 at pa=0x0000000087a00000 order=9
-[VM:mappages] va=0x0000000000200000 size=0x1000 pa=0x0000000087a00000 perm=0x16
-[KALLOC:kalloc] pid=3(reserve_test) requesting PGSIZE
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=1000 at pa=0x0000000087db7000 order=0
-[VM:mappages] va=0x0000000000201000 size=0x1000 pa=0x0000000087a01000 perm=0x16
-  [PASS] Page 0 allocated
-  [INFO] PA_0: 0x87A00000, PA_1: 0x87A00000
-  [WARN] Physical pages are SCATTERED (Reservation Inactive or System Fragmented)
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=1000 at pa=0x0000000087db7000 order=0
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=1000 at pa=0x000000008023b000 order=0
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=1000 at pa=0x000000008023a000 order=0
-[VM:uvmdealloc] oldsz=0x400000 newsz=0x200000
-[VM:uvmdealloc] uvmdealloc -> uvmunmap va=0x0 size=0x200000, remain size is 0x200000
-[VM:uvmunmap] va=0x0000000000200000 size=0x200000 do_free=1
-[VM:uvmunmap_helper] va=0x0000000000200000 size=0x200000 do_free=1, cur_level is 2
-[VM:uvmunmap_helper] va=0x0000000000200000 size=0x200000 do_free=1, cur_level is 1
-[VM:uvmunmap_helper] va=0x0000000000200000 size=0x200000 do_free=1, cur_level is 0
-[VM:uvmdealloc] uvmdealloc exiting newsz=0x200000
-
->>> [STEP] Starting Promotion & Demotion Test...
-[VM:mappages] va=0x0000000000200000 size=0x1000 pa=0x0000000087a00000 perm=0x16
-[KALLOC:kalloc] pid=3(reserve_test) requesting PGSIZE
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=1000 at pa=0x0000000087db7000 order=0
-  [INFO] Triggering Promotion (Write at index 1)...
-[VM:mappages] va=0x0000000000201000 size=0x1000 pa=0x0000000087a01000 perm=0x16
-  [PASS] PA aligned to 2MB (Huge Page)
-  [INFO] Promotion Type: In-Place (Efficient)
-  [INFO] Confirmed: VA+4K maps to the same Huge PTE as VA_Base
-  [PASS] Data integrity maintained
-
->>> [STEP] Testing Demotion (Freeing half)...
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=1000 at pa=0x0000000087db7000 order=0
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=1000 at pa=0x000000008023b000 order=0
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=1000 at pa=0x000000008023a000 order=0
-[VM:uvmdealloc] oldsz=0x400000 newsz=0x300000
-[VM:uvmdealloc] uvmdealloc -> uvmunmap va=0x200000 size=0x100000, remain size is 0x100000
-[VM:uvmunmap] va=0x0000000000300000 size=0x100000 do_free=1
-[VM:uvmunmap_helper] va=0x0000000000300000 size=0x100000 do_free=1, cur_level is 2
-[VM:uvmunmap_helper] va=0x0000000000300000 size=0x100000 do_free=1, cur_level is 1
-[VM:uvmunmap_helper] va=0x0000000000300000 size=0x100000 do_free=1, cur_level is 0
-[VM:uvmdealloc] uvmdealloc exiting newsz=0x300000
-  [PASS] Data accessible after demotion
-  [FAIL] huge_promotion: Contiguity lost after demotion (Unexpected logic)
-[VM:uvmdealloc] oldsz=0x300000 newsz=0x200000
-[VM:uvmdealloc] uvmdealloc -> uvmunmap va=0x100000 size=0x100000, remain size is 0x100000
-[VM:uvmunmap] va=0x0000000000200000 size=0x100000 do_free=1
-[VM:uvmunmap_helper] va=0x0000000000200000 size=0x100000 do_free=1, cur_level is 2
-[VM:uvmunmap_helper] va=0x0000000000200000 size=0x100000 do_free=1, cur_level is 1
-[VM:uvmunmap_helper] va=0x0000000000200000 size=0x100000 do_free=1, cur_level is 0
-[VM:uvmdealloc] uvmdealloc exiting newsz=0x200000
-
 >>> [STEP] Starting Deep Copy Fork Test...
-[VM:mappages] va=0x0000000000200000 size=0x1000 pa=0x0000000087a00000 perm=0x16
-[KALLOC:kalloc] pid=3(reserve_test) requesting PGSIZE
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=1000 at pa=0x0000000087db7000 order=0
-[VM:mappages] va=0x0000000000201000 size=0x1000 pa=0x0000000087a01000 perm=0x16
   [PASS] Parent has Huge Page
-[FORK:kfork] ENTRY parent pid=3 name='reserve_test' sz=0x400000 mask=0x0
-[KALLOC:kalloc] pid=3(reserve_test) requesting PGSIZE
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=1000 at pa=0x0000000087db7000 order=0
-[KALLOC:kalloc] pid=3(reserve_test) requesting PGSIZE
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=1000 at pa=0x000000008023b000 order=0
-[VM:mappages] va=0x0000003ffffff000 size=0x1000 pa=0x000000008000f000 perm=0xa
-[KALLOC:kalloc] pid=3(reserve_test) requesting PGSIZE
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=1000 at pa=0x000000008023a000 order=0
-[KALLOC:kalloc] pid=3(reserve_test) requesting PGSIZE
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=1000 at pa=0x0000000087dc1000 order=0
-[VM:mappages] va=0x0000003fffffe000 size=0x1000 pa=0x0000000087db7000 perm=0x6
-[VM:mappages] va=0x0000003fffffd000 size=0x1000 pa=0x0000000087dfc000 perm=0x12
-[FORK:kfork] allocproc success: child pid=4 pt=0x000000008023b000
-[FORK:kfork] START uvmcopy: parent_pt=0x0000000087db6000 -> child_pt=0x000000008023b000 sz=0x400000
-[VM:uvmcopy] old_pg=0x0000000087db6000 new_pg=0x000000008023b000 sz=0x400000
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=1000 at pa=0x0000000087dc0000 order=0
-[VM:copywalk] [DIR ] L2 idx=0: va=0x0 -> new_tbl=0x0000000087dc0000 (recurse)
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=1000 at pa=0x0000000087dcf000 order=0
-[VM:copywalk]   |-- [DIR ] L1 idx=0: va=0x0 -> new_tbl=0x0000000087dcf000 (recurse)
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=2000 at pa=0x000000008022a000 order=1
-[VM:copywalk]   |    |-- [COPY] L0 idx=0: va=0x0 src_pa=0x87db2000 -> dst_pa=0x000000008022a000 size=0x2000 (Order 1)
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=1000 at pa=0x0000000087dce000 order=0
-[VM:copywalk]   |    |-- [COPY] L0 idx=2: va=0x2000 src_pa=0x87daf000 -> dst_pa=0x0000000087dce000 size=0x1000 (Order 0)
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=1000 at pa=0x0000000080229000 order=0
-[VM:copywalk]   |    |-- [COPY] L0 idx=3: va=0x3000 src_pa=0x87dae000 -> dst_pa=0x0000000080229000 size=0x1000 (Order 0)
-[KALLOC:alloc_memory] pid=3(reserve_test) allocated size=2000 at pa=0x000000008023e000 order=1
-[VM:copywalk]   |    |-- [COPY] L0 idx=4: va=0x4000 src_pa=0x87dac000 -> dst_pa=0x000000008023e000 size=0x2000 (Order 1)
-QEMU: Terminated
+page table 0x0000000087d94000
+..(next-level)0x0000000000000000: pte 0x0000000021f5fc01 pa 0x0000000087d7f000
+....(next-level)0x0000000000000000: pte 0x0000000021f5f801 pa 0x0000000087d7e000
+......(data)0x0000000000000000: pte 0x0000000021f6405b pa 0x0000000087d90000, size is 0x2000
+......(data)0x0000000000002000: pte 0x0000000021f5f4d7 pa 0x0000000087d7d000, size is 0x1000
+......(data)0x0000000000003000: pte 0x0000000021f5f007 pa 0x0000000087d7c000, size is 0x1000
+......(data)0x0000000000004000: pte 0x0000000021f5ecd7 pa 0x0000000087d7b000, size is 0x1000
+....(data)0x0000000000200000: pte 0x00000000200800d7 pa 0x0000000080200000, size is 0x200000
+..(next-level)0x0000003fc0000000: pte 0x0000000021f64c01 pa 0x0000000087d93000
+....(next-level)0x0000003fffe00000: pte 0x0000000021f64801 pa 0x0000000087d92000
+......(data)0x0000003fffffd000: pte 0x0000000021f80813 pa 0x0000000087e02000, size is 0x1000
+......(data)0x0000003fffffe000: pte 0x0000000021f6b8c7 pa 0x0000000087dae000, size is 0x1000
+......(data)0x0000003ffffff000: pte 0x000000002000284b pa 0x000000008000a000, size is 0x1000
+Address Range           Size      State    Order
+------------------------------------------------
+0x0 - 0x8013c000  0x8013c pages  [Program]   -1
+0x8013c000 - 0x801fc000  0xc0 pages  [Membitmaps]   -1
+0x801fc000 - 0x801fd000  0x1 pages  [USED]   0x0
+0x801fd000 - 0x801fe000  0x1 pages  [USED]   0x0
+0x801fe000 - 0x801ff000  0x1 pages  [USED]   0x0
+0x801ff000 - 0x80200000  0x1 pages  [USED]   0x0
+0x80200000 - 0x80400000  0x200 pages  [USED]   0x9
+0x80400000 - 0x80800000  0x400 pages  [FREE]   0xa
+0x80800000 - 0x81000000  0x800 pages  [FREE]   0xb
+0x81000000 - 0x82000000  0x1000 pages  [FREE]   0xc
+0x82000000 - 0x83000000  0x1000 pages  [FREE]   0xc
+0x83000000 - 0x84000000  0x1000 pages  [FREE]   0xc
+0x84000000 - 0x85000000  0x1000 pages  [FREE]   0xc
+0x85000000 - 0x86000000  0x1000 pages  [FREE]   0xc
+0x86000000 - 0x87000000  0x1000 pages  [FREE]   0xc
+0x87000000 - 0x87800000  0x800 pages  [FREE]   0xb
+0x87800000 - 0x87c00000  0x400 pages  [FREE]   0xa
+0x87c00000 - 0x87d00000  0x100 pages  [FREE]   0x8
+0x87d00000 - 0x87d40000  0x40 pages  [FREE]   0x6
+0x87d40000 - 0x87d60000  0x20 pages  [FREE]   0x5
+0x87d60000 - 0x87d70000  0x10 pages  [FREE]   0x4
+0x87d70000 - 0x87d78000  0x8 pages  [FREE]   0x3
+0x87d78000 - 0x87d7a000  0x2 pages  [FREE]   0x1
+0x87d7a000 - 0x87d7b000  0x1 pages  [FREE]   0x0
+0x87d7b000 - 0x87d7c000  0x1 pages  [USED]   0x0
+0x87d7c000 - 0x87d7d000  0x1 pages  [USED]   0x0
+0x87d7d000 - 0x87d7e000  0x1 pages  [USED]   0x0
+0x87d7e000 - 0x87d7f000  0x1 pages  [USED]   0x0
+0x87d7f000 - 0x87d80000  0x1 pages  [USED]   0x0
+0x87d80000 - 0x87d90000  0x10 pages  [FREE]   0x4
+0x87d90000 - 0x87d92000  0x2 pages  [USED]   0x1
+0x87d92000 - 0x87d93000  0x1 pages  [USED]   0x0
+0x87d93000 - 0x87d94000  0x1 pages  [USED]   0x0
+0x87d94000 - 0x87d95000  0x1 pages  [USED]   0x0
+0x87d95000 - 0x87d96000  0x1 pages  [FREE]   0x0
+0x87d96000 - 0x87d98000  0x2 pages  [FREE]   0x1
+0x87d98000 - 0x87d9a000  0x2 pages  [USED]   0x1
+0x87d9a000 - 0x87d9c000  0x2 pages  [USED]   0x1
+0x87d9c000 - 0x87da0000  0x4 pages  [USED]   0x2
+0x87da0000 - 0x87da1000  0x1 pages  [FREE]   0x0
+0x87da1000 - 0x87da2000  0x1 pages  [USED]   0x0
+0x87da2000 - 0x87da3000  0x1 pages  [USED]   0x0
+0x87da3000 - 0x87da4000  0x1 pages  [USED]   0x0
+0x87da4000 - 0x87da5000  0x1 pages  [USED]   0x0
+0x87da5000 - 0x87da6000  0x1 pages  [USED]   0x0
+0x87da6000 - 0x87da8000  0x2 pages  [FREE]   0x1
+0x87da8000 - 0x87dac000  0x4 pages  [FREE]   0x2
+0x87dac000 - 0x87dae000  0x2 pages  [FREE]   0x1
+0x87dae000 - 0x87daf000  0x1 pages  [USED]   0x0
+0x87daf000 - 0x87db0000  0x1 pages  [USED]   0x0
+0x87db0000 - 0x87db1000  0x1 pages  [USED]   0x0
+0x87db1000 - 0x87db2000  0x1 pages  [USED]   0x0
+0x87db2000 - 0x87db3000  0x1 pages  [USED]   0x0
+0x87db3000 - 0x87db4000  0x1 pages  [USED]   0x0
+0x87db4000 - 0x87db6000  0x2 pages  [USED]   0x1
+0x87db6000 - 0x87db7000  0x1 pages  [USED]   0x0
+0x87db7000 - 0x87db8000  0x1 pages  [USED]   0x0
+0x87db8000 - 0x87db9000  0x1 pages  [USED]   0x0
+0x87db9000 - 0x87dba000  0x1 pages  [USED]   0x0
+0x87dba000 - 0x87dbc000  0x2 pages  [FREE]   0x1
+0x87dbc000 - 0x87dbd000  0x1 pages  [USED]   0x0
+0x87dbd000 - 0x87dbe000  0x1 pages  [USED]   0x0
+0x87dbe000 - 0x87dbf000  0x1 pages  [USED]   0x0
+0x87dbf000 - 0x87dc0000  0x1 pages  [USED]   0x0
+0x87dc0000 - 0x87dc1000  0x1 pages  [USED]   0x0
+0x87dc1000 - 0x87dc2000  0x1 pages  [USED]   0x0
+0x87dc2000 - 0x87dc3000  0x1 pages  [USED]   0x0
+0x87dc3000 - 0x87dc4000  0x1 pages  [USED]   0x0
+0x87dc4000 - 0x87dc5000  0x1 pages  [USED]   0x0
+0x87dc5000 - 0x87dc6000  0x1 pages  [USED]   0x0
+0x87dc6000 - 0x87dc7000  0x1 pages  [USED]   0x0
+0x87dc7000 - 0x87dc8000  0x1 pages  [USED]   0x0
+0x87dc8000 - 0x87dc9000  0x1 pages  [USED]   0x0
+0x87dc9000 - 0x87dca000  0x1 pages  [USED]   0x0
+0x87dca000 - 0x87dcb000  0x1 pages  [USED]   0x0
+0x87dcb000 - 0x87dcc000  0x1 pages  [USED]   0x0
+0x87dcc000 - 0x87dcd000  0x1 pages  [USED]   0x0
+0x87dcd000 - 0x87dce000  0x1 pages  [USED]   0x0
+0x87dce000 - 0x87dcf000  0x1 pages  [USED]   0x0
+0x87dcf000 - 0x87dd0000  0x1 pages  [USED]   0x0
+0x87dd0000 - 0x87dd1000  0x1 pages  [USED]   0x0
+0x87dd1000 - 0x87dd2000  0x1 pages  [USED]   0x0
+0x87dd2000 - 0x87dd3000  0x1 pages  [USED]   0x0
+0x87dd3000 - 0x87dd4000  0x1 pages  [USED]   0x0
+0x87dd4000 - 0x87dd5000  0x1 pages  [USED]   0x0
+0x87dd5000 - 0x87dd6000  0x1 pages  [USED]   0x0
+0x87dd6000 - 0x87dd7000  0x1 pages  [USED]   0x0
+0x87dd7000 - 0x87dd8000  0x1 pages  [USED]   0x0
+0x87dd8000 - 0x87dd9000  0x1 pages  [USED]   0x0
+0x87dd9000 - 0x87dda000  0x1 pages  [USED]   0x0
+0x87dda000 - 0x87ddb000  0x1 pages  [USED]   0x0
+0x87ddb000 - 0x87ddc000  0x1 pages  [USED]   0x0
+0x87ddc000 - 0x87ddd000  0x1 pages  [USED]   0x0
+0x87ddd000 - 0x87dde000  0x1 pages  [USED]   0x0
+0x87dde000 - 0x87ddf000  0x1 pages  [USED]   0x0
+0x87ddf000 - 0x87de0000  0x1 pages  [USED]   0x0
+0x87de0000 - 0x87de1000  0x1 pages  [USED]   0x0
+0x87de1000 - 0x87de2000  0x1 pages  [USED]   0x0
+0x87de2000 - 0x87de3000  0x1 pages  [USED]   0x0
+0x87de3000 - 0x87de4000  0x1 pages  [USED]   0x0
+0x87de4000 - 0x87de5000  0x1 pages  [USED]   0x0
+0x87de5000 - 0x87de6000  0x1 pages  [USED]   0x0
+0x87de6000 - 0x87de7000  0x1 pages  [USED]   0x0
+0x87de7000 - 0x87de8000  0x1 pages  [USED]   0x0
+0x87de8000 - 0x87de9000  0x1 pages  [USED]   0x0
+0x87de9000 - 0x87dea000  0x1 pages  [USED]   0x0
+0x87dea000 - 0x87deb000  0x1 pages  [USED]   0x0
+0x87deb000 - 0x87dec000  0x1 pages  [USED]   0x0
+0x87dec000 - 0x87ded000  0x1 pages  [USED]   0x0
+0x87ded000 - 0x87dee000  0x1 pages  [USED]   0x0
+0x87dee000 - 0x87def000  0x1 pages  [USED]   0x0
+0x87def000 - 0x87df0000  0x1 pages  [USED]   0x0
+0x87df0000 - 0x87df1000  0x1 pages  [USED]   0x0
+0x87df1000 - 0x87df2000  0x1 pages  [USED]   0x0
+0x87df2000 - 0x87df3000  0x1 pages  [USED]   0x0
+0x87df3000 - 0x87df4000  0x1 pages  [USED]   0x0
+0x87df4000 - 0x87df5000  0x1 pages  [USED]   0x0
+0x87df5000 - 0x87df6000  0x1 pages  [USED]   0x0
+0x87df6000 - 0x87df7000  0x1 pages  [USED]   0x0
+0x87df7000 - 0x87df8000  0x1 pages  [USED]   0x0
+0x87df8000 - 0x87df9000  0x1 pages  [USED]   0x0
+0x87df9000 - 0x87dfa000  0x1 pages  [USED]   0x0
+0x87dfa000 - 0x87dfb000  0x1 pages  [USED]   0x0
+0x87dfb000 - 0x87dfc000  0x1 pages  [USED]   0x0
+0x87dfc000 - 0x87dfd000  0x1 pages  [USED]   0x0
+0x87dfd000 - 0x87dfe000  0x1 pages  [USED]   0x0
+0x87dfe000 - 0x87dff000  0x1 pages  [USED]   0x0
+0x87dff000 - 0x87e00000  0x1 pages  [USED]   0x0
+0x87e00000 - 0x87e01000  0x1 pages  [USED]   0x0
+0x87e01000 - 0x87e02000  0x1 pages  [USED]   0x0
+0x87e02000 - 0x87e03000  0x1 pages  [USED]   0x0
+0x87e03000 - 0x87e04000  0x1 pages  [USED]   0x0
+  [CHILD-PASS] PA Distinct (0x87A00000 vs 0x80200000).
+  [CHILD] Exec success.
+
+RESULT: [ SUCCESS ]
+$ QEMU: Terminated
 

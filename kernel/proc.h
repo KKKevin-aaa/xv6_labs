@@ -123,5 +123,24 @@ struct vm_dupl_ctx {
     void *ret_va;
     uint64 max_sz;
     int level;
-    res_block *rb_array;
+    res_block *rblocks;
+};
+
+struct vm_partial_copy_ctx{
+    pte_t *dst_pt;  //Dest Page table
+    pte_t *src_pt;  //Source Page table
+    uint64 src_pa;
+    uint64 base_va;
+    uint64 size;
+    int level;
+    res_block *rblocks;
+};
+
+struct vm_whole_copy_ctx{
+    pte_t *dst_pt;
+    pte_t *src_pt;
+    uint64 base_va;
+    uint64 size;
+    uint64 level;
+    res_block *rblocks;
 };

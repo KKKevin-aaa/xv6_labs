@@ -176,7 +176,8 @@ LOG_FILE := qemu_output.log
 ifeq ($(PIPE), 1)
 LOG_SUFFIX := 2>&1 | tee $(LOG_FILE)
 else
-LOG_SUFFIX := 2>&1 > $(LOG_FILE)
+# LOG_SUFFIX := 2>&1 > $(LOG_FILE)
+LOG_SUFFIX :=
 endif
 
 LDFLAGS = -z max-page-size=4096
