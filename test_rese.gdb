@@ -1,0 +1,9 @@
+break merge_into_hugepages
+break merge_into_hugepages_In
+break merge_into_hugepages_Out
+break alloc_res_memory
+break free_res_memory
+break reclaim_res_memory_range
+break Simp_alloc_res_memory
+break move_and_aggregate
+break vmfault

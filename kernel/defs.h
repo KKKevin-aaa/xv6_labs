@@ -1,3 +1,7 @@
+#ifdef LAB_MMAP
+typedef unsigned long size_t;
+typedef long int off_t;
+#endif
 struct buf;
 struct context;
 struct file;
@@ -8,7 +12,12 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
-
+struct vm_dupl_ctx;
+#ifdef LAB_LOCK
+struct rwspinlock;
+#endif
+#define MAX(a, b) (((a) < (b)) ? (b) : (a))
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
@@ -33,6 +42,7 @@ void            fileinit(void);
 int             fileread(struct file*, uint64, int n);
 int             filestat(struct file*, uint64 addr);
 int             filewrite(struct file*, uint64, int n);
+int             fileioctl(struct file*, int, uint64);
 
 // fs.c
 void            fsinit(int);
@@ -59,7 +69,14 @@ void            ireclaim(int);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
-
+void            free_pages(void *pa, uint64 sz); //for huge page
+void*           alloc_memory(uint64);
+uint16          get_order(uint64 pa);
+uint8           is_head(uint64 pa);
+uint8           is_managed_memory(uint64 pa);
+void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz, int level);
+int             is_pagetable_empty(pagetable_t pagetable);
+void            dump_memory_map();
 // log.c
 void            initlog(int, struct superblock*);
 void            log_write(struct buf*);
@@ -84,7 +101,7 @@ int             kfork(void);
 int             growproc(int);
 void            proc_mapstacks(pagetable_t);
 pagetable_t     proc_pagetable(struct proc *);
-void            proc_freepagetable(pagetable_t, uint64);
+void            proc_freepagetable(res_block * , pagetable_t, uint64);
 int             kkill(int);
 int             killed(struct proc*);
 void            setkilled(struct proc*);
@@ -92,7 +109,7 @@ struct cpu*     mycpu(void);
 struct proc*    myproc();
 void            procinit(void);
 void            scheduler(void) __attribute__((noreturn));
-void            sched(void);
+void            scheduleProcess(void);
 void            sleep(void*, struct spinlock*);
 void            userinit(void);
 int             kwait(uint64);
@@ -112,6 +129,15 @@ void            initlock(struct spinlock*, char*);
 void            release(struct spinlock*);
 void            push_off(void);
 void            pop_off(void);
+int             atomic_read4(int *addr);
+#ifdef LAB_LOCK
+void            freelock(struct spinlock*);
+void            read_acquire(struct rwspinlock*);
+void            read_release(struct rwspinlock*);
+void            write_acquire(struct rwspinlock*);
+void            write_release(struct rwspinlock*);
+void            rwspinlock_test();
+#endif
 
 // sleeplock.c
 void            acquiresleep(struct sleeplock*);
@@ -133,7 +159,7 @@ void            argint(int, int*);
 int             argstr(int, char*, int);
 void            argaddr(int, uint64 *);
 int             fetchstr(uint64, char*, int);
-int             fetchaddr(uint64, uint64*);
+int             fetchaddr(uint64 addr, uint64* ip);
 void            syscall();
 
 // trap.c
@@ -158,17 +184,28 @@ int             mappages(pagetable_t, uint64, uint64, uint64, int);
 pagetable_t     uvmcreate(void);
 uint64          uvmalloc(pagetable_t, uint64, uint64, int);
 uint64          uvmdealloc(pagetable_t, uint64, uint64);
-int             uvmcopy(pagetable_t, pagetable_t, uint64);
-void            uvmfree(pagetable_t, uint64);
+int             uvmcopy(res_block *, pagetable_t, pagetable_t, uint64);
+void            uvmfree(res_block *, pagetable_t, uint64);
 void            uvmunmap(pagetable_t, uint64, uint64, int);
 void            uvmclear(pagetable_t, uint64);
-pte_t *         walk(pagetable_t, uint64, int);
+pte_t *         walk(pagetable_t, uint64, int, int);
 uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
 int             ismapped(pagetable_t, uint64);
-uint64          vmfault(pagetable_t, uint64, int);
+uint64          vmfault(res_block *, pagetable_t, uint64, int);
+// #if defined(LAB_PGTBL) || defined(SOL_MMAP)
+void            vmprint(pagetable_t);
+// #endif
+// #ifdef LAB_PGTBL
+pte_t*          pgpte(pagetable_t, uint64);
+// #endif
+void            init_res_array(res_block *, uint64 init_heap_start);
+uint64          alloc_res_memory(res_block *, pagetable_t, uint64, uint64, uint64, int);
+uint64          free_res_memory(res_block *, pagetable_t, uint64, uint64, uint64);
+void reclaim_res_memory_range(res_block *rb_array, pagetable_t pagetable, uint64 start_va, uint64 end_va);
+uint64          Simp_alloc_res_memory(res_block *, pagetable_t, uint64, int);
 
 // plic.c
 void            plicinit(void);
@@ -183,3 +220,39 @@ void            virtio_disk_intr(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+
+
+
+#ifdef LAB_PGTBL
+// vmcopyin.c
+int             copyin_new(pagetable_t, char *, uint64, uint64);
+int             copyinstr_new(pagetable_t, char *, uint64, uint64);
+#endif
+
+#ifdef LAB_LOCK
+// stats.c
+void            statsinit(void);
+void            statsinc(void);
+
+// sprintf.c
+int             snprintf(char*, unsigned long, const char*, ...);
+#endif
+
+#ifdef KCSAN
+void            kcsaninit();
+#endif
+
+#ifdef LAB_NET
+// pci.c
+void            pci_init();
+
+// e1000.c
+void            e1000_init(uint32 *);
+void            e1000_intr(void);
+int             e1000_transmit(char *, int);
+
+// net.c
+void            netinit(void);
+void            net_rx(char *buf, int len);
+
+#endif

@@ -9,28 +9,82 @@ K=kernel
 U=user
 
 OBJS = \
-  $K/entry.o \
-  $K/kalloc.o \
-  $K/string.o \
-  $K/main.o \
-  $K/vm.o \
-  $K/proc.o \
-  $K/swtch.o \
-  $K/trampoline.o \
-  $K/trap.o \
-  $K/syscall.o \
-  $K/sysproc.o \
-  $K/bio.o \
-  $K/fs.o \
-  $K/log.o \
-  $K/sleeplock.o \
-  $K/file.o \
-  $K/pipe.o \
-  $K/exec.o \
-  $K/sysfile.o \
-  $K/kernelvec.o \
-  $K/plic.o \
-  $K/virtio_disk.o
+  $(K)/$(OBJ_DIR)/entry.o \
+  $(K)/$(OBJ_DIR)/kalloc.o \
+  $(K)/$(OBJ_DIR)/string.o \
+  $(K)/$(OBJ_DIR)/main.o \
+  $(K)/$(OBJ_DIR)/vm.o \
+  $(K)/$(OBJ_DIR)/proc.o \
+  $(K)/$(OBJ_DIR)/swtch.o \
+  $(K)/$(OBJ_DIR)/trampoline.o \
+  $(K)/$(OBJ_DIR)/trap.o \
+  $(K)/$(OBJ_DIR)/syscall.o \
+  $(K)/$(OBJ_DIR)/sysproc.o \
+  $(K)/$(OBJ_DIR)/bio.o \
+  $(K)/$(OBJ_DIR)/fs.o \
+  $(K)/$(OBJ_DIR)/log.o \
+  $(K)/$(OBJ_DIR)/sleeplock.o \
+  $(K)/$(OBJ_DIR)/file.o \
+  $(K)/$(OBJ_DIR)/pipe.o \
+  $(K)/$(OBJ_DIR)/exec.o \
+  $(K)/$(OBJ_DIR)/sysfile.o \
+  $(K)/$(OBJ_DIR)/kernelvec.o \
+  $(K)/$(OBJ_DIR)/plic.o \
+  $(K)/$(OBJ_DIR)/virtio_disk.o
+
+OBJS_KCSAN = \
+  $(K)/$(OBJ_DIR)/start.o \
+  $(K)/$(OBJ_DIR)/console.o \
+  $(K)/$(OBJ_DIR)/printf.o \
+  $(K)/$(OBJ_DIR)/uart.o \
+  $(K)/$(OBJ_DIR)/spinlock.o
+
+ifdef KCSAN
+OBJS_KCSAN += \
+	$(K)/$(OBJ_DIR)/kcsan.o
+endif
+
+ifeq ($(LAB),lock)
+OBJS += \
+	$(K)/$(OBJ_DIR)/stats.o\
+	$(K)/$(OBJ_DIR)/sprintf.o
+endif
+
+
+ifeq ($(LAB),net)
+OBJS += \
+	$(K)/$(OBJ_DIR)/e1000.o \
+	$(K)/$(OBJ_DIR)/net.o \
+	$(K)/$(OBJ_DIR)/pci.o
+endif
+
+
+OBJS_KCSAN = \
+  $(K)/$(OBJ_DIR)/start.o \
+  $(K)/$(OBJ_DIR)/console.o \
+  $(K)/$(OBJ_DIR)/printf.o \
+  $(K)/$(OBJ_DIR)/uart.o \
+  $(K)/$(OBJ_DIR)/spinlock.o
+
+ifdef KCSAN
+OBJS_KCSAN += \
+	$(K)/$(OBJ_DIR)/kcsan.o
+endif
+
+ifeq ($(LAB),lock)
+OBJS += \
+	$(K)/$(OBJ_DIR)/stats.o\
+	$(K)/$(OBJ_DIR)/sprintf.o
+endif
+
+
+ifeq ($(LAB),net)
+OBJS += \
+	$(K)/$(OBJ_DIR)/e1000.o \
+	$(K)/$(OBJ_DIR)/net.o \
+	$(K)/$(OBJ_DIR)/pci.o
+endif
+
 
 OBJS_KCSAN = \
   $K/start.o \
@@ -88,8 +142,7 @@ LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
-CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -gdwarf-2
-CFLAGS = -Wall -Werror -Wno-unknown-attributes -O -fno-omit-frame-pointer -ggdb -gdwarf-2
+CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer
 
 ifdef LAB
 LABUPPER = $(shell echo $(LAB) | tr a-z A-Z)
@@ -119,6 +172,15 @@ CFLAGS += -DKCSAN
 KCSANFLAG = -fsanitize=thread -fno-inline
 endif
 
+ifeq ($(LAB),net)
+CFLAGS += -DNET_TESTS_PORT=$(SERVERPORT)
+endif
+
+ifdef KCSAN
+CFLAGS += -DKCSAN
+KCSANFLAG = -fsanitize=thread -fno-inline
+endif
+
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)
 CFLAGS += -fno-pie -no-pie
@@ -127,47 +189,71 @@ ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]nopie'),)
 CFLAGS += -fno-pie -nopie
 endif
 
-LDFLAGS = -z max-page-size=4096
+BUILD_ROOT_DIR := build
 
-$K/kernel: $(OBJS) $(OBJS_KCSAN) $K/kernel.ld
-	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel $(OBJS) $(OBJS_KCSAN)
-	$(OBJDUMP) -S $K/kernel > $K/kernel.asm
-	$(OBJDUMP) -t $K/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $K/kernel.sym
-$(OBJS): EXTRAFLAG := $(KCSANFLAG)
-
-$K/%.o: $K/%.c
-	$(CC) $(CFLAGS) $(EXTRAFLAG) -c -o $@ $<
-
-$K/%.o: $K/%.S
-	$(CC) -g -c -o $@ $<
-
-tags: $(OBJS)
-	etags kernel/*.S kernel/*.c
-
-ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
-
-ifeq ($(LAB),lock)
-ULIB += $U/statistics.o
+ifeq ($(DEBUG), 1)
+  CFLAGS += -DDEBUG_FORK -DDEBUG_VM -DDEBUG_KALLOC -DDEBUG_EXEC -O0 -g3 -gdwarf-4
+  OBJ_DIR := $(BUILD_ROOT_DIR)/DEBUG
+else
+  CFLAGS += -O2 -ggdb -gdwarf-4
+  OBJ_DIR := $(BUILD_ROOT_DIR)/release
+endif
+LOG_FILE := qemu_output.log
+ifeq ($(PIPE), 1)
+LOG_SUFFIX := 2>&1 | tee $(LOG_FILE)
+else
+# LOG_SUFFIX := 2>&1 > $(LOG_FILE)
+LOG_SUFFIX :=
 endif
 
-_%: %.o $(ULIB) $U/user.ld
-	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $< $(ULIB)
-	$(OBJDUMP) -S $@ > $*.asm
-	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $*.sym
+LDFLAGS = -z max-page-size=4096
 
-$U/usys.S : $U/usys.pl
-	perl $U/usys.pl > $U/usys.S
+$(OBJ_DIR):
+	@mkdir -p $(K)/$@
+	@mkdir -p $(U)/$@
 
-$U/usys.o : $U/usys.S
-	$(CC) $(CFLAGS) -c -o $U/usys.o $U/usys.S
+$(K)/$(OBJ_DIR)/kernel: $(OBJS) $(OBJS_KCSAN) $(K)/kernel.ld | $(OBJ_DIR)
+	$(LD) $(LDFLAGS) -T $(K)/kernel.ld -o $(K)/$(OBJ_DIR)/kernel $(OBJS) $(OBJS_KCSAN)
+	$(OBJDUMP) -S $(K)/$(OBJ_DIR)/kernel > $(K)/$(OBJ_DIR)/kernel.asm
+	$(OBJDUMP) -t $(K)/$(OBJ_DIR)/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(K)/$(OBJ_DIR)/kernel.sym
+$(OBJS): EXTRAFLAG := $(KCSANFLAG)
 
-$U/_forktest: $U/forktest.o $(ULIB)
+$(K)/$(OBJ_DIR)/%.o: $(K)/%.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(EXTRAFLAG) -c -o $@ $<
+
+$(K)/$(OBJ_DIR)/%.o: $(K)/%.S | $(OBJ_DIR)
+	$(CC) -c -o $@ $<
+
+tags: $(OBJS) | $(OBJ_DIR)
+	etags kernel/*.S kernel/*.c
+
+ULIB = $(U)/$(OBJ_DIR)/ulib.o $(U)/$(OBJ_DIR)/usys.o $(U)/$(OBJ_DIR)/printf.o $(U)/$(OBJ_DIR)/umalloc.o $(U)/$(OBJ_DIR)/regexp.o
+
+ifeq ($(LAB),lock)
+ULIB += $(U)/$(OBJ_DIR)/statistics.o
+endif
+
+$(U)/$(OBJ_DIR)/_%: $(U)/$(OBJ_DIR)/%.o $(ULIB) $(U)/user.ld | $(OBJ_DIR)
+	$(LD) $(LDFLAGS) -T $(U)/user.ld -o $@ $< $(ULIB)
+	$(OBJDUMP) -S $@ > $(U)/$(OBJ_DIR)/$*.asm
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(U)/$(OBJ_DIR)/$*.sym
+
+$(U)/$(OBJ_DIR)/%.o :$(U)/%.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(EXTRAFLAG) -c -o $@ $<
+
+$(U)/$(OBJ_DIR)/usys.S : $(U)/usys.pl | $(OBJ_DIR)
+	perl $(U)/usys.pl > $(U)/$(OBJ_DIR)/usys.S
+
+$(U)/$(OBJ_DIR)/usys.o : $(U)/$(OBJ_DIR)/usys.S | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c -o $(U)/$(OBJ_DIR)/usys.o $(U)/$(OBJ_DIR)/usys.S
+
+$(U)/$(OBJ_DIR)/_forktest: $(U)/$(OBJ_DIR)/forktest.o $(ULIB) | $(OBJ_DIR)
 	# forktest has less library code linked in - needs to be small
 	# in order to be able to max out the proc table.
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $U/_forktest $U/forktest.o $U/ulib.o $U/usys.o
-	$(OBJDUMP) -S $U/_forktest > $U/forktest.asm
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(U)/$(OBJ_DIR)/_forktest $(U)/$(OBJ_DIR)/forktest.o $(U)/$(OBJ_DIR)/ulib.o $(U)/$(OBJ_DIR)/usys.o
+	$(OBJDUMP) -S $(U)/$(OBJ_DIR)/_forktest > $(U)/$(OBJ_DIR)/forktest.asm
 
-mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
+mkfs/mkfs: mkfs/mkfs.c $(K)/fs.h $(K)/param.h | $(OBJ_DIR)
 	gcc $(XCFLAGS) -Wno-unknown-attributes -Werror -Wall -I. -o mkfs/mkfs mkfs/mkfs.c
 
 # Prevent deletion of intermediate files, e.g. cat.o, after first build, so
@@ -177,74 +263,76 @@ mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
 .PRECIOUS: %.o
 
 UPROGS=\
-	$U/_cat\
-	$U/_echo\
-	$U/_forktest\
-	$U/_grep\
-	$U/_init\
-	$U/_kill\
-	$U/_ln\
-	$U/_ls\
-	$U/_mkdir\
-	$U/_rm\
-	$U/_sh\
-	$U/_stressfs\
-	$U/_usertests\
-	$U/_grind\
-	$U/_wc\
-	$U/_zombie\
-	$U/_logstress\
-	$U/_forphan\
-	$U/_dorphan\
+	$(U)/$(OBJ_DIR)/_cat\
+	$(U)/$(OBJ_DIR)/_echo\
+	$(U)/$(OBJ_DIR)/_forktest\
+	$(U)/$(OBJ_DIR)/_grep\
+	$(U)/$(OBJ_DIR)/_init\
+	$(U)/$(OBJ_DIR)/_kill\
+	$(U)/$(OBJ_DIR)/_ln\
+	$(U)/$(OBJ_DIR)/_ls\
+	$(U)/$(OBJ_DIR)/_mkdir\
+	$(U)/$(OBJ_DIR)/_rm\
+	$(U)/$(OBJ_DIR)/_sh\
+	$(U)/$(OBJ_DIR)/_stressfs\
+	$(U)/$(OBJ_DIR)/_usertests\
+	$(U)/$(OBJ_DIR)/_grind\
+	$(U)/$(OBJ_DIR)/_wc\
+	$(U)/$(OBJ_DIR)/_zombie\
+	$(U)/$(OBJ_DIR)/_logstress\
+	$(U)/$(OBJ_DIR)/_forphan\
+	$(U)/$(OBJ_DIR)/_dorphan\
+	$(U)/$(OBJ_DIR)/_sandbox\
+	$(U)/$(OBJ_DIR)/_reserve_test
 
 
 
 ifeq ($(LAB),util)
 UPROGS += \
-	$U/_sleep\
-	$U/_sixfive\
-	$U/_find
+	$(U)/$(OBJ_DIR)/_sleep\
+	$(U)/$(OBJ_DIR)/_sixfive\
+	$(U)/$(OBJ_DIR)/_find
 endif
 ### ENDIF
 
 
 ifeq ($(LAB),syscall)
 UPROGS += \
-	$U/_attack\
-	$U/_secret
+	$(U)/$(OBJ_DIR)/_attack\
+	$(U)/$(OBJ_DIR)/_secret
 endif
 
 ifeq ($(LAB),lock)
 UPROGS += \
-	$U/_stats
+	$(U)/$(OBJ_DIR)/_stats
 endif
 
 ifeq ($(LAB),traps)
 UPROGS += \
-	$U/_call\
-	$U/_bttest
+	$(U)/$(OBJ_DIR)/_call\
+	$(U)/$(OBJ_DIR)/_bttest
 endif
 
 ifeq ($(LAB),lazy)
 UPROGS += \
-	$U/_lazytests
+	$(U)/$(OBJ_DIR)/_lazytests
 endif
 
 ifeq ($(LAB),cow)
 UPROGS += \
-	$U/_cowtest
+	$(U)/$(OBJ_DIR)/_cowtest
 endif
 
 ifeq ($(LAB),thread)
 UPROGS += \
-	$U/_uthread
+	$(U)/$(OBJ_DIR)/_uthread
 
-$U/uthread_switch.o : $U/uthread_switch.S
-	$(CC) $(CFLAGS) -c -o $U/uthread_switch.o $U/uthread_switch.S
+$(U)/$(OBJ_DIR)/uthread_switch.o : $(U)/$(OBJ_DIR)/uthread_switch.S | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c -o $(U)/$(OBJ_DIR)/uthread_switch.o $(U)/$(OBJ_DIR)/uthread_switch.S
 
-$U/_uthread: $U/uthread.o $U/uthread_switch.o $(ULIB)
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $U/_uthread $U/uthread.o $U/uthread_switch.o $(ULIB)
-	$(OBJDUMP) -S $U/_uthread > $U/uthread.asm
+$(U)/$(OBJ_DIR)/_uthread: $(U)/$(OBJ_DIR)/uthread.o $(U)/$(OBJ_DIR)/uthread_switch.o $(ULIB) | $(OBJ_DIR)
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(U)/$(OBJ_DIR)/_uthread $(U)/$(OBJ_DIR)/uthread.o $(U)/$(OBJ_DIR)/uthread_switch.o $(ULIB)
+	$(OBJDUMP) -S $(U)/$(OBJ_DIR)/_uthread > $(U)/$(OBJ_DIR)/uthread.asm
 
 ph: notxv6/ph.c
 	gcc -o ph -g -O2 $(XCFLAGS) notxv6/ph.c -pthread
@@ -255,55 +343,61 @@ endif
 
 ifeq ($(LAB),pgtbl)
 UPROGS += \
-	$U/_pgtbltest
+	$(U)/$(OBJ_DIR)/_pgtbltest
 endif
 
 ifeq ($(LAB),lock)
 UPROGS += \
-	$U/_kalloctest\
-	$U/_bcachetest
+	$(U)/$(OBJ_DIR)/_kalloctest\
+	$(U)/$(OBJ_DIR)/_bcachetest
 endif
 
 ifeq ($(LAB),fs)
 UPROGS += \
-	$U/_bigfile
+	$(U)/$(OBJ_DIR)/_bigfile
 endif
 
 
 ifeq ($(LAB),mmap)
 UPROGS += \
-	$U/_mmaptest
+	$(U)/$(OBJ_DIR)/_mmaptest
 endif
 
 ifeq ($(LAB),net)
 UPROGS += \
-	$U/_nettest
+	$(U)/$(OBJ_DIR)/_nettest
 endif
 
 UEXTRA=
 ifeq ($(LAB),util)
 	UEXTRA += user/findtest.sh
 	UEXTRA += user/sixfive.txt
-	UPROGS += $U/_memdump
+	UPROGS += $(U)/$(OBJ_DIR)/_memdump
 endif
 ifeq ($(LAB),syscall)
 	UEXTRA += user/exec.sh
 endif
 
-fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS)
+# Add custom text files to filesystem
+UEXTRA += big.txt bigger.txt biggerer.txt huge.txt
+
+fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS) | $(OBJ_DIR)
 	mkfs/mkfs fs.img README $(UEXTRA) $(UPROGS)
 
 newfs.img: 
 	-mv -f fs.img fs.img.bk
 
--include kernel/*.d user/*.d
+# -include kernel/*.d user/*.d
+ifneq ($(MAKECMDGOALS), clean)
+  -include $(K)/$(OBJ_DIR)/*.d $(U)/$(OBJ_DIR)/*.d
+endif
 
 clean:
 	rm -rf *.tex *.dvi *.idx *.aux *.log *.ind *.ilg *.dSYM *.zip *.pcap \
-	*/*.o */*.d */*.asm */*.sym \
-	$K/kernel fs.img \
+	*/*.o */*.d */*.asm */*.sym $(K)/$(BUILD_ROOT_DIR) $(U)/$(BUILD_ROOT_DIR) \
+	$(K)/$(OBJ_DIR)/kernel fs.img \
 	mkfs/mkfs .gdbinit \
-        $U/usys.S \
+        $(U)/$(OBJ_DIR)/usys.S \
 	$(UPROGS)
 
 # try to generate a unique GDB port
@@ -313,7 +407,13 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	then echo "-gdb tcp::$(GDBPORT)"; \
 	else echo "-s -p $(GDBPORT)"; fi)
 ifndef CPUS
-CPUS := 3
+CPUS := 1
+endif
+ifeq ($(LAB),fs)
+CPUS := 1
+endif
+ifeq ($(LAB),fs)
+CPUS := 1
 endif
 ifeq ($(LAB),fs)
 CPUS := 1
@@ -322,30 +422,64 @@ endif
 FWDPORT1 = $(shell expr `id -u` % 5000 + 25999)
 FWDPORT2 = $(shell expr `id -u` % 5000 + 30999)
 
-QEMUOPTS = -machine virt -bios none -kernel $K/kernel -m 128M -smp $(CPUS) -nographic
+FWDPORT1 = $(shell expr `id -u` % 5000 + 25999)
+FWDPORT2 = $(shell expr `id -u` % 5000 + 30999)
+
+QEMUOPTS = -machine virt -bios none -kernel $(K)/$(OBJ_DIR)/kernel -m 128M -smp $(CPUS) -nographic
 QEMUOPTS += -global virtio-mmio.force-legacy=false
 QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0
 QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
-
+QEMUOPTS += -cpu rv64,zbb=true
 ifeq ($(LAB),net)
 QEMUOPTS += -netdev user,id=net0,hostfwd=udp::$(FWDPORT1)-:2000,hostfwd=udp::$(FWDPORT2)-:2001 -object filter-dump,id=net0,netdev=net0,file=packets.pcap
 QEMUOPTS += -device e1000,netdev=net0,bus=pcie.0
 endif
 
 # makes a new fs.img
-qemu: check-qemu-version newfs.img $K/kernel fs.img
-	$(QEMU) $(QEMUOPTS)
+qemu: check-qemu-version newfs.img $(K)/$(OBJ_DIR)/kernel fs.img | $(OBJ_DIR)
+	$(QEMU) $(QEMUOPTS) $(LOG_SUFFIX)
 
 # runs with existing fs.img, if present
-qemu-fs: check-qemu-version $K/kernel fs.img
-	$(QEMU) $(QEMUOPTS)
+qemu-fs: check-qemu-version $(K)/$(OBJ_DIR)/kernel fs.img | $(OBJ_DIR)
+ifeq ($(LAB),net)
+QEMUOPTS += -netdev user,id=net0,hostfwd=udp::$(FWDPORT1)-:2000,hostfwd=udp::$(FWDPORT2)-:2001 -object filter-dump,id=net0,netdev=net0,file=packets.pcap
+QEMUOPTS += -device e1000,netdev=net0,bus=pcie.0
+endif
 
 .gdbinit: .gdbinit.tmpl-riscv
-	sed "s/:1234/:$(GDBPORT)/" < $^ > $@
+	sed "s/:1234/:$(GDBPORT)/; s|kernel/kernel|$(K)/$(OBJ_DIR)/kernel|" < $^ > $@
 
-qemu-gdb: $K/kernel .gdbinit fs.img
+qemu-gdb: $(K)/$(OBJ_DIR)/kernel .gdbinit fs.img | $(OBJ_DIR)
 	@echo "*** Now run 'gdb' in another window." 1>&2
-	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)
+	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB) $(LOG_SUFFIX)
+
+ifeq ($(LAB),net)
+# try to generate a unique port for the echo server
+SERVERPORT = $(shell expr `id -u` % 5000 + 25099)
+
+endif
+
+##
+##  FOR testing lab grading script
+##
+
+ifneq ($(V),@)
+GRADEFLAGS += -v
+endif
+
+ifeq ($(LAB),net)
+# try to generate a unique port for the echo server
+SERVERPORT = $(shell expr `id -u` % 5000 + 25099)
+
+endif
+
+##
+##  FOR testing lab grading script
+##
+
+ifneq ($(V),@)
+GRADEFLAGS += -v
+endif
 
 ifeq ($(LAB),net)
 # try to generate a unique port for the echo server
