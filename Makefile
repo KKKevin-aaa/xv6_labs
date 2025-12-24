@@ -193,7 +193,7 @@ BUILD_ROOT_DIR := build
 
 ifeq ($(DEBUG), 1)
   CFLAGS += -DDEBUG_FORK -DDEBUG_VM -DDEBUG_KALLOC -DDEBUG_EXEC -O0 -g3 -gdwarf-4
-  OBJ_DIR := $(BUILD_ROOT_DIR)/DEBUG
+  OBJ_DIR := $(BUILD_ROOT_DIR)/debug
 else
   CFLAGS += -O2 -ggdb -gdwarf-4
   OBJ_DIR := $(BUILD_ROOT_DIR)/release
@@ -205,6 +205,7 @@ else
 # LOG_SUFFIX := 2>&1 > $(LOG_FILE)
 LOG_SUFFIX :=
 endif
+KERNEL_TBL := $(K)/$(OBJ_DIR)/kernel.tbl
 
 LDFLAGS = -z max-page-size=4096
 
@@ -214,7 +215,7 @@ $(OBJ_DIR):
 
 $(K)/$(OBJ_DIR)/kernel: $(OBJS) $(OBJS_KCSAN) $(K)/kernel.ld | $(OBJ_DIR)
 	$(LD) $(LDFLAGS) -T $(K)/kernel.ld -o $(K)/$(OBJ_DIR)/kernel $(OBJS) $(OBJS_KCSAN)
-	$(OBJDUMP) -S $(K)/$(OBJ_DIR)/kernel > $(K)/$(OBJ_DIR)/kernel.asm
+	$(OBJDUMP) -S -l $(K)/$(OBJ_DIR)/kernel > $(K)/$(OBJ_DIR)/kernel.asm
 	$(OBJDUMP) -t $(K)/$(OBJ_DIR)/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(K)/$(OBJ_DIR)/kernel.sym
 $(OBJS): EXTRAFLAG := $(KCSANFLAG)
 
@@ -235,7 +236,7 @@ endif
 
 $(U)/$(OBJ_DIR)/_%: $(U)/$(OBJ_DIR)/%.o $(ULIB) $(U)/user.ld | $(OBJ_DIR)
 	$(LD) $(LDFLAGS) -T $(U)/user.ld -o $@ $< $(ULIB)
-	$(OBJDUMP) -S $@ > $(U)/$(OBJ_DIR)/$*.asm
+	$(OBJDUMP) -S -l $@ > $(U)/$(OBJ_DIR)/$*.asm
 	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(U)/$(OBJ_DIR)/$*.sym
 
 $(U)/$(OBJ_DIR)/%.o :$(U)/%.c | $(OBJ_DIR)
@@ -251,7 +252,7 @@ $(U)/$(OBJ_DIR)/_forktest: $(U)/$(OBJ_DIR)/forktest.o $(ULIB) | $(OBJ_DIR)
 	# forktest has less library code linked in - needs to be small
 	# in order to be able to max out the proc table.
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(U)/$(OBJ_DIR)/_forktest $(U)/$(OBJ_DIR)/forktest.o $(U)/$(OBJ_DIR)/ulib.o $(U)/$(OBJ_DIR)/usys.o
-	$(OBJDUMP) -S $(U)/$(OBJ_DIR)/_forktest > $(U)/$(OBJ_DIR)/forktest.asm
+	$(OBJDUMP) -S -l $(U)/$(OBJ_DIR)/_forktest > $(U)/$(OBJ_DIR)/forktest.asm
 
 mkfs/mkfs: mkfs/mkfs.c $(K)/fs.h $(K)/param.h | $(OBJ_DIR)
 	gcc $(XCFLAGS) -Wno-unknown-attributes -Werror -Wall -I. -o mkfs/mkfs mkfs/mkfs.c
@@ -332,7 +333,7 @@ $(U)/$(OBJ_DIR)/uthread_switch.o : $(U)/$(OBJ_DIR)/uthread_switch.S | $(OBJ_DIR)
 
 $(U)/$(OBJ_DIR)/_uthread: $(U)/$(OBJ_DIR)/uthread.o $(U)/$(OBJ_DIR)/uthread_switch.o $(ULIB) | $(OBJ_DIR)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(U)/$(OBJ_DIR)/_uthread $(U)/$(OBJ_DIR)/uthread.o $(U)/$(OBJ_DIR)/uthread_switch.o $(ULIB)
-	$(OBJDUMP) -S $(U)/$(OBJ_DIR)/_uthread > $(U)/$(OBJ_DIR)/uthread.asm
+	$(OBJDUMP) -S -l $(U)/$(OBJ_DIR)/_uthread > $(U)/$(OBJ_DIR)/uthread.asm
 
 ph: notxv6/ph.c
 	gcc -o ph -g -O2 $(XCFLAGS) notxv6/ph.c -pthread
@@ -381,8 +382,10 @@ endif
 # Add custom text files to filesystem
 UEXTRA += big.txt bigger.txt biggerer.txt huge.txt
 
+# here | is Order-only:create if noexist and don't anything if they just become newer
 fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS) | $(OBJ_DIR)
-	mkfs/mkfs fs.img README $(UEXTRA) $(UPROGS)
+	python gene_addr2line.py $(K)/$(OBJ_DIR)/kernel.asm $(KERNEL_TBL)
+	mkfs/mkfs fs.img README $(KERNEL_TBL) $(UEXTRA) $(UPROGS)
 
 newfs.img: 
 	-mv -f fs.img fs.img.bk

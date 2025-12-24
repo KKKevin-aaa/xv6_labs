@@ -17,11 +17,22 @@
 
 volatile int panicking = 0;  // printing a panic message
 volatile int panicked = 0;   // spinning forever at end of a panic
-
+static uint8 init_addrline=0;
 // lock to avoid interleaving concurrent printf's.
 static struct {
     struct spinlock lock;
 } pr;
+//Consider Cache Line.
+//MAX physical address is 0x8800000,uint32_max is 2^32 is enough.
+struct {    //Save Memory bandwidth(Structure of Array)
+    uint32 start_addr[10000];//one single statement maps to multiple inst.
+    //By placing the sequentially,we can save the memory(No record end_addr)
+    uint16 file_fd[200];
+    uint16 line_number[10000];
+}sys_debug_info;
+struct {
+    char filenames[200][128];
+}filename_table;
 
 static char digits[] = "0123456789abcdef";
 
@@ -119,8 +130,42 @@ int printf(char *fmt, ...) {
     return 0;
 }
 
+void init_addrline_table(){ //Python have extracted info from asm file,
+    //Here we form the global array for quick and convinient search
+    //Assuming the kernel.tbl have packed into file_system,where we can readi it.
+    if(init_addrline){
+        printf("Reinit the addrline table!\n");
+        return;
+    }
+    //fd --> struct file*f ->ip --> struct inode*
+    begin_op();
+    struct inode *data_ip=namei("kernel.tbl");
+    ilock(data_ip);
+    //readi
+    iunlock(data_ip);
+    end_op();
+}
+
+void backtrace(){
+    //print the current frame information according s0 and ra
+    if(init_addrline==0){
+        init_addrline_table();
+        init_addrline=1;
+    }
+    printf("backtrace: \n");
+    uint64 cur_func_ra=0, cur_s0=r_fp();    //Kernel mode,use p->kstack
+    uint64 cur_stack_top=PGROUNDUP(cur_s0);
+    cur_func_ra=*(uint64 *)(cur_s0-8);  //Use kernel_paegtable to translate address.
+    while(cur_s0 < cur_stack_top && cur_s0 > (cur_stack_top-PGSIZE)){
+        printf("0x%lx\n", cur_func_ra);
+        cur_s0=*(uint64 *)(cur_s0-16);   //update, seek the prev frame_node 
+        cur_func_ra=*(uint64 *)(cur_s0-8);  //8 bytes
+    }
+}
+
 void panic(char *s) {
     panicking = 1;
+    backtrace();
     printf("panic: ");
     printf("%s\n", s);
     panicked = 1;  // freeze uart output from other CPUs

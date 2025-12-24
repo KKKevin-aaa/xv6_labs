@@ -60,6 +60,7 @@ uint64 usertrap(void) {
                vmfault(p->rb_array, p->pagetable, r_stval(), (r_scause() == 13) ? 1 : 0) != 0) {
         // page fault on lazily-allocated page
     } else {
+        // Unhandle Trap
         printf("usertrap(): unexpected scause 0x%lx pid=%d\n", r_scause(), p->pid);
         printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), r_stval());
         printf("            pagetable is %p, name is %s\n",p->pagetable, p->name);

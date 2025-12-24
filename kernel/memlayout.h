@@ -64,7 +64,15 @@
 #define TRAPFRAME (TRAMPOLINE - PGSIZE)
 
 #define USYSCALL (TRAPFRAME - PGSIZE)
+
+#ifndef __ASSEMBLER__
+/*
+ * GCC automatically defines the "__ASSEMBLER__" macro when processing .S files.
+ * We use this conditional compilation guard to hide C-specific definitions 
+ * (like structs) from the assembler to prevent syntax errors.
+ */
 struct usyscall {
-  int pid;  // Process ID
-  int ticks; //Uptime the time
+    int pid;  // Process ID
+    int ticks; //Uptime the time
 };
+#endif

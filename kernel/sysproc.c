@@ -62,7 +62,6 @@ uint64 sys_sbrk(void) {
 uint64 sys_pause(void) {
     int n;
     uint ticks0;
-
     argint(0, &n);  // Argument Retrieval: Get the sleep duration 'n' form the user stack.
     if (n < 0) n = 0;
     acquire(&tickslock);  // Acquire Lock :Protect the global 'ticks' variables
@@ -74,6 +73,7 @@ uint64 sys_pause(void) {
         }
         sleep(&ticks, &tickslock);
     }
+    backtrace();
     release(&tickslock);
     return 0;
 }
