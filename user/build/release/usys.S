@@ -145,3 +145,8 @@ kpgtbl:
  li a7, SYS_kpgtbl
  ecall
  ret
+.global load_debug_sym
+load_debug_sym:
+ li a7, SYS_load_debug_sym
+ ecall
+ ret

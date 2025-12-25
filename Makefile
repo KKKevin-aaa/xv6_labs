@@ -383,7 +383,8 @@ endif
 UEXTRA += big.txt bigger.txt biggerer.txt huge.txt
 
 # here | is Order-only:create if noexist and don't anything if they just become newer
-fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS) | $(OBJ_DIR)
+# Introduce a kernel dependency to effectively force a rebuild of the assembly files.
+fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS) $(K)/$(OBJ_DIR)/kernel | $(OBJ_DIR)
 	python gene_addr2line.py $(K)/$(OBJ_DIR)/kernel.asm $(KERNEL_TBL)
 	mkfs/mkfs fs.img README $(KERNEL_TBL) $(UEXTRA) $(UPROGS)
 

@@ -28,12 +28,15 @@ def main():
                 full_name=full_name[index:]
             if full_name not in filename_map:
                 filename_map[full_name] = len(filename_map)
-            fileid_list.append(filename_map[full_name])
-            line_list.append(int(match.group(2), 10))
             i = i+1
             while i<len(total_lines):
+                file_submatch=filepattern.match(total_lines[i])
+                if file_submatch:
+                    break
                 addr_submatch=addrpattern.match(total_lines[i])
                 if addr_submatch:
+                    fileid_list.append(filename_map[full_name])
+                    line_list.append(int(match.group(2), 10))
                     addr_list.append(int(addr_submatch.group(1), 16))
                     break
                 i = i+1
@@ -47,11 +50,26 @@ def main():
     addr_count=len(addr_list)
     fileid_count=len(fileid_list)
     line_count=len(line_list)
-    header=struct.pack('IIIII', MAGIC, name_count, addr_count, fileid_count, line_count)
+    # Calculate Maximum Length
+    max_len=0
+    if file_map_list:
+        max_len =max(len(name.encode('utf-8')) for name, _ in file_map_list)
+    max_len=max_len+1
+    header=struct.pack('IIIIII', MAGIC, max_len, 
+                       name_count, addr_count, fileid_count, line_count)
     f_out.write(header)
+    # Force to increasing order
+    combined_data=list(zip(addr_list, fileid_list, line_list))
+    combined_data.sort(key=lambda x :x[0])
+    if combined_data:
+        addr_list, fileid_list, line_list=zip(*combined_data)
+    else:
+        addr_list, fileid_list, line_list= [], [], []
+    # Pad and write data
     for name, _ in file_map_list:
-        bytes_data=name.encode('utf-8') + b'\x00'
-        f_out.write(bytes_data)
+        bytes_data=name.encode('utf-8') 
+        padded_data=bytes_data.ljust(max_len, b'\x00')  # left-justified
+        f_out.write(padded_data)
     for addr in addr_list:  # unsigned int --4bytes(enough for 0x88000000)
         b_data=struct.pack('I', addr)
         f_out.write(b_data)

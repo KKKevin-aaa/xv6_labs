@@ -49,6 +49,7 @@
 
 // map kernel stacks beneath the trampoline,
 // each surrounded by invalid guard pages.
+// Allocate one more the reserved pgsize for USYSCALL
 #define KSTACK(p) (TRAMPOLINE - (p)*2*PGSIZE - 3*PGSIZE)
 
 // User memory layout.

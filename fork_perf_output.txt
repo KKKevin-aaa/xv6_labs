@@ -1,2 +1,0 @@
-make: 'kernel/kernel' is up to date.
-== Test sandbox_fork == 

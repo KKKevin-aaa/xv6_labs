@@ -449,7 +449,7 @@ void stati(struct inode *ip, struct stat *st) {
 // otherwise, dst is a kernel address.
 int readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n) {
     uint tot, m;
-    struct buf *bp;
+    struct buf *bp; //kernel buffer cache, Staging Buffer
 
     if (off > ip->size || off + n < off) return 0;
     if (off + n > ip->size) n = ip->size - off;
@@ -460,7 +460,7 @@ int readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n) {
         bp = bread(ip->dev, addr);
         m = min(n - tot, BSIZE - off % BSIZE);
         if (either_copyout(user_dst, dst, bp->data + (off % BSIZE), m) == -1) {
-            brelse(bp);
+            brelse(bp); //Unlock the Buffer Cache
             tot = -1;
             break;
         }

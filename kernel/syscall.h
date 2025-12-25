@@ -36,3 +36,4 @@
 #define SYS_recv      33
 #define SYS_pgpte     34
 #define SYS_kpgtbl    35
+#define SYS_load_debug_sym 36

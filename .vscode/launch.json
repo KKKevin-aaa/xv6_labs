@@ -5,7 +5,8 @@
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
-            "args": ["./kernel/build/debug/kernel.asm"]
+            "args": ["./kernel/build/debug/kernel.asm",
+             "./kernel/build/debug/kernel.tbl"]
         }
     ]
 }

@@ -123,7 +123,14 @@ recover_from_log(void)
   write_head(); // clear the log
 }
 
-// called at the start of each FS system call.
+/**
+ * called at the start of each FS system call.
+ * Crash Consistency(Modifying data on disk, jouraling is required!
+ * A power failure during partial write casue file system corruption.
+ * The journaling system guarantees atomicity,ALL or nothing
+ * Pure read operations typically do not require transcations.
+ */
+// 
 void
 begin_op(void)
 {

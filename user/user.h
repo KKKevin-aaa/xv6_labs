@@ -171,6 +171,10 @@ int uptime(void);
  */
 int ioctl(int fd, int req, uint64 arg);
 
+/**
+ * load debug symbols from kernl.tbl
+ */
+int load_debug_sym();
 //==============================================================================
 // ulib.c (User Library)
 //==============================================================================
