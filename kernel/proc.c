@@ -262,7 +262,7 @@ int kfork(void) {
     uint64 kfork_start_time = r_cycle();
     #endif
     #ifdef DEBUG_FORK
-    FORK_TRACE("ENTRY parent pid=%d name='%s' sz=0x%lx mask=0x%x\n", 
+    FORK_TRACE("ENTRY parent pid=%d name='%s' sz=0x%llx mask=0x%x\n", 
                p->pid, p->name, p->sz, p->syscall_mask);
     #endif
     // Allocate process(process control block).
@@ -275,7 +275,7 @@ int kfork(void) {
     }
     #ifdef DEBUG_FORK
     FORK_TRACE("allocproc success: child pid=%d pt=%p\n", np->pid, np->pagetable);
-    FORK_TRACE("START uvmcopy: parent_pt=%p -> child_pt=%p sz=0x%lx\n", 
+    FORK_TRACE("START uvmcopy: parent_pt=%p -> child_pt=%p sz=0x%llx\n", 
                p->pagetable, np->pagetable, p->sz);
     #endif
     // Copy user memory from parent to child.
@@ -290,7 +290,7 @@ int kfork(void) {
     }
     np->sz = p->sz;
     #ifdef DEBUG_FORK
-    FORK_TRACE("END uvmcopy: success. child sz=0x%lx\n", np->sz);
+    FORK_TRACE("END uvmcopy: success. child sz=0x%llx\n", np->sz);
     #endif
     // Copy saved user registers.
     *(np->trapframe) = *(p->trapframe);
@@ -319,7 +319,7 @@ int kfork(void) {
     #ifdef PROC_TEST_TIME
     uint64 kfork_end_time = r_cycle();
     if(kfork_end_time - kfork_start_time > 10000){
-        printf("PERF: fork pid %d took %ld cycles\n", np->pid, kfork_end_time - kfork_start_time);
+        printf("PERF: fork pid %d took %lld cycles\n", np->pid, kfork_end_time - kfork_start_time);
     }
     #endif
     release(&np->lock);

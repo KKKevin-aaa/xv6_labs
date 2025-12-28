@@ -121,7 +121,7 @@ void reservation_basic_test() {
     uint64 pa_0 = PTE2PA(pte_0);
     uint64 pa_1 = PTE2PA(pte_1); // 4K 模式下，PTE2PA 直接返回物理页地址
     
-    LOG("PA_0: 0x%lx, PA_1: 0x%lx", pa_0, pa_1);
+    LOG("PA_0: 0x%llx, PA_1: 0x%llx", pa_0, pa_1);
     
     if (pa_1 == pa_0 + PGSIZE) {
         CHECK(1, "Physical pages are contiguous (Reservation Active)");
@@ -168,7 +168,7 @@ void huge_promotion_test() {
     if (huge_base_pa == pa_0_before) {
         LOG("Promotion Type: In-Place (Efficient)");
     } else {
-        LOG("Promotion Type: Migration (Address changed 0x%lx -> 0x%lx)", pa_0_before, huge_base_pa);
+        LOG("Promotion Type: Migration (Address changed 0x%llx -> 0x%llx)", pa_0_before, huge_base_pa);
     }
 
     // [关键修正]: 在大页模式下，验证 VA0 和 VA1 的真实物理地址
@@ -252,9 +252,9 @@ void huge_fork_deep_copy_test() {
 
         // 检查 2: 物理地址不同 (Deep Copy)
         if (c_pa == p_pa) {
-            printf("  [CHILD-FAIL] PA Shared (0x%lx)! Expected Deep Copy.\n", c_pa); fails++;
+            printf("  [CHILD-FAIL] PA Shared (0x%llx)! Expected Deep Copy.\n", c_pa); fails++;
         } else {
-            printf("  [CHILD-PASS] PA Distinct (0x%lx vs 0x%lx).\n", c_pa, p_pa);
+            printf("  [CHILD-PASS] PA Distinct (0x%llx vs 0x%llx).\n", c_pa, p_pa);
         }
 
         // 检查 3: 大页保留

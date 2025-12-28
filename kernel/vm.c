@@ -23,74 +23,8 @@
 /*
  * the kernel's page table.
  */
-pagetable_t kernel_pagetable;
-void *usyscall_pa=NULL;
-extern char etext[];  // kernel.ld sets this to end of kernel code.
 // res_block rblocks[MAX_RES_BLOCK] __attribute__((unused)) ={0};  //static Global variable
-
-extern char trampoline[];  // trampoline.S
 void walk_all_page(uint64 start_va, pagetable_t pagetable, int level);
-// Make a direct-map page table for the kernel.
-pagetable_t kvmmake(void) {
-    pagetable_t kpgtbl;
-
-    kpgtbl = (pagetable_t)kalloc();
-    if(kpgtbl==0)   panic("kvmmake: alloc fail!");
-    memset(kpgtbl, 0, PGSIZE);
-
-    usyscall_pa=kalloc();
-    if(usyscall_pa==0)  panic("kvmmake: alloc fail!");
-    memset(usyscall_pa, 0, PGSIZE);
-    //Allocated once during system initialization, not per-process;
-    //thus, it is immune to memory leak.
-
-    // uart registers
-    kvmmap(kpgtbl, UART0, UART0, PGSIZE, PTE_R | PTE_W);
-
-  // virtio mmio disk interface
-  kvmmap(kpgtbl, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
-
-#ifdef LAB_NET
-  // PCI-E ECAM (configuration space), for pci.c
-  kvmmap(kpgtbl, 0x30000000L, 0x30000000L, 0x10000000, PTE_R | PTE_W);
-
-  // pci.c maps the e1000's registers here.
-  kvmmap(kpgtbl, 0x40000000L, 0x40000000L, 0x20000, PTE_R | PTE_W);
-#endif  
-
-    // PLIC
-    kvmmap(kpgtbl, PLIC, PLIC, 0x4000000, PTE_R | PTE_W);
-
-    // map kernel text executable and read-only.
-    kvmmap(kpgtbl, KERNBASE, KERNBASE, (uint64)etext - KERNBASE, PTE_R | PTE_X);
-
-    // map kernel data and the physical RAM we'll make use of.
-    kvmmap(kpgtbl, (uint64)etext, (uint64)etext, PHYSTOP - (uint64)etext, PTE_R | PTE_W);
-
-    // map the trampoline for trap entry/exit to
-    // the highest virtual address in the kernel.
-    kvmmap(kpgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
-
-    // allocate and map a kernel stack for each process.
-    proc_mapstacks(kpgtbl);
-
-    return kpgtbl;
-}
-
-// Initialize the kernel_pagetable, shared by all CPUs.
-void kvminit(void) { kernel_pagetable = kvmmake(); }
-
-// Switch the current CPU's h/w page table register to
-// the kernel's page table, and enable paging.
-void kvminithart() {
-    // wait for any previous writes to the page table memory to finish.
-    sfence_vma();
-
-    w_satp(MAKE_SATP(kernel_pagetable));
-
-    // flush stale entries from the TLB.
-    sfence_vma();
-}
 
 // Return the address of the PTE in page table pagetable
 // that corresponds to virtual address va.  If alloc!=0,
@@ -193,7 +127,7 @@ void walk_all_page(uint64 start_va, pagetable_t pagetable, int level){
                     if(step<=0) step=1;
                     va_step=num_4k_page*PGSIZE;
                 }
-                printf("(data)%p: pte %p pa %p, size is 0x%lx\n", 
+                printf("(data)%p: pte %p pa %p, size is 0x%llx\n", 
                     (void *)start_va, (void *)pte, (void *)pa, va_step);
             }
         }
@@ -227,17 +161,14 @@ void init_res_array(res_block *rblocks, uint64 init_heap_start){    //Assuming A
 // add a mapping to the kernel page table.
 // only used when booting.
 // does not flush TLB or enable paging.
-void kvmmap(pagetable_t kpgtbl, uint64 va, uint64 pa, uint64 sz, int perm) {
-    if (mappages(kpgtbl, va, sz, pa, perm) != 0) panic("kvmmap");
-}
 int mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm){
 #ifdef DEBUG_VM
-    VM_TRACE("va=%p size=0x%lx pa=%p perm=0x%x\n", (void *)va, size, (void *)pa, perm);
+    VM_TRACE("va=%p size=0x%llx pa=%p perm=0x%x\n", (void *)va, size, (void *)pa, perm);
 #endif
     pte_t *pte=NULL;
     uint64 basic_size=PGSIZE, target_level=0, prev_level=3;   //determine rewalk necessity
     if(size%PGSIZE!=0)  panic("mappages: size not aligned");
-    if (size == 0) panic("mappages: size");
+    if (size == 0) panic("mappages: size: 0");
     while(size>0){
         if(va%GIGAPGSIZE==0 && size>=GIGAPGSIZE){
             target_level=2;basic_size=GIGAPGSIZE;
@@ -273,7 +204,7 @@ void migrate_data(pagetable_t pagetable, pte_t pte, uint64 cur_level, uint64 sta
             alloc_size/=2;
         mem=alloc_memory(alloc_size);
         if (mem == 0) {
-            VM_TRACE("migrate_data: failed to allocate cur_va=0x%lx size=0x%lx\n", cur_va, alloc_size);
+            VM_TRACE("migrate_data: failed to allocate cur_va=0x%llx size=0x%llx\n", cur_va, alloc_size);
             freewalk(pagetable, 1, start_va, copied_size, cur_level);
             panic("can't handle!");
         }
@@ -352,7 +283,7 @@ pagetable_t uvmcreate() {
 }
 uint64 uvmunmap_helper(pagetable_t pagetable, uint64 va, uint64 size, int cur_level, int do_free){
 #ifdef DEBUG_VM
-    VM_TRACE("va=%p size=0x%lx do_free=%d, cur_level is %d\n", (void *)va, size, do_free, cur_level);
+    VM_TRACE("va=%p size=0x%llx do_free=%d, cur_level is %d\n", (void *)va, size, do_free, cur_level);
 #endif
     uint64 basic_stride=get_step_size(cur_level);
     uint64 cur_vpn=PX(cur_level, va), start_page_offset=va & (basic_stride-1);
@@ -361,7 +292,7 @@ uint64 uvmunmap_helper(pagetable_t pagetable, uint64 va, uint64 size, int cur_le
     if(end_vpn>512){
         #ifdef DEBUG_VM
             VM_TRACE("Out-of-bounds deletion caused by the upper's failure to split the data:\n");
-            VM_TRACE("size=0x%lx, cur_level=%d, end_vpn=0x%lx\n", size, cur_level, end_vpn);
+            VM_TRACE("size=0x%llx, cur_level=%d, end_vpn=0x%llx\n", size, cur_level, end_vpn);
         #endif
         panic("uvmunmap_helper!");
         return -1;
@@ -427,7 +358,7 @@ uint64 uvmunmap_helper(pagetable_t pagetable, uint64 va, uint64 size, int cur_le
 }
 void uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int do_free){
 #ifdef DEBUG_VM
-    VM_TRACE("va=%p size=0x%lx do_free=%d\n", (void *)va, size, do_free);
+    VM_TRACE("va=%p size=0x%llx do_free=%d\n", (void *)va, size, do_free);
 #endif
     if(size%PGSIZE!=0)  panic("mappages: size not aligned");
     if (size == 0) panic("mappages: size");
@@ -437,6 +368,7 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int do_free){
 }
 int buddy_alloc(pagetable_t pagetable, uint64 va, uint64 size, int xperm){
     //return 0 when Success , and return -1 when it fail!
+    //A shared utility for use and kernel space.
     if(va%PGSIZE!=0)    panic("Split_alloc: unaligned address!");
     uint8 va_order=i_log2(va & -va);
     va_order=(va_order==0 || va_order>MAX_ORDER+ORDER_BASE)?
@@ -449,15 +381,15 @@ int buddy_alloc(pagetable_t pagetable, uint64 va, uint64 size, int xperm){
             alloc_size/=2;
         mem=alloc_memory(alloc_size);
         if (mem == 0) {
-            VM_TRACE("uvmalloc failed to allocate cur_va=0x%lx size=0x%lx\n", cur_va, alloc_size);
+            VM_TRACE("uvmalloc failed to allocate cur_va=0x%llx size=0x%llx\n", cur_va, alloc_size);
             uvmdealloc(pagetable, cur_va, va);
             return -1;
         }
         memset(mem, 0, alloc_size);
-        VM_TRACE("uvmalloc -> mappages cur_va=0x%lx alloc_size=0x%lx\n", cur_va, alloc_size);
+        VM_TRACE("uvmalloc -> mappages cur_va=0x%llx alloc_size=0x%llx\n", cur_va, alloc_size);
         if(mappages(pagetable, cur_va, alloc_size, (uint64)mem, xperm)!=0){
             free_pages(mem, alloc_size);
-            VM_TRACE("uvmalloc mappages failed at cur_va=0x%lx size=0x%lx\n", cur_va, alloc_size);
+            VM_TRACE("uvmalloc mappages failed at cur_va=0x%llx size=0x%llx\n", cur_va, alloc_size);
             uvmdealloc(pagetable, cur_va, va);
             return -1;
         }
@@ -615,7 +547,7 @@ int copy_whole_block(struct vm_whole_copy_ctx w1){
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 uint64 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm) {
 #ifdef DEBUG_VM
-    VM_TRACE("oldsz=0x%lx newsz=0x%lx xperm=0x%x\n", oldsz, newsz, xperm);
+    VM_TRACE("oldsz=0x%llx newsz=0x%llx xperm=0x%x\n", oldsz, newsz, xperm);
 #endif
     if(newsz<oldsz) return oldsz;
     uint64 aligned_oldsz=PGROUNDUP(oldsz), aligned_newsz=PGROUNDUP(newsz);
@@ -623,19 +555,20 @@ uint64 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm) {
     uint64 remain_size=aligned_newsz-aligned_oldsz;
     if(buddy_alloc(pagetable, aligned_oldsz, remain_size, xperm | PTE_R | PTE_U)!=0)
         return 0;
-    VM_TRACE("uvmalloc exiting success newsz=0x%lx\n", newsz);
+    VM_TRACE("uvmalloc exiting success newsz=0x%llx\n", newsz);
     return newsz;
 }
 //Keep the same logic as uvmalloc(Binary Buddy Decomposition!)
+//A User/Kernel agnostic function.
 uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
 #ifdef DEBUG_VM
-    VM_TRACE("oldsz=0x%lx newsz=0x%lx\n", oldsz, newsz);
+    VM_TRACE("oldsz=0x%llx newsz=0x%llx\n", oldsz, newsz);
 #endif
     if (newsz >= oldsz) {
-        VM_TRACE("uvmdealloc no-op new>=old, returning oldsz=0x%lx\n", oldsz);
+        VM_TRACE("uvmdealloc no-op new>=old, returning oldsz=0x%llx\n", oldsz);
         return oldsz;
     }
-    int aligned_newsz=PGROUNDUP(newsz), aligned_oldsz=PGROUNDUP(oldsz);
+    uint64 aligned_newsz=PGROUNDUP(newsz), aligned_oldsz=PGROUNDUP(oldsz);
     if (aligned_newsz < aligned_oldsz) {
         // Perform the release step-by-step, following the reverse logic of alloc.
         uint8 newsz_order=i_log2(aligned_newsz & -aligned_newsz);
@@ -649,7 +582,7 @@ uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
             while(remain_size < free_size && free_size>PGSIZE)
                 free_size/=2;
             #ifdef DEBUG_VM
-                VM_TRACE("uvmdealloc -> uvmunmap va=0x%lx size=0x%lx, remain size is 0x%lx\n", 
+                VM_TRACE("uvmdealloc -> uvmunmap va=0x%llx size=0x%llx, remain size is 0x%llx\n", 
                     cur_va-free_size, free_size, remain_size);
             #endif
             uvmunmap(pagetable, cur_va, free_size, 1);
@@ -663,8 +596,7 @@ uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
         // int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
         // uvmunmap(pagetable, PGROUNDUP(newsz), npages, 1);
     }
-
-    VM_TRACE("uvmdealloc exiting newsz=0x%lx\n", newsz);
+    VM_TRACE("uvmdealloc exiting newsz=0x%llx\n", newsz);
     return newsz;
 }
 // Recursively free page-table pages.(And consider one-to-many mappings, where
@@ -673,7 +605,7 @@ uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
 void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz, int level) {
 #ifdef DEBUG_VM
     if (base_va == 0 && level == 2)
-        VM_TRACE("Freewalk Start: pt=%p base_va=0x%lx max_sz=0x%lx\n", pagetable, base_va, max_sz);
+        VM_TRACE("Freewalk Start: pt=%p base_va=0x%llx max_sz=0x%llx\n", pagetable, base_va, max_sz);
 #endif
     pte_t pte;// there are 2^9 = 512 PTEs in a page table.
     uint64 pa, num_4k_page, page_per_slot, step;
@@ -687,7 +619,7 @@ void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz,
         if ((pte & PTE_V) && PTE_LEAF(pte) == 0) {
             // this PTE points to a lower-level page table.
             #ifdef DEBUG_VM
-                VM_TRACE("%sDir: idx=%d va=0x%lx -> next_pa=%p\n", INDENT_STR(level), idx, cur_va, (void*)pa);
+                VM_TRACE("%sDir: idx=%d va=0x%llx -> next_pa=%p\n", INDENT_STR(level), idx, cur_va, (void*)pa);
             #endif
             freewalk((pagetable_t)pa, do_free, cur_va, max_sz, level-1);
             step=1;
@@ -701,7 +633,7 @@ void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz,
             step=num_4k_page/page_per_slot;
             if(step<=0) step=1; //at least advance one
             #ifdef DEBUG_VM
-            VM_TRACE("%sLeaf: idx=%d va=0x%lx pa=%p order=%d size=0x%lx (step=%ld)\n", 
+            VM_TRACE("%sLeaf: idx=%d va=0x%llx pa=%p order=%d size=0x%llx (step=%lld)\n", 
                      INDENT_STR(level), idx, cur_va, (void*)pa, cur_order, va_step, step);
             #endif
             free_pages((void *)pa, va_step); //record statement before freeing, 
@@ -744,7 +676,7 @@ int copywalk(struct vm_dupl_ctx v1){
             new_pte = PA2PTE((uint64)mem) | flags | PTE_V;
             v1.new_pg[idx] = new_pte;
             #ifdef DEBUG_VM
-                VM_TRACE("%s[DIR ] L%d idx=%d: va=0x%lx -> new_tbl=%p (recurse)\n", 
+                VM_TRACE("%s[DIR ] L%d idx=%d: va=0x%llx -> new_tbl=%p (recurse)\n", 
                      INDENT_STR(v1.level), v1.level, idx, cur_va, mem);
             #endif
             if(v1.level==1 && cur_va>=v1.rblocks[0].va){   //enter heap region(Recursion Short-circuiting)
@@ -866,7 +798,7 @@ void uvmfree(res_block *rblocks, pagetable_t pagetable, uint64 sz) {
 // frees any allocated pages on failure.
 int uvmcopy(res_block *rblocks, pagetable_t old_pg, pagetable_t new_pg, uint64 sz) {
 #ifdef DEBUG_VM
-    VM_TRACE("old_pg=%p new_pg=%p sz=0x%lx\n", (void *)old_pg, (void *)new_pg, sz);
+    VM_TRACE("old_pg=%p new_pg=%p sz=0x%llx\n", (void *)old_pg, (void *)new_pg, sz);
 #endif
     uint64 start_va=0;
     uint64 ret_va=0;
@@ -879,7 +811,7 @@ int uvmcopy(res_block *rblocks, pagetable_t old_pg, pagetable_t new_pg, uint64 s
         return -1;
     }
 #ifdef DEBUG_VM
-    VM_TRACE("after uvmcopy start_va is 0x%lx, while ret_va is 0x%lx\n", start_va, ret_va);
+    VM_TRACE("after uvmcopy start_va is 0x%llx, while ret_va is 0x%llx\n", start_va, ret_va);
 #endif
     return 0;
 }
@@ -899,7 +831,7 @@ void uvmclear(pagetable_t pagetable, uint64 va) {
 // Return 0 on success, -1 on error.
 int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
 // #ifdef DEBUG_VM
-//     VM_TRACE("dstva=%p len=0x%lx\n", (void *)dstva, len);
+//     VM_TRACE("dstva=%p len=0x%llx\n", (void *)dstva, len);
 // #endif
     uint64 aligned_dstva=PGROUNDDOWN(dstva);
     uint8 cur_order=i_log2(aligned_dstva & -aligned_dstva);
@@ -917,7 +849,7 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
             alloc_size=cur_max_size;
             while(len < alloc_size && alloc_size>PGSIZE)
                 alloc_size/= 2;
-            // VM_TRACE("copyout needs alloc for basepage_va=0x%lx size=0x%lx\n", basepage_va, alloc_size);
+            // VM_TRACE("copyout needs alloc for basepage_va=0x%llx size=0x%llx\n", basepage_va, alloc_size);
             mem=alloc_memory(alloc_size);
             if(mem==0){
                 uvmdealloc(pagetable, cur_va, dstva);
@@ -955,7 +887,7 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
 // Return 0 on success, -1 on error.
 int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
 // #ifdef DEBUG_VM
-//     VM_TRACE("srcva=%p len=0x%lx\n", (void *)srcva, len);
+//     VM_TRACE("srcva=%p len=0x%llx\n", (void *)srcva, len);
 // #endif
     uint64 aligned_srcva=PGROUNDDOWN(srcva);
     uint8 cur_order=i_log2(aligned_srcva & -aligned_srcva);
@@ -974,7 +906,7 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
             alloc_size=1ull<<cur_order;
             while(len < alloc_size && alloc_size>PGSIZE)
                 alloc_size/=2;
-            // VM_TRACE("copyin needs alloc for basepage_va=0x%lx size=0x%lx\n", basepage_va, alloc_size);
+            // VM_TRACE("copyin needs alloc for basepage_va=0x%llx size=0x%llx\n", basepage_va, alloc_size);
             mem=alloc_memory(alloc_size);
             if(mem==0){
                 uvmdealloc(pagetable, basepage_va, srcva);

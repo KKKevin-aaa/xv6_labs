@@ -30,7 +30,9 @@ OBJS = \
   $(K)/$(OBJ_DIR)/sysfile.o \
   $(K)/$(OBJ_DIR)/kernelvec.o \
   $(K)/$(OBJ_DIR)/plic.o \
-  $(K)/$(OBJ_DIR)/virtio_disk.o
+  $(K)/$(OBJ_DIR)/virtio_disk.o \
+  $(K)/$(OBJ_DIR)/kvm.o \
+  $(K)/$(OBJ_DIR)/rbtree_impl.o
 
 OBJS_KCSAN = \
   $(K)/$(OBJ_DIR)/start.o \
@@ -384,7 +386,7 @@ UEXTRA += big.txt bigger.txt biggerer.txt huge.txt
 
 # here | is Order-only:create if noexist and don't anything if they just become newer
 # Introduce a kernel dependency to effectively force a rebuild of the assembly files.
-fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS) $(K)/$(OBJ_DIR)/kernel | $(OBJ_DIR)
+fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS) $(K)/$(OBJ_DIR)/kernel gene_addr2line.py | $(OBJ_DIR)
 	python gene_addr2line.py $(K)/$(OBJ_DIR)/kernel.asm $(KERNEL_TBL)
 	mkfs/mkfs fs.img README $(KERNEL_TBL) $(UEXTRA) $(UPROGS)
 
@@ -399,7 +401,7 @@ endif
 clean:
 	rm -rf *.tex *.dvi *.idx *.aux *.log *.ind *.ilg *.dSYM *.zip *.pcap \
 	*/*.o */*.d */*.asm */*.sym $(K)/$(BUILD_ROOT_DIR) $(U)/$(BUILD_ROOT_DIR) \
-	$(K)/$(OBJ_DIR)/kernel fs.img \
+	$(K)/$(OBJ_DIR)/kernel fs.img fs.img.bk \
 	mkfs/mkfs .gdbinit \
         $(U)/$(OBJ_DIR)/usys.S \
 	$(UPROGS)
@@ -411,13 +413,7 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	then echo "-gdb tcp::$(GDBPORT)"; \
 	else echo "-s -p $(GDBPORT)"; fi)
 ifndef CPUS
-CPUS := 1
-endif
-ifeq ($(LAB),fs)
-CPUS := 1
-endif
-ifeq ($(LAB),fs)
-CPUS := 1
+CPUS := 4
 endif
 ifeq ($(LAB),fs)
 CPUS := 1

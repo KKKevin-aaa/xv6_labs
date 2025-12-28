@@ -71,7 +71,7 @@ int kexec(char *path, char **argv) {
         sz = sz1;
         if (loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0) goto bad;
         #ifdef DEBUG_EXEC
-        EXEC_TRACE("LOAD seg: va=%p memsz=0x%lx filesz=0x%lx\n", (void *)ph.vaddr, ph.memsz, ph.filesz);
+        EXEC_TRACE("LOAD seg: va=%p memsz=0x%llx filesz=0x%llx\n", (void *)ph.vaddr, ph.memsz, ph.filesz);
         #endif
     }
     iunlockput(ip);
@@ -87,7 +87,7 @@ int kexec(char *path, char **argv) {
     sp = sz;
     stackbase = sp - USERSTACK * PGSIZE;
     #ifdef DEBUG_EXEC
-    EXEC_TRACE("STACK setup: base=%p top=%p total_sz=0x%lx pages\n", (void *)stackbase, (void *)sp, sz/PGSIZE);
+    EXEC_TRACE("STACK setup: base=%p top=%p total_sz=0x%llx pages\n", (void *)stackbase, (void *)sp, sz/PGSIZE);
     #endif
     //Pass arguments on the stack;no heap involvement.
     for (argc = 0; argv[argc]; argc++) {
@@ -114,7 +114,7 @@ int kexec(char *path, char **argv) {
     p->trapframe->epc = elf.entry;
     p->trapframe->sp = sp;
     #ifdef DEBUG_EXEC
-    EXEC_TRACE("COMMIT: switch pt, freeing old=%p oldsz=0x%lx\n", oldpagetable, oldsz/PGSIZE);
+    EXEC_TRACE("COMMIT: switch pt, freeing old=%p oldsz=0x%llx\n", oldpagetable, oldsz/PGSIZE);
     #endif
     proc_freepagetable(old_rbarray, oldpagetable, oldsz);
     pte_t *tmp=walk(p->pagetable, TRAPFRAME, 0, 0);
@@ -122,12 +122,12 @@ int kexec(char *path, char **argv) {
     //init the reserved area(after delete the previous resource)
     init_res_array(p->rb_array, p->sz);
     #ifdef DEBUG_EXEC
-    EXEC_TRACE("SUCCESS: pid=%d exec complete. entry=0x%lx\n", p->pid, p->trapframe->epc);
+    EXEC_TRACE("SUCCESS: pid=%d exec complete. entry=0x%llx\n", p->pid, p->trapframe->epc);
     #endif
     #ifdef EXEC_TEST_TIME
     uint64 kexec_end_time = r_cycle();
     if(kexec_end_time - kexec_start_time > 10000){
-        printf("PERF: exec pid %d took 0x%lx cycles\n", p->pid, kexec_end_time - kexec_start_time);
+        printf("PERF: exec pid %d took 0x%llx cycles\n", p->pid, kexec_end_time - kexec_start_time);
     }
     #endif
     return argc;

@@ -302,6 +302,14 @@ inline uint8 __attribute__((always_inline)) i_log2(uint64 x){
 #define PGROUNDUP(sz) (((sz) + PGSIZE - 1) & ~(PGSIZE - 1))
 #define PGROUNDDOWN(a) (((a)) & ~(PGSIZE - 1))
 
+//flags for vm_flags, paired with vm_page_prot(In vm_area_struct)
+//prot parameter macros(simulating <sys/mman.h>)
+#define PROT_NONE 0
+#define PROT_READ 1
+#define PROT_WRITE 2
+#define PROT_EXEC 4
+#define PROT_USER 8
+
 #define PTE_V (1L << 0)  // valid
 #define PTE_R (1L << 1)
 #define PTE_W (1L << 2)

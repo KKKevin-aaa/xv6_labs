@@ -1,3 +1,4 @@
+//header-only-include-nothing,Opaque pointer
 #ifdef LAB_MMAP
 typedef unsigned long size_t;
 typedef long int off_t;
@@ -13,6 +14,17 @@ struct sleeplock;
 struct stat;
 struct superblock;
 struct vm_dupl_ctx;
+typedef struct rb_node rb_node_t;
+typedef struct rb_root rb_root_t;
+typedef struct vm_area_struct vm_area_struct_t;
+typedef struct vma_context  vma_context_t;
+typedef struct mm_struct mm_struct_t;
+typedef struct vm_operation_struct vm_operation_struct_t;
+typedef struct page_slab_header page_slab_header_t;
+typedef struct vma_pool cpu_vma_pool_t;
+#ifndef offsetof
+#define offsetof(TYPE, MEMBER)  ((uint64)&((TYPE *)0)->MEMBER)
+#endif
 #ifdef LAB_LOCK
 struct rwspinlock;
 #endif
@@ -178,9 +190,6 @@ void            uartputc_sync(int);
 int             uartgetc(void);
 
 // vm.c
-void            kvminit(void);
-void            kvminithart(void);
-void            kvmmap(pagetable_t, uint64, uint64, uint64, int);
 int             mappages(pagetable_t, uint64, uint64, uint64, int);
 pagetable_t     uvmcreate(void);
 uint64          uvmalloc(pagetable_t, uint64, uint64, int);
@@ -207,6 +216,27 @@ uint64          alloc_res_memory(res_block *, pagetable_t, uint64, uint64, uint6
 uint64          free_res_memory(res_block *, pagetable_t, uint64, uint64, uint64);
 void reclaim_res_memory_range(res_block *rb_array, pagetable_t pagetable, uint64 start_va, uint64 end_va);
 uint64          Simp_alloc_res_memory(res_block *, pagetable_t, uint64, int);
+
+//rbtree_impl.c
+void rb_link_node(rb_node_t *node, rb_node_t *rb_parent, rb_node_t **rb_link);
+void rb_insert_color(rb_node_t *node, rb_root_t*root);
+void rb_erase(rb_node_t *node, rb_root_t*root);
+
+
+//kvm.c
+void            kvminit(void);
+void            kvmmap(pagetable_t, uint64, uint64, uint64, int);
+void            kvminithart(void);
+vm_area_struct_t *alloc_vma_node(void);
+int             reclaim_vma_node(vm_area_struct_t *);
+vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr);
+int             insert_vma(mm_struct_t *mm, vm_area_struct_t *vma);
+int             remove_vma(mm_struct_t *mm, vm_area_struct_t *vma);
+//Detailed implemation of rb_node,should defined and finined in here, not in rbtree.h
+rb_node_t*      rb_search(rb_node_t *node, vm_area_struct_t **predecessor, 
+                        vm_area_struct_t ** successor, const rb_root_t *root);
+void*           kvmalloc(pagetable_t, uint64, int);
+uint64          kvmdealloc(pagetable_t, uint64, uint64);
 
 // plic.c
 void            plicinit(void);

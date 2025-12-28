@@ -43,6 +43,10 @@
 #define KERNBASE 0x80000000L
 #define PHYSTOP (KERNBASE + 128*1024*1024)  //equal to 64*4096*512=128MB
 
+//Enable kernel_vmalloc, kernel heap area range is:
+#define KHEAP_START 0x90000000L
+#define KHEAP_END   0xC0000000L
+
 // map the trampoline page to the highest address,
 // in both user and kernel space.
 #define TRAMPOLINE (MAXVA - PGSIZE)

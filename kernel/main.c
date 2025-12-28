@@ -8,13 +8,13 @@ volatile static int started = 0;
 
 // start() jumps here in supervisor mode on all CPUs.
 void main() {
-    if (cpuid() == 0) {
+    if (cpuid() == 0) { //Bootstrap Processor:Global/System-wide Initialization
         consoleinit();
         printfinit();
         printf("\n");
         printf("xv6 kernel is booting\n");
         printf("\n");
-        kinit();             // physical page allocator
+        kinit();             // physical page allocator(before all pagetable operations!)
         kvminit();           // create kernel page table
         kvminithart();       // turn on paging
         procinit();          // process table
@@ -30,7 +30,7 @@ void main() {
 
         __sync_synchronize();
         started = 1;
-    } else {
+    } else {    //Application Processor(Per-CPU initialization)
         while (started == 0);
         __sync_synchronize();
         printf("hart %d starting\n", cpuid());

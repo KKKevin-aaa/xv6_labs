@@ -89,7 +89,7 @@ static inline uint64 pfn_to_paddr(uint64 pfn){
 }
 static inline void ensure_pfn_valid(uint64 pfn){
     if(pfn < start_pfn || pfn >= total_pages){
-        KALLOC_TRACE("PMM error:Access pfn 0x%lx out-of-range[0x%lx, 0x%lx)",
+        KALLOC_TRACE("PMM error:Access pfn 0x%llx out-of-range[0x%llx, 0x%llx)",
             pfn, start_pfn, total_pages);
         panic("pfn invalid!");
     }
@@ -190,7 +190,7 @@ uint16 get_order(uint64 pa){
     uint16 tmp;
     if(IS_HEAD((uint64)p->flags)==0)    tmp=0;
     else    tmp=GET_ORDER((uint64)p->flags);
-    // KALLOC_TRACE("flags=0x%lx, pa=0x%lx, NO.0x%lx, head=NO.0x%lx\n",
+    // KALLOC_TRACE("flags=0x%llx, pa=0x%llx, NO.0x%llx, head=NO.0x%llx\n",
     //     (uint64)p->flags, pa, pa_pfn, pa_pfn-GET_OFFSET(p->flags));
     // panic("get order:try to get non-header's order!");
     release(&kmem.lock);
@@ -259,7 +259,7 @@ void *alloc_memory(uint64 size){
     struct proc *p = myproc();
     int pid = p ? p->pid : -1;
     char *name = p ? p->name : "kernel";
-    KALLOC_TRACE("pid=%d(%s) allocated size=%lx at pa=%p order=%d\n", 
+    KALLOC_TRACE("pid=%d(%s) allocated size=%llx at pa=%p order=%d\n", 
             pid, name, size, (void *)(KERNBASE+offset), split_order);
 #endif
     return (void *)(offset+KERNBASE);
@@ -418,9 +418,9 @@ void dump_memory_map(){ //holding the lock
     uint64 cur_pfn=start_pfn, end_pfn, size, cur_order;
     struct page *p;
     acquire(&kmem.lock);
-    printf("0x0 - 0x%lx  0x%lx pages  [Program]   -1\n", 
+    printf("0x0 - 0x%llx  0x%llx pages  [Program]   -1\n", 
         (uint64)(kmem.mem_bitmaps), (uint64)(kmem.mem_bitmaps)/PGSIZE);
-    printf("0x%lx - 0x%lx  0x%lx pages  [Membitmaps]   -1\n", 
+    printf("0x%llx - 0x%llx  0x%llx pages  [Membitmaps]   -1\n", 
         (uint64)(kmem.mem_bitmaps), free_start_addr, (free_start_addr-(uint64)(kmem.mem_bitmaps))/PGSIZE);
     while(cur_pfn<total_pages){
         p=get_page_descriptor_assert_nolock(cur_pfn);
@@ -430,10 +430,10 @@ void dump_memory_map(){ //holding the lock
             end_pfn=cur_pfn+(1ull<<cur_order);
             ensure_pfn_valid(end_pfn-1);
             if(IS_FREE(p->flags))
-                printf("0x%lx - 0x%lx  0x%lx pages  [FREE]   0x%lx\n", 
+                printf("0x%llx - 0x%llx  0x%llx pages  [FREE]   0x%llx\n", 
                     pfn_to_paddr(cur_pfn), pfn_to_paddr(end_pfn), size/PGSIZE, cur_order);
             else
-            printf("0x%lx - 0x%lx  0x%lx pages  [USED]   0x%lx\n", 
+            printf("0x%llx - 0x%llx  0x%llx pages  [USED]   0x%llx\n", 
                 pfn_to_paddr(cur_pfn), pfn_to_paddr(end_pfn), size/PGSIZE, cur_order);
             //Advance the pfn
             cur_pfn=end_pfn;
