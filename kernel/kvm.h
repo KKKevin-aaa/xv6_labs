@@ -19,7 +19,6 @@ struct vm_area_struct{  //Virtual Memory Area
         struct vm_area_struct *next_free;
     };
     const struct vm_operation_struct *vm_ops;
-    struct spinlock vma_lock;   //Protect the "external usage state"(Logic Lifecycle)
     int ref_count;  //Atomic operations
 };
 struct vma_context{ 

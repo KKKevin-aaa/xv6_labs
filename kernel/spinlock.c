@@ -75,13 +75,14 @@ int holding(struct spinlock *lk) {
 // are initially off, then push_off, pop_off leaves them off.
 
 void push_off(void) {
-    int old = intr_get();
+    int old = intr_get();   //record current CPU's interrupt is on or off.
 
     // disable interrupts to prevent an involuntary context
     // switch while using mycpu().
     intr_off();
 
     if (mycpu()->noff == 0) mycpu()->intena = old;
+    //turn off interrupts for the first time,record previsou statement.
     mycpu()->noff += 1;
 }
 

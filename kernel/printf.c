@@ -20,7 +20,12 @@ void test_vma_rbtree_and_list();
 void test_kvmalloc_integrity();
 void test_unmapped_area_search();
 volatile int panicking = 0;  // printing a panic message
+//panicking enables a "lock escape" to prevent recursive deadlocks during emergency reporting.
 volatile int panicked = 0;   // spinning forever at end of a panic
+// panicked ensures mutual exclusion to prevent garbled output across multiple cores.
+
+volatile int panic_cpu_lock=0;   //Define a dedicated lock variable specifically for computing for "Panic right"
+
 static uint8 is_debug_sym_loaded=0;
 extern uint64 next_vmalloc_addr;
 // lock to avoid interleaving concurrent printf's.
@@ -85,7 +90,7 @@ int printf(char *fmt, ...) {
     char *s;
 
     if (panicking == 0) acquire(&pr.lock);
-
+    //for panicking, bypass lock verification to ensure emergency diagnostics are printed.
     va_start(ap, fmt);
     for (i = 0; (cx = fmt[i] & 0xff) != 0; i++) {
         if (cx != '%') {
@@ -420,10 +425,17 @@ void backtrace(){
 void panic(char *s) {
     //Enter panic, system are in highly unstable state,
     //no interrupts, no locks, no allocations!Lazy Loading are strictly forbidden
+    intr_off();
+    if(__sync_lock_test_and_set(&panic_cpu_lock, 1)){
+        //Used to 0, set 1 , return 0. continue execute
+        //Used to 1, set 1, return 1 ,have already panic.
+        while(1);
+    }
+    //Winner logic
     panicking = 1;
-    backtrace();
     printf("panic: ");
     printf("%s\n", s);
+    backtrace();
     panicked = 1;  // freeze uart output from other CPUs
     for (;;);
 }
