@@ -9,16 +9,19 @@
 #include "fs.h"
 #include "rbtree.h"
 #include "kvm.h"
-#ifdef DEBUG_VM
-#define VM_TRACE(fmt, ...) \
+
+#define DEBUG_KVM // 默认开启调试
+#ifdef DEBUG_KVM
+#define KVM_TRACE(fmt, ...) \
     do { \
-        printf("[VM:%s] " fmt, __func__, ##__VA_ARGS__); \
+        printf("[KVM:%s] " fmt, __func__, ##__VA_ARGS__); \
     } while (0)
 #else
-#define VM_TRACE(fmt, ...) \
+#define KVM_TRACE(fmt, ...) \
     do { \
     } while (0)
 #endif
+
 /*
  * the kernel's page table.
  */
@@ -29,7 +32,11 @@ extern char trampoline[];  // trampoline.S
 //Maintain global state.
 cpu_vma_pool_t my_cpu_vma_pool[NCPU];
 mm_struct_t global_mm;
+
 uint64 gene_page_prot(uint64 vm_flags){
+#ifdef DEBUG_KVM
+    KVM_TRACE("vm_flags=%llu\n", vm_flags);
+#endif
     //As a hardware-agnostic kernel sturcture, it implements the translation
     //from logical abstraction to physical hareware via the following functions.
     uint64 page_prot=0;
@@ -39,7 +46,11 @@ uint64 gene_page_prot(uint64 vm_flags){
     if(vm_flags & PROT_USER)    page_prot |= PTE_U;
     return page_prot;
 }
+
 uint64 gene_flags(uint64 vm_page_prot){
+#ifdef DEBUG_KVM
+    KVM_TRACE("vm_page_prot=%llu\n", vm_page_prot);
+#endif
     uint64 vm_flags=0;
     if(vm_page_prot & PTE_R)    vm_flags |= PROT_READ;
     if(vm_page_prot & PTE_X)    vm_flags |= PROT_EXEC;
@@ -47,11 +58,19 @@ uint64 gene_flags(uint64 vm_page_prot){
     if(vm_page_prot & PTE_U)    vm_flags |= PROT_USER;
     return vm_flags;
 }
+
 static inline uint8 in_kernel_heap(uint64 va){
+#ifdef DEBUG_KVM
+    KVM_TRACE("va=%llu\n", va);
+#endif
     if(va>=KHEAP_START && va<KHEAP_END) return 1;
     else    return 0;
 }
+
 vm_area_struct_t *insert_vma_helper(uint64 va, uint64 sz, int perm){
+#ifdef DEBUG_KVM
+    KVM_TRACE("va=%llu sz=%llu perm=%d\n", va, sz, perm);
+#endif
     vm_area_struct_t *tmp_vma=NULL;
     if(sizeof(vm_area_struct_t)>=PGSIZE){
         uint64 nr_pages=PGROUNDUP(sizeof(vm_area_struct_t));
@@ -71,8 +90,12 @@ vm_area_struct_t *insert_vma_helper(uint64 va, uint64 sz, int perm){
     release(&global_mm.mm_lock);
     return tmp_vma;
 }
+
 //Pre-allocate static memory pool to bootstrap the Kernel virtual memory management.
 void vma_pool_init(){
+#ifdef DEBUG_KVM
+    KVM_TRACE("void\n");
+#endif
     for(int i=0;i<NCPU;i++){
         initlock(&my_cpu_vma_pool[i].lock, "vm_struct_pool");
         my_cpu_vma_pool[i].partial=NULL;
@@ -80,9 +103,13 @@ void vma_pool_init(){
         my_cpu_vma_pool[i].empty=NULL;
     }
 }
+
 // Make a direct-map page table for the kernel.
 // Record the relavant info into global_mm
 pagetable_t kvmmake(void) {
+#ifdef DEBUG_KVM
+    KVM_TRACE("void\n");
+#endif
     pagetable_t kpgtbl;
 
     kpgtbl = (pagetable_t)kalloc();
@@ -136,6 +163,9 @@ pagetable_t kvmmake(void) {
 
 // Initialize the kernel_pagetable, shared by all CPUs.
 void kvminit(void) { 
+#ifdef DEBUG_KVM
+    KVM_TRACE("void\n");
+#endif
     kernel_pagetable = kvmmake();
     //Init lock
     initlock(&global_mm.mm_lock, "mm_lock");
@@ -154,14 +184,20 @@ void kvminit(void) {
 // only used when booting.
 // does not flush TLB or enable paging.
 void kvmmap(pagetable_t kpgtbl, uint64 va, uint64 pa, uint64 sz, int perm) {
+#ifdef DEBUG_KVM
+    KVM_TRACE("kpgtbl=%p va=%llu pa=%llu sz=%llu perm=%d\n", (void *)kpgtbl, va, pa, sz, perm);
+#endif
     if (mappages(kpgtbl, va, sz, pa, perm) != 0) panic("kvmmap");
 }
 // Switch the current CPU's h/w page table register to
 // the kernel's page table, and enable paging.
 void kvminithart() {
+#ifdef DEBUG_KVM
+    KVM_TRACE("void\n");
+#endif
     //NOTE:Use the global kernel_pagetbale instead of allocate one for each process.
     //Pros:Access user memory directly by mirroring page table entries.
-    //       eliminating the overhead of address translation by copyin or copyout.
+    //        eliminating the overhead of address translation by copyin or copyout.
     //Cons:Memory overhead, Synchronization Complexity.Performance Hit on fork/exit.
     // wait for any previous writes to the page table memory to finish.
     sfence_vma();
@@ -172,28 +208,58 @@ void kvminithart() {
 }
 //external function from my_project:nemu
 //A reduced set of page table functions suffices, as kernel mapping are shared.
-static int remove_from_list_nolock(page_slab_header_t *slab, page_slab_header_t **list){
-    if(list==NULL || *list==NULL || slab==NULL){
-        printf("remove_from_list:Unexpected agrument!\n");
+static int relink_nolock(page_slab_header_t *slab, 
+                page_slab_header_t **old_list, page_slab_header_t **new_list){
+#ifdef DEBUG_KVM
+    KVM_TRACE("slab=%p old_list=%p new_list=%p\n", 
+        (void *)slab, (void *)old_list, (void *)new_list);
+#endif
+    if(old_list==NULL || *old_list==NULL || new_list==NULL ||
+           old_list==new_list || slab==NULL){
+        printf("relink: Unexpected agrument!, slab=%p, new_list=%p, old_list=%p\n",
+            slab, new_list, old_list);
         return -1;
     }
-    if((*list)->inuse_count != slab->inuse_count){
+    int slab_id=slab->cpu_id, old_list_id=(*old_list)->cpu_id, new_list_id=(*new_list)->cpu_id;
+    if(slab_id !=old_list_id || old_list_id != new_list_id){
+        printf("relink: operator different cpu's list,Dangerous\n");
+        return -1;
+    }
+    if(!holding(&my_cpu_vma_pool[slab_id].lock)){
+        panic("Race Conditions: Accessing list without lock!\n");
+    }
+    uint64 cnt1=(*old_list)->inuse_count, cnt2=slab->inuse_count;
+    if(!((cnt1==cnt2) || (cnt1>0 && cnt2>0 && cnt1<VMA_SLAB_LIMIT && cnt2<VMA_SLAB_LIMIT))){
         printf("remove an unexisted entry from dismatch list\n");
         return -1;
     }
     page_slab_header_t *prev=slab->prev_page;
     page_slab_header_t *next=slab->next_page;
     if(prev!=NULL)  prev->next_page=next;
-    else    *list=NULL; //old_list now is empty
+    else    *old_list=NULL; //old_list now is empty
     if(next!=NULL)  next->prev_page=prev;
+    //hang up to the new_list
+    slab->next_page=*new_list;
     slab->prev_page=NULL;
-    slab->next_page=NULL;
+    if(*new_list!=NULL) (*new_list)->prev_page=slab;
+    *new_list=slab;
     return 0;
 }
 static int add_to_list_nolock(page_slab_header_t *slab, page_slab_header_t **list){
+#ifdef DEBUG_KVM
+    KVM_TRACE("slab=%p list=%p\n", (void *)slab, (void *)list);
+#endif
     if(slab==NULL || list==NULL){
         printf("add_to_list:Unexpected argument!\n");
         return -1;
+    }
+    int slab_id=slab->cpu_id, list_id=(*list)->cpu_id;
+    if(slab_id!=list_id){
+        printf("add_to_list: operator different cpu's list.Dangerous\n");
+        return -1;
+    }
+    if(!holding(&my_cpu_vma_pool[slab_id].lock)){
+        panic("Race Conditions: Accessing list without lock!\n");
     }
     slab->next_page=*list;
     slab->prev_page=NULL;
@@ -202,27 +268,32 @@ static int add_to_list_nolock(page_slab_header_t *slab, page_slab_header_t **lis
     return 0;
 }
 vm_area_struct_t *alloc_vma_node(){
+#ifdef DEBUG_KVM
+    KVM_TRACE("void\n");
+#endif
     int id=cpuid();
     acquire(&my_cpu_vma_pool[id].lock);
     page_slab_header_t *tmp=my_cpu_vma_pool[id].partial;//Extract space from partial list
+    printf("current No.%d cpu try to alloc_vma_node!\n", id);
     while(tmp!=NULL){
         if(tmp->inuse_count==VMA_SLAB_LIMIT){
             tmp=tmp->next_page;
         }
         else{
+            if(tmp->inuse_count==VMA_SLAB_LIMIT-1){
+                //transit into the full_list(Defer the inuse_count update while in critical state.)
+                if(tmp->freelist_head==NULL || tmp->freelist_head->vm_next!=NULL)
+                    panic("alloc_vma_node: slab_header metadata inconsisent!\n");
+                #ifdef DEBUG_KVM
+                    KVM_TRACE("now relink page(%p) from partial_list to full_list\n", tmp);
+                #endif
+                if(relink_nolock(tmp, &my_cpu_vma_pool[id].partial, &my_cpu_vma_pool[id].full)==-1)
+                    goto error;
+            }
             vm_area_struct_t *ret_vma=tmp->freelist_head;
             tmp->freelist_head=tmp->freelist_head->next_free;
             memset(ret_vma, 0, sizeof(vm_area_struct_t));   //clear again
-            tmp->inuse_count++;
-            if(tmp->inuse_count==VMA_SLAB_LIMIT){
-                //transit into the full_list
-                if(tmp->freelist_head!=NULL)
-                    panic("slab_header metadata inconsisent!\n");
-                if(remove_from_list_nolock(tmp, &my_cpu_vma_pool[id].partial)==-1)
-                    goto error;
-                if(add_to_list_nolock(tmp, &my_cpu_vma_pool[id].full)==-1)
-                    goto error;
-            }
+            tmp->inuse_count++; //update at the end.
             release(&my_cpu_vma_pool[id].lock);
             return ret_vma;
         }
@@ -238,6 +309,7 @@ vm_area_struct_t *alloc_vma_node(){
     page_slab_header_t *new_header=(page_slab_header_t *)new_pool_mem;
     new_header->magic=PAGE_SLAB_HEADER_MAGIC;
     new_header->inuse_count=1;
+    new_header->cpu_id=id;  //Explicitly states "executing" to avoid ambiguity.
     vm_area_struct_t *cur=(vm_area_struct_t *)((uint64)new_pool_mem+sizeof(page_slab_header_t));
     new_header->freelist_head=cur;
     for(int i=0;i<VMA_SLAB_LIMIT-1;i++){
@@ -252,37 +324,43 @@ vm_area_struct_t *alloc_vma_node(){
     release(&my_cpu_vma_pool[id].lock);
     return ret;
 error:
+    printf("alloc_vma_node : fail!\n");
     release(&my_cpu_vma_pool[id].lock);
     return NULL;
 }
 int reclaim_vma_node(vm_area_struct_t *node){
+#ifdef DEBUG_KVM
+    KVM_TRACE("node=%p\n", (void *)node);
+#endif
     if(node==NULL)  return -1;
-    int id=cpuid();
-    acquire(&my_cpu_vma_pool[id].lock);
     page_slab_header_t *cur_page=(page_slab_header_t *)((uint64)node & ~(PGSIZE -1));
     if(cur_page->magic!=PAGE_SLAB_HEADER_MAGIC){
         printf("Reclaim an invalid vma_node, that allocator recognized\n");
         goto cleanup;
     }
+    int id=cur_page->cpu_id;
+    acquire(&my_cpu_vma_pool[id].lock);
     if(cur_page->inuse_count==VMA_SLAB_LIMIT){
-        if(remove_from_list_nolock(cur_page, &my_cpu_vma_pool[id].full)==-1)
+        #ifdef DEBUG_KVM
+            KVM_TRACE("now relink page(%p) from full_list to partial_list\n", cur_page);
+        #endif
+        if(relink_nolock(cur_page, &my_cpu_vma_pool[id].full, &my_cpu_vma_pool[id].partial)==-1)
             goto cleanup;
+        memset(node, 0, sizeof(vm_area_struct_t));
         cur_page->inuse_count-=1;
         node->next_free=cur_page->freelist_head;
         cur_page->freelist_head=node;
-        memset(node, 0, sizeof(vm_area_struct_t));
-        if(add_to_list_nolock(cur_page, &my_cpu_vma_pool[id].partial)==-1)
-            goto cleanup;
     }
     else if(cur_page->inuse_count==1){
-        if(remove_from_list_nolock(cur_page, &my_cpu_vma_pool[id].partial)==-1)
+        #ifdef DEBUG_KVM
+            KVM_TRACE("now relink page(%p) from partial_list to empty_list\n", cur_page);
+        #endif
+        if(relink_nolock(cur_page, &my_cpu_vma_pool[id].partial, &my_cpu_vma_pool[id].empty)==-1)
             goto cleanup;
-        cur_page->inuse_count-=1;
+        cur_page->inuse_count=0;
+        memset(node, 0, sizeof(vm_area_struct_t));
         node->next_free=cur_page->freelist_head;
         cur_page->freelist_head=node;
-        memset(node, 0, sizeof(vm_area_struct_t));
-        if(add_to_list_nolock(cur_page, &my_cpu_vma_pool[id].empty)==-1)
-            goto cleanup;
         uint64 count=0;
         page_slab_header_t *tmp=my_cpu_vma_pool[id].empty;
         while(tmp!=NULL){
@@ -291,6 +369,9 @@ int reclaim_vma_node(vm_area_struct_t *node){
             tmp=tmp->next_page;
         }
         if(count>=VMA_POOL_LIMIT){  //shrink the pool if breaches the limit!
+            #ifdef DEBUG_KVM
+                KVM_TRACE("reclaim_vma_node: shrink the pool!\n");
+            #endif
             tmp=my_cpu_vma_pool[id].empty;
             page_slab_header_t *next=tmp;
             count=count/2;
@@ -311,9 +392,9 @@ int reclaim_vma_node(vm_area_struct_t *node){
     }
     else{   //No list transition.
         cur_page->inuse_count-=1;
+        memset(node, 0, sizeof(vm_area_struct_t));
         node->next_free=cur_page->freelist_head;
         cur_page->freelist_head=node;
-        memset(node, 0, sizeof(vm_area_struct_t));
     }
     release(&my_cpu_vma_pool[id].lock);
     return 0;
@@ -322,6 +403,9 @@ cleanup:
     return -1;
 }
 vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr){
+#ifdef DEBUG_KVM
+    KVM_TRACE("mm=%p vaddr=%llu\n", (void *)mm, vaddr);
+#endif
     //Fast lookup using a cache-first,tree fallback strategy to find the vma
     //containg a specific address.
     vm_area_struct_t *found=NULL;
@@ -333,7 +417,7 @@ vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr){
     while(iter){
         vm_area_struct_t *candidate=rb_entry(iter, vm_area_struct_t, vm_rb_node);
         // printf("searching found iter in rb_tree, current found's range is [%p, %p)\n", 
-        //    (void *)candidate->vm_start, (void *)candidate->vm_end);
+        //     (void *)candidate->vm_start, (void *)candidate->vm_end);
         if(vaddr < candidate->vm_start)   iter=iter->rb_left;
         else if(vaddr >= candidate->vm_end)   iter=iter->rb_right;
         else{
@@ -347,6 +431,9 @@ vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr){
     return found; 
 }
 static vm_area_struct_t *find_upper_vma(mm_struct_t *mm, uint64 vaddr){
+#ifdef DEBUG_KVM
+    KVM_TRACE("mm=%p vaddr=%llu\n", (void *)mm, vaddr);
+#endif
     //Find the first vma statifying vma->vm_end > addr
     //Differ from the find_vma, should exist one vma meet requirement unless empty vma_list
     vm_area_struct_t *found=NULL;
@@ -381,6 +468,9 @@ static vm_area_struct_t *find_upper_vma(mm_struct_t *mm, uint64 vaddr){
 }
 rb_node_t *rb_search(rb_node_t *node, vm_area_struct_t **predecessor, 
         vm_area_struct_t **successor, const rb_root_t *root){
+#ifdef DEBUG_KVM
+    KVM_TRACE("node=%p predecessor=%p successor=%p root=%p\n", (void *)node, (void *)predecessor, (void *)successor, (void *)root);
+#endif
     //A helper functions that locates the insertion parent and idenitifies
     //the linear list neighbors(prev/next) in a signle traversal.
     if(node==NULL){
@@ -430,6 +520,9 @@ rb_node_t *rb_search(rb_node_t *node, vm_area_struct_t **predecessor,
     return parent;
 }
 int insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont){
+#ifdef DEBUG_KVM
+    KVM_TRACE("mm=%p vma=%p cont=%p\n", (void *)mm, (void *)vma, (void *)cont);
+#endif
     //Check if cont qualifies for the fast path,
     //if not;fallback to the generic insetions.
     if(vma==NULL){
@@ -470,6 +563,9 @@ int insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont)
     return 0;
 }
 int insert_vma(mm_struct_t *mm, vm_area_struct_t *vma){
+#ifdef DEBUG_KVM
+    KVM_TRACE("mm=%p vma=%p\n", (void *)mm, (void *)vma);
+#endif
     //Builds the structure by linking the new VMA into both 
     //the RB-Tree and the linked list after checking for overlaps
     if(mm==NULL || vma==NULL || vma->vm_start%PGSIZE!=0 || vma->vm_end%PGSIZE!=0)
@@ -504,6 +600,9 @@ int insert_vma(mm_struct_t *mm, vm_area_struct_t *vma){
     return 0;
 }
 int remove_vma(mm_struct_t *mm, vm_area_struct_t *vma){
+#ifdef DEBUG_KVM
+    KVM_TRACE("mm=%p vma=%p\n", (void *)mm, (void *)vma);
+#endif
     //Remove from the list,maintain mmap,also need to free the associated resource
     rb_node_t *vma_node=&vma->vm_rb_node;
     vm_area_struct_t *vm_prev=vma->vm_prev, *vm_next=vma->vm_next;
@@ -520,6 +619,9 @@ int remove_vma(mm_struct_t *mm, vm_area_struct_t *vma){
 }
 static uint64 get_unmapped_area(mm_struct_t *mm, uint64 len, 
         uint64 low_limit, uint64 high_limit, vma_context_t *cont){
+#ifdef DEBUG_KVM
+    KVM_TRACE("mm=%p len=%llu low_limit=%llu high_limit=%llu cont=%p\n", (void *)mm, len, low_limit, high_limit, (void *)cont);
+#endif
     if(mm==NULL || high_limit<=low_limit || len==0 || len%PGSIZE!=0){
         printf("get_unmapped_area:get invalid para!\n");
         return -1;
@@ -570,10 +672,16 @@ static uint64 get_unmapped_area(mm_struct_t *mm, uint64 len,
     return -1;
 }
 static uint64 helper_kvmdealloc(pagetable_t Kpagetable, uint64 oldsz, uint64 new_sz){
+#ifdef DEBUG_KVM
+    KVM_TRACE("Kpagetable=%p oldsz=%llu new_sz=%llu\n", (void *)Kpagetable, oldsz, new_sz);
+#endif
     // release resources, exclude vma operations.
     return uvmdealloc(Kpagetable, oldsz, new_sz);
 }
 int Kernel_buddy_alloc(pagetable_t Kpagetable, uint64 va, uint64 size, int xperm){
+#ifdef DEBUG_KVM
+    KVM_TRACE("Kpagetable=%p va=%llu size=%llu xperm=%d\n", (void *)Kpagetable, va, size, xperm);
+#endif
     //return 0 when Success , and return -1 when it fail!
     //A shared utility for use and kernel space.
     if(va%PGSIZE!=0){
@@ -595,15 +703,15 @@ int Kernel_buddy_alloc(pagetable_t Kpagetable, uint64 va, uint64 size, int xperm
             alloc_size/=2;
         mem=alloc_memory(alloc_size);
         if (mem == 0) {
-            VM_TRACE("kvmalloc failed to allocate cur_va=0x%llx size=0x%llx\n", cur_va, alloc_size);
+            // VM_TRACE("kvmalloc failed to allocate cur_va=0x%llx size=0x%llx\n", cur_va, alloc_size);
             helper_kvmdealloc(Kpagetable, cur_va, va);  //have not inserted into vma_list
             return -1;
         }
         memset(mem, 0, alloc_size);
-        VM_TRACE("kvmalloc -> mappages cur_va=0x%llx alloc_size=0x%llx\n", cur_va, alloc_size);
+        // VM_TRACE("kvmalloc -> mappages cur_va=0x%llx alloc_size=0x%llx\n", cur_va, alloc_size);
         if(mappages(Kpagetable, cur_va, alloc_size, (uint64)mem, xperm)!=0){
             free_pages(mem, alloc_size);
-            VM_TRACE("kvmalloc mappages failed at cur_va=0x%llx size=0x%llx\n", cur_va, alloc_size);
+            // VM_TRACE("kvmalloc mappages failed at cur_va=0x%llx size=0x%llx\n", cur_va, alloc_size);
             helper_kvmdealloc(Kpagetable, cur_va, va);  //have not inserted into vma_list
             return -1;
         }
@@ -617,6 +725,9 @@ int Kernel_buddy_alloc(pagetable_t Kpagetable, uint64 va, uint64 size, int xperm
     return 0;
 }
 void *kvmalloc(pagetable_t Kpagetable, uint64 req_sz, int xperm){
+#ifdef DEBUG_KVM
+    KVM_TRACE("Kpagetable=%p req_sz=%llu xperm=%d\n", (void *)Kpagetable, req_sz, xperm);
+#endif
     if(req_sz==0){
         printf("kernel_vmalloc:Invalid size : 0\n");
         goto error;
@@ -658,11 +769,15 @@ void *kvmalloc(pagetable_t Kpagetable, uint64 req_sz, int xperm){
     release(&global_mm.mm_lock);
     return (void *)start_va;
 error:
+    printf("kvmalloc: fail!\n");
     release(&global_mm.mm_lock);
     return NULL;
     //Address 0 acts as a unique error indicator bacause it's guaranteed to be invalid.
 }
 uint64 kvmdealloc_range(pagetable_t Kpagetable, uint64 oldsz, uint64 newsz){
+#ifdef DEBUG_KVM
+    KVM_TRACE("Kpagetable=%p oldsz=%llu newsz=%llu\n", (void *)Kpagetable, oldsz, newsz);
+#endif
     //Range Deallocation
     if(newsz>=oldsz || !in_kernel_heap(oldsz) || !in_kernel_heap(newsz)){
         printf("free invalid area!\n");
@@ -695,10 +810,236 @@ uint64 kvmdealloc_range(pagetable_t Kpagetable, uint64 oldsz, uint64 newsz){
     release(&global_mm.mm_lock);
     return ret;
 error:
+    printf("kvmdealloc_range fail!\n");
     release(&global_mm.mm_lock);
     return -1;
 }
 uint64 kvmdealloc(pagetable_t Kpagetable, uint64 start_va, uint64 sz){
+#ifdef DEBUG_KVM
+    KVM_TRACE("Kpagetable=%p start_va=%llu sz=%llu\n", (void *)Kpagetable, start_va, sz);
+#endif
     //Sized Deallocation
     return kvmdealloc_range(Kpagetable, start_va+sz, start_va);
+}
+//test-only code co-located to access status functions.
+void test_vma_slab_allocator() {
+#ifdef DEBUG_KVM
+    KVM_TRACE("void\n");
+#endif
+    printf("=== Starting VMA Slab Allocator Test ===\n");
+    // Definition: Create an array to hold many VMA pointers
+    #define TEST_BATCH 200
+    vm_area_struct_t *vma_ptrs[TEST_BATCH];
+    // Step 1: Alloc until slab needs to expand (Stress Test)
+    for (int i = 0; i < TEST_BATCH; i++) {
+        vma_ptrs[i] = alloc_vma_node();
+        if (vma_ptrs[i] == NULL) panic("Slab alloc failed prematurely!");
+        // Verify: Ensure memory is zeroed out
+        if (vma_ptrs[i]->vm_start != 0) panic("Slab node not zeroed!");
+    }
+    printf("  [Success] Allocated %d VMAs.\n", TEST_BATCH);
+    // Step 2: Free half of them to trigger 'full' -> 'partial' transition
+    for (int i = 0; i < TEST_BATCH; i += 2) {
+        reclaim_vma_node(vma_ptrs[i]);
+        vma_ptrs[i] = NULL;
+    }
+    printf("  [Success] Freed half VMAs.\n");
+    // Step 3: Re-alloc to verify reuse mechanism
+    for (int i = 0; i < TEST_BATCH; i += 2) {
+        vma_ptrs[i] = alloc_vma_node();
+        if (vma_ptrs[i] == NULL) panic("Slab reuse failed!");
+    }
+    printf("  [Success] re-alloc VMAs. \n");
+    // Cleanup: Free all
+    for (int i = 0; i < TEST_BATCH; i++) {
+        if (vma_ptrs[i]) reclaim_vma_node(vma_ptrs[i]);
+    }
+    printf("=== VMA Slab Test Passed ===\n");
+}
+
+void test_vma_rbtree_and_list() {
+#ifdef DEBUG_KVM
+    KVM_TRACE("void\n");
+#endif
+    printf("=== Starting RB-Tree & List Consistency Test ===\n");
+    // Mock MM struct specifically for testing
+    mm_struct_t test_mm;
+    memset(&test_mm, 0, sizeof(mm_struct_t));
+    initlock(&test_mm.mm_lock, "test_mm_lock");
+    test_mm.rb_root = (rb_root_t *)alloc_vma_node(); // Bootstrap root
+
+    // Scenario: Insert 3 VMAs: A[0x1000-0x2000], C[0x3000-0x4000], B[0x2000-0x3000]
+    // Order matters: Insert non-sequentially to test sorting logic
+    // 1. Create VMA A
+    vm_area_struct_t *vma_a = alloc_vma_node();
+    vma_a->vm_start = 0x1000; vma_a->vm_end = 0x2000;
+    insert_vma(&test_mm, vma_a);
+    // 2. Create VMA C (Leave a gap for B)
+    vm_area_struct_t *vma_c = alloc_vma_node();
+    vma_c->vm_start = 0x3000; vma_c->vm_end = 0x4000;
+    insert_vma(&test_mm, vma_c);
+    // 3. Create VMA B (Fills the gap)
+    vm_area_struct_t *vma_b = alloc_vma_node();
+    vma_b->vm_start = 0x2000; vma_b->vm_end = 0x3000;
+    insert_vma(&test_mm, vma_b);
+    // Check 1: Lookup (RB-Tree functionality)
+    vm_area_struct_t *found = find_vma(&test_mm, 0x1050);
+    if (found != vma_a) panic("RB-Tree lookup failed for VMA A");
+    
+    found = find_vma(&test_mm, 0x2050);
+    if (found != vma_b) panic("RB-Tree lookup failed for VMA B");
+    // Check 2: Linked List Continuity
+    if (test_mm.mmap != vma_a) panic("Head of list is wrong");
+    if (vma_a->vm_next != vma_b) panic("List link A->B broken");
+    if (vma_b->vm_next != vma_c) panic("List link B->C broken");
+    if (vma_b->vm_prev != vma_a) panic("List link B<-A broken");
+    // Check 3: Upper Bound Search (Gap finding)
+    vm_area_struct_t *upper = find_upper_vma(&test_mm, 0x1500);
+    // Should return A because A ends at 0x2000 > 0x1500? 
+    // Wait, logic check: find_upper_vma finds first vma where vm_end > addr.
+    // 0x1500 is inside A. A->end=0x2000 > 0x1500. Correct.
+    if (upper != vma_a) panic("Upper bound check failed");
+    // Cleanup
+    remove_vma(&test_mm, vma_a);
+    remove_vma(&test_mm, vma_b);
+    remove_vma(&test_mm, vma_c);
+    printf("=== RB-Tree & List Test Passed ===\n");
+}
+
+void test_kvmalloc_integrity() {
+#ifdef DEBUG_KVM
+    KVM_TRACE("void\n");
+#endif
+    printf("=== Starting kvmalloc Integration Test ===\n");
+
+    // Define allocation size: 2.5 Pages (Testing alignment handling)
+    uint64 alloc_sz = PGSIZE * 2 + PGSIZE / 2;
+    
+    // Step 1: Allocate memory
+    char *ptr = (char *)kvmalloc(kernel_pagetable, alloc_sz, PTE_R | PTE_W);
+    if (ptr == NULL) panic("kvmalloc failed");
+
+    // Check alignment
+    if ((uint64)ptr % PGSIZE != 0) panic("kvmalloc returned unaligned address");
+
+    // Step 2: Write/Read Test (Verify Page Table Mapping)
+    // Verify boundaries: Write to start, middle, and end
+    ptr[0] = 'A';
+    ptr[PGSIZE] = 'B'; 
+    ptr[alloc_sz - 1] = 'C'; // Should be accessible due to PGROUNDUP
+
+    if (ptr[0] != 'A' || ptr[PGSIZE] != 'B' || ptr[alloc_sz - 1] != 'C') {
+        panic("Memory read/write verification failed");
+    }
+    printf("  [Success] Memory Read/Write OK.\n");
+
+    // Step 3: Verify Metadata (VMA existence)
+    acquire(&global_mm.mm_lock);
+    vm_area_struct_t *vma = find_vma(&global_mm, (uint64)ptr);
+    if (!vma || vma->vm_start != (uint64)ptr) panic("VMA not created for kvmalloc");
+    release(&global_mm.mm_lock);
+
+    // Step 4: Deallocation
+    uint64 ret = kvmdealloc(kernel_pagetable, (uint64)ptr, alloc_sz);
+    if (ret == -1) panic("kvmdealloc failed");
+
+    // Verify VMA is gone
+    acquire(&global_mm.mm_lock);
+    vma = find_vma(&global_mm, (uint64)ptr);
+    if (vma != NULL) panic("VMA still exists after free");
+    release(&global_mm.mm_lock);
+
+    printf("=== kvmalloc Test Passed ===\n");
+}
+
+void test_unmapped_area_search() {
+#ifdef DEBUG_KVM
+    KVM_TRACE("void\n");
+#endif
+    printf("=== Starting Unmapped Area Search Test ===\n");
+
+    // 1. Create a sandwich structure: [Block A] [Block B] [Block C]
+    // Block A: The base barrier (1 Page)
+    void *ptr_a = kvmalloc(kernel_pagetable, PGSIZE, PTE_R | PTE_W);
+    if (ptr_a == NULL) panic("Setup failed: ptr_a");
+
+    // Block B: This will become the gap (2 Pages)
+    void *ptr_b = kvmalloc(kernel_pagetable, 2 * PGSIZE, PTE_R | PTE_W);
+    if (ptr_b == NULL) panic("Setup failed: ptr_b");
+
+    // Block C: The upper barrier (1 Page)
+    void *ptr_c = kvmalloc(kernel_pagetable, PGSIZE, PTE_R | PTE_W);
+    if (ptr_c == NULL) panic("Setup failed: ptr_c");
+
+    // Verify adjacency (First-fit logic check)
+    // Ensures that the allocator originally packed them tightly
+    if ((uint64)ptr_b != (uint64)ptr_a + PGSIZE) 
+        panic("Allocator did not pack A and B tightly");
+    if ((uint64)ptr_c != (uint64)ptr_b + 2 * PGSIZE) 
+        panic("Allocator did not pack B and C tightly");
+
+    // 2. Create the GAP by freeing Block B
+    // Current layout: [A: Used] [HOLE: 2pg] [C: Used]
+    kvmdealloc(kernel_pagetable, (uint64)ptr_b, 2 * PGSIZE);
+
+    printf("  [Info] Created a 2-page gap at %p\n", ptr_b);
+
+    // 3. Alloc Block D: Request 2 Pages
+    // Based on First-Fit strategy, it MUST fit into the hole left by B
+    void *ptr_d = kvmalloc(kernel_pagetable, 2 * PGSIZE, PTE_R | PTE_W);
+    
+    if (ptr_d == NULL) panic("Failed to allocate in the gap");
+
+    // 4. Verify Strategy
+    // The new pointer must strictly equal the old B pointer
+    if (ptr_d != ptr_b) {
+        printf("  [Error] Expected address %p but got %p\n", ptr_b, ptr_d);
+        panic("Allocator failed to utilize the existing gap (Fragmentation issue)");
+    }
+
+    printf("  [Success] Allocator correctly filled the memory hole.\n");
+
+    // Cleanup remaining blocks
+    kvmdealloc(kernel_pagetable, (uint64)ptr_a, PGSIZE);
+    kvmdealloc(kernel_pagetable, (uint64)ptr_d, 2 * PGSIZE);
+    kvmdealloc(kernel_pagetable, (uint64)ptr_c, PGSIZE);
+
+    printf("=== Unmapped Area Test Passed ===\n");
+}
+//DEBUG_only functions
+void identify_list_nolock(page_slab_header_t *page){
+    if(page==NULL || page->magic!=PAGE_SLAB_HEADER_MAGIC) 
+        panic("identify_list_nolock!\n");
+    int id=page->cpu_id;
+    page_slab_header_t *partial=my_cpu_vma_pool[id].partial;
+    while(partial!=NULL){
+        if(page==partial){
+            printf("In partial list!\n");
+            return;
+        }
+        partial=partial->next_page;
+    }
+    page_slab_header_t *empty=my_cpu_vma_pool[id].empty;
+    while(empty!=NULL){
+        if(page==empty){
+            printf("In empty list!\n");
+            return;
+        }
+        empty=empty->next_page;
+    }
+    page_slab_header_t *full=my_cpu_vma_pool[id].full;
+    while(full!=NULL){
+        if(page==full){
+            printf("In full list!\n");
+            return;
+        }
+        full=full->next_page;
+    }
+    printf("Detached node\n");
+}
+void identify_list(page_slab_header_t *page){
+    int id=page->cpu_id;
+    acquire(&my_cpu_vma_pool[id].lock);
+    identify_list_nolock(page);
+    release(&my_cpu_vma_pool[id].lock);
 }

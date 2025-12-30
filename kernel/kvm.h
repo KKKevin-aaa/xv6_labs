@@ -4,7 +4,7 @@ struct mm_struct;   //forward declaration
 struct vm_operation_struct;
 
 struct vm_area_struct{  //Virtual Memory Area
-    uint64 vm_start,vm_end;
+    uint64 vm_start, vm_end;
     uint64 vm_filesz;    //check if .bss segment 
     int file_fd;    //can't store file * directly
     uint64 vm_page_prot; //hardware page table entry prototype
@@ -19,6 +19,8 @@ struct vm_area_struct{  //Virtual Memory Area
         struct vm_area_struct *next_free;
     };
     const struct vm_operation_struct *vm_ops;
+    struct spinlock vma_lock;   //Protect vma inner data
+    int ref_count;  //Atomic operations
 };
 struct vma_context{ 
     uint64 addr;
@@ -51,6 +53,7 @@ struct page_slab_header{
     uint64 inuse_count; //Number of active objects in this page
     vm_area_struct_t *freelist_head;    //Start of the free item chain within this page
     struct page_slab_header *prev_page, *next_page;
+    int cpu_id; //current slab is belong to which cpu's pool
 };
 
 struct vma_pool{
@@ -60,5 +63,6 @@ struct vma_pool{
     page_slab_header_t *empty;
 };
 #define PAGE_SLAB_HEADER_MAGIC  0x32142361
+//Account for memory alignment when calculating structure size
 #define VMA_SLAB_LIMIT ((PGSIZE - sizeof(page_slab_header_t)) / sizeof(vm_area_struct_t))
 #define VMA_POOL_LIMIT 5

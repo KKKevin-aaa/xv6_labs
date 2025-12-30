@@ -313,7 +313,8 @@ endif
 ifeq ($(LAB),traps)
 UPROGS += \
 	$(U)/$(OBJ_DIR)/_call\
-	$(U)/$(OBJ_DIR)/_bttest
+	$(U)/$(OBJ_DIR)/_bttest\
+	$(U)/$(OBJ_DIR)/_btdebugtest
 endif
 
 ifeq ($(LAB),lazy)

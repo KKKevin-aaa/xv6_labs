@@ -15,6 +15,10 @@
 #include "defs.h"
 #include "proc.h"
 
+void test_vma_slab_allocator();
+void test_vma_rbtree_and_list();
+void test_kvmalloc_integrity();
+void test_unmapped_area_search();
 volatile int panicking = 0;  // printing a panic message
 volatile int panicked = 0;   // spinning forever at end of a panic
 static uint8 is_debug_sym_loaded=0;
@@ -322,6 +326,10 @@ cleanup:
     return ret;
 }
 uint64 sys_load_debug_sym(void){
+    test_vma_slab_allocator();
+    test_vma_rbtree_and_list();
+    test_kvmalloc_integrity();
+    test_unmapped_area_search();
     return load_debug_sym_vm();
 }
 
