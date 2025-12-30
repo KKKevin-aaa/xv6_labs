@@ -225,7 +225,7 @@ void rb_erase(rb_node_t *node, rb_root_t*root);
 
 //kvm.c
 void            kvminit(void);
-void            kvmmap(pagetable_t, uint64, uint64, uint64, int);
+int             kvmmap_safe(pagetable_t, uint64, uint64, uint64, int);
 void            kvminithart(void);
 vm_area_struct_t *alloc_vma_node(void);
 int             reclaim_vma_node(vm_area_struct_t *);

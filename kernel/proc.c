@@ -43,12 +43,12 @@ struct spinlock wait_lock;
 // guard page.
 void proc_mapstacks(pagetable_t kpgtbl) {
     struct proc *p;
-
+    void kvmmap_init(pagetable_t,uint64,uint64,uint64,int);
     for (p = proc; p < &proc[NPROC]; p++) {
         char *pa = kalloc();
         if (pa == 0) panic("kalloc");
         uint64 va = KSTACK((int)(p - proc));
-        kvmmap(kpgtbl, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+        kvmmap_init(kpgtbl, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
     }
 }
 

@@ -19,7 +19,7 @@ struct vm_area_struct{  //Virtual Memory Area
         struct vm_area_struct *next_free;
     };
     const struct vm_operation_struct *vm_ops;
-    struct spinlock vma_lock;   //Protect vma inner data
+    struct spinlock vma_lock;   //Protect the "external usage state"(Logic Lifecycle)
     int ref_count;  //Atomic operations
 };
 struct vma_context{ 
@@ -57,7 +57,7 @@ struct page_slab_header{
 };
 
 struct vma_pool{
-    struct spinlock lock;
+    struct spinlock pool_lock;
     page_slab_header_t *partial;
     page_slab_header_t *full;
     page_slab_header_t *empty;
