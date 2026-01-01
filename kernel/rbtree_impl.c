@@ -13,6 +13,10 @@
 * 3. red node's child node should be black(Red-red)
 * 4. start by arbitry node to all leaf_node, these path should contain the same black node.(black-Height)
 */
+void dummy_force_save_ra(void){
+    asm volatile("nop");    //Solely to prevent being optimized away.
+}
+
 static void __rb_rotate_left(rb_node_t *node, rb_root_t *root){
     rb_node_t *new_parent=node->rb_right, *left_node=new_parent->rb_left, *gparent=rb_parent(node);
     if(gparent==NULL)   root->rb_parent=new_parent;
@@ -105,7 +109,7 @@ void rb_insert_color(rb_node_t *node, rb_root_t *root){
 * 'parent' is 'node's parents(must be passed by since 'node' can be NULL)
 */
 static void __rb_erase_color(rb_node_t *node, rb_node_t *parent, rb_root_t *root){
-    rb_node_t *other;  //slicing node
+    rb_node_t *other=NULL;  //slibing node
     //As long as 'node' is not the root and 'node' is black the loops continue
     while(node !=root->rb_parent && (node==NULL || rb_color(node)==RB_BLACK)){
         if(parent==NULL)    break;
@@ -176,66 +180,93 @@ static void __rb_erase_color(rb_node_t *node, rb_node_t *parent, rb_root_t *root
 * Strategy: Due to node embedding, we cannot just copy data between node as non-intrusive rbtree might
 * Instead, we find a substitue node and make it completely 
 * replace the 'node'(usually as 'successor') to be erased within the tree structure
-* so problem is then transformed:we now fix the hole 
-* and potential r-b violations caused byy removing the successor form its origin position
+* so problem is then transformed: we now fix the hole 
+* and potential r-b violations caused by removing the successor form its origin position
 */
 void rb_erase(rb_node_t *node, rb_root_t *root){
     rb_node_t *child, *parent;
     int color;
     /*
     * 'node' is what we want to delete
-    * 'node_to_delete' is actually remove form the tree
-    * 'child' is 'node_to_delete''s only child(can be NULL)
+    * 'successor' is the node effectively removed from its original place to replace 'node'
+    * 'child' is 'successor''s only child (can be NULL)
     */
-    // part one: find the 'node_to_delete'
-    rb_node_t *node_to_delete;
-    rb_node_t *old=node;
-    if(node->rb_left==NULL){
-        child=node->rb_right;
-    }else if(node->rb_right==NULL){
-        child=node->rb_left;
+    
+    rb_node_t *successor;
+    rb_node_t *old = node;
+
+    // Case 1 & 2: Node has at most one child
+    if(node->rb_left == NULL){
+        child = node->rb_right;
+    }else if(node->rb_right == NULL){
+        child = node->rb_left;
     }else{
-        //have two children, now 'successor' is minimun node in its right tree
-        node_to_delete=node->rb_right;
-        while(node_to_delete->rb_left!=NULL){
-            node_to_delete=node_to_delete->rb_left;
-        }   //now 'node_to_delete' is 'node''s successor
-        //part two: find 'child'
-        child=node_to_delete->rb_right;
-        // Splicing
-        parent=rb_parent(node_to_delete);
-        color=rb_color(node_to_delete);
-        if(parent){
-            if(parent->rb_left==node_to_delete) parent->rb_left=child;
-            else    parent->rb_right=child;
+        // Case 3: Node has two children
+        // We need to find the successor (minimum node in the right subtree)
+        successor = node->rb_right;
+        while(successor->rb_left != NULL){
+            successor = successor->rb_left;
         }
-        else    root->rb_parent=child;
-        if(child)   rb_set_parent(child, parent);
-        // 'Replace 'node'('old') with 'node_to_delete''
-        node_to_delete->rb_parent_color=old->rb_parent_color;   //steels old's parent and color
-        node_to_delete->rb_left=old->rb_left;
-        rb_set_parent(old->rb_left, node_to_delete);
-        node_to_delete->rb_right=old->rb_right;
-        rb_set_parent(old->rb_right, node_to_delete);
+        
+        // part two: find 'child' (successor's right child)
+        child = successor->rb_right;
+        parent = rb_parent(successor);
+        color = rb_color(successor); // Save successor's original color for fixup decision
+
+        // CRITICAL FIX START: Handle "Successor is immediate right child" case
+        // If successor == old->rb_right, we must NOT set successor->rb_right = old->rb_right (Self-Reference!)
+        if(successor == old->rb_right) {
+            // Special Case: Successor is the direct child of old
+            // The hole's parent becomes the successor itself
+            parent = successor; 
+        } else {
+            // Standard Case: Successor is further down the tree
+            // Splicing: Remove successor from its original position
+            if (parent) parent->rb_left = child;
+            if (child) rb_set_parent(child, parent);
+
+            // Connect successor to old's right child
+            successor->rb_right = old->rb_right;
+            rb_set_parent(old->rb_right, successor);
+        }
+        // CRITICAL FIX END
+
+        // 'Replace' 'node'('old') with 'successor'
+        // Successor inherits old's parent pointer AND color (to maintain local black-height)
+        successor->rb_parent_color = old->rb_parent_color;
+        successor->rb_left = old->rb_left;
+        rb_set_parent(old->rb_left, successor);
+
+        // Connect old's parent to successor
         if(rb_parent(old)){
-            if(rb_parent(old)->rb_left==old)    rb_parent(old)->rb_left=node_to_delete;
-            else    rb_parent(old)->rb_right=node_to_delete;
-            rb_set_parent(node_to_delete, rb_parent(old));
+            if(rb_parent(old)->rb_left == old) rb_parent(old)->rb_left = successor;
+            else rb_parent(old)->rb_right = successor;
+        } else {
+            root->rb_parent = successor;
         }
-        else    root->rb_parent=node_to_delete;
+
+        // Fixup starts from the hole left by successor
         goto start_fixup;
     }
-    parent=rb_parent(node);
-    color=rb_color(node);
-    if(child)   rb_set_parent(child, parent);
+
+    // Simple case handling (Node has 0 or 1 child)
+    parent = rb_parent(node);
+    color = rb_color(node);
+    
+    if(child) rb_set_parent(child, parent);
     if(parent){
-        if(parent->rb_left==node)   parent->rb_left=child;
-        else    parent->rb_right=child;
+        if(parent->rb_left == node) parent->rb_left = child;
+        else parent->rb_right = child;
+    } else {
+        root->rb_parent = child;
     }
-    else    root->rb_parent=child;
+
 start_fixup:
-    if(color==RB_BLACK) __rb_erase_color(child, parent, root);
+    // Only trigger rebalancing if we removed a BLACK node
+    if(color == RB_BLACK) __rb_erase_color(child, parent, root);
 }
+
+
 void rb_link_node(rb_node_t *node, rb_node_t *parent, rb_node_t **rb_link){
     if(node==NULL || rb_link==NULL)   return;  
     node->rb_parent_color=(unsigned long)parent;

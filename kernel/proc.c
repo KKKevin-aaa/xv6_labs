@@ -48,6 +48,7 @@ void proc_mapstacks(pagetable_t kpgtbl) {
         char *pa = kalloc();
         if (pa == 0) panic("kalloc");
         uint64 va = KSTACK((int)(p - proc));
+        printf("[proc_mapstacks] proc %d: kernel_stack located at %llx\n", (int)(p-proc), va);
         kvmmap_nolock(kpgtbl, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
     }
 }

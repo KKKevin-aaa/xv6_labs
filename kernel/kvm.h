@@ -28,7 +28,7 @@ struct vma_context{
 };
 struct mm_struct{
     vm_area_struct_t *mmap;  //Head of the list of VMAs(sorted by the address)
-    rb_root_t *rb_root;   //root of the red-block tree of VMAs
+    rb_root_t rb_root;   //root of the red-block tree of VMAs
     vm_area_struct_t *mmap_cache;
     // AddrSpace *as; //pointer to the address space struct(am-origin.h)
     //informational fields

@@ -13,13 +13,27 @@ struct rb_root{
     rb_node_t *rb_parent;
 };
 
+/*
+ * WARNING: Below are a LEAF FUNCTION. 
+ * To improve performance, the compiler may not save the return address (ra) 
+ * to the stack. This will cause this function to be "invisible" in standard 
+ * stack backtraces unless DWARF unwind info is used.
+ */
+static inline int rb_color(rb_node_t *rb){
+    //Leaf function: don't call any other function, so ra it not saved on the stack
+    //So it's diffcult to backtrace.
+    //dummy_force_save_ra();
+    if(rb==NULL)    return RB_BLACK;
+    return rb->rb_parent_color & 1;
+}
+
 //Helper functions (static inline)
 static inline rb_node_t *rb_parent(rb_node_t *rb){
     return (rb_node_t*)(rb->rb_parent_color & ~3);
 }
-static inline int rb_color(rb_node_t *rb){
-    return rb->rb_parent_color & 1;
-}
+// static inline int rb_color(rb_node_t *rb){
+//     return rb->rb_parent_color & 1;
+// }
 static inline void rb_set_parent(rb_node_t *rb, rb_node_t *rb_parent){
     //reset the parent of a node
     rb->rb_parent_color=(rb->rb_parent_color & 3) | (uint64)rb_parent;

@@ -228,6 +228,7 @@ void            kvminit(void);
 int             kvmmap_safe(pagetable_t, uint64, uint64, uint64, int);
 void            kvminithart(void);
 vm_area_struct_t *alloc_vma_node(void);
+vm_area_struct_t *alloc_kernel_vma(void);
 int             reclaim_vma_node(vm_area_struct_t *);
 vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr);
 int             insert_vma(mm_struct_t *mm, vm_area_struct_t *vma);

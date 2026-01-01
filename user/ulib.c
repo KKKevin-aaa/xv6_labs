@@ -11,6 +11,15 @@
 //
 // wrapper so that it's OK if main() does not call exit().
 //
+__attribute__((no_instrument_function)) 
+void __cyg_profile_func_enter(void *ths_fn, void *call_site){
+    return;
+}
+__attribute__((no_instrument_function))
+void __cyg_profile_func_exit(void *this_fn, void *call_site){
+    return;
+}
+
 void
 start(int argc, char **argv)
 {

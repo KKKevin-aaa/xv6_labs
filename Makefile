@@ -144,7 +144,7 @@ LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
-CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer
+CFLAGS = -Wall -Werror -O
 
 ifdef LAB
 LABUPPER = $(shell echo $(LAB) | tr a-z A-Z)
@@ -195,6 +195,12 @@ BUILD_ROOT_DIR := build
 
 ifeq ($(DEBUG), 1)
   CFLAGS += -DDEBUG_FORK -DDEBUG_VM -DDEBUG_KALLOC -DDEBUG_EXEC -O0 -g3 -gdwarf-4
+  CFLAGS += -fno-omit-frame-pointer
+  CFLAGS += -fno-inline
+  CFLAGS += -fno-optimize-sibling-calls
+  CFLAGS += -finstrument-functions
+  # This flags instructs the compiler to enable profilling by inserting a call
+  # to the mcount routine at the prologue of every function.
   OBJ_DIR := $(BUILD_ROOT_DIR)/debug
 else
   CFLAGS += -O2 -ggdb -gdwarf-4
