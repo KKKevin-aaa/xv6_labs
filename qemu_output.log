@@ -359,45 +359,45 @@ xv6 kernel is booting
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dbb000 order=0
-[KVM:add_to_list_locked] slab=0x0000000087dbb000 list=0x0000000080145348
+[KVM:add_to_list_locked] slab=0x0000000087dbb000 list=0x0000000080145488
 [KVM:gene_flags] vm_page_prot=6
-[KVM:insert_vma] mm=0x00000000801454b0 vma=0x0000000087dbb030
-[KVM:rb_search] node=0x0000000087dbb080 predecessor=0x0000000080156460 successor=0x0000000080156458 root=0x0000000080156468
+[KVM:insert_vma] mm=0x00000000801455f0 vma=0x0000000087dbb030
+[KVM:rb_search] node=0x0000000087dbb080 predecessor=0x00000000801565a8 successor=0x00000000801565a0 root=0x00000000801455f8
 [KVM:insert_vma_helper] va=10001000 sz=1000 perm=6
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:gene_flags] vm_page_prot=6
-[KVM:insert_vma] mm=0x00000000801454b0 vma=0x0000000087dbb0a8
-[KVM:rb_search] node=0x0000000087dbb0f8 predecessor=0x0000000080156460 successor=0x0000000080156458 root=0x0000000080156468
+[KVM:insert_vma] mm=0x00000000801455f0 vma=0x0000000087dbb0a8
+[KVM:rb_search] node=0x0000000087dbb0f8 predecessor=0x00000000801565a8 successor=0x00000000801565a0 root=0x00000000801455f8
 [KVM:insert_vma_helper] va=c000000 sz=4000000 perm=6
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:gene_flags] vm_page_prot=6
-[KVM:insert_vma] mm=0x00000000801454b0 vma=0x0000000087dbb120
-[KVM:rb_search] node=0x0000000087dbb170 predecessor=0x0000000080156460 successor=0x0000000080156458 root=0x0000000080156468
+[KVM:insert_vma] mm=0x00000000801455f0 vma=0x0000000087dbb120
+[KVM:rb_search] node=0x0000000087dbb170 predecessor=0x00000000801565a8 successor=0x00000000801565a0 root=0x00000000801455f8
 [KVM:insert_vma_helper] va=80000000 sz=1a000 perm=10
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:gene_flags] vm_page_prot=a
-[KVM:insert_vma] mm=0x00000000801454b0 vma=0x0000000087dbb198
-[KVM:rb_search] node=0x0000000087dbb1e8 predecessor=0x0000000080156460 successor=0x0000000080156458 root=0x0000000080156468
+[KVM:insert_vma] mm=0x00000000801455f0 vma=0x0000000087dbb198
+[KVM:rb_search] node=0x0000000087dbb1e8 predecessor=0x00000000801565a8 successor=0x00000000801565a0 root=0x00000000801455f8
 [KVM:insert_vma_helper] va=8001a000 sz=7fe6000 perm=6
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:gene_flags] vm_page_prot=6
-[KVM:insert_vma] mm=0x00000000801454b0 vma=0x0000000087dbb210
-[KVM:rb_search] node=0x0000000087dbb260 predecessor=0x0000000080156460 successor=0x0000000080156458 root=0x0000000080156468
+[KVM:insert_vma] mm=0x00000000801455f0 vma=0x0000000087dbb210
+[KVM:rb_search] node=0x0000000087dbb260 predecessor=0x00000000801565a8 successor=0x00000000801565a0 root=0x00000000801455f8
 [KVM:insert_vma_helper] va=3ffffff000 sz=1000 perm=10
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:gene_flags] vm_page_prot=a
-[KVM:insert_vma] mm=0x00000000801454b0 vma=0x0000000087dbb288
-[KVM:rb_search] node=0x0000000087dbb2d8 predecessor=0x0000000080156460 successor=0x0000000080156458 root=0x0000000080156468
+[KVM:insert_vma] mm=0x00000000801455f0 vma=0x0000000087dbb288
+[KVM:rb_search] node=0x0000000087dbb2d8 predecessor=0x00000000801565a8 successor=0x00000000801565a0 root=0x00000000801455f8
 [KVM:kvminithart] void
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
 [KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dba000 order=0
@@ -416,11 +416,11 @@ current No.0 cpu try to alloc_vma_node!
 [KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db4000 order=0
 [VM:mappages] va=0x0000003fffffe000 size=0x1000 pa=0x0000000087db7000 perm=0x6
 [VM:mappages] va=0x0000003fffffd000 size=0x1000 pa=0x0000000087de0000 perm=0x12
+hart 2 starting
+hart 3 starting
+[KVM:kvminithart] void
 hart 1 starting
 [KVM:kvminithart] void
-hart 2 starting
-[KVM:kvminithart] void
-hart 3 starting
 [KVM:kvminithart] void
 [EXEC:kexec] ENTRY pid=1 path='/init' argv=0x0000003fffffcfb8
 [KALLOC:kalloc] pid=1() requesting PGSIZE
@@ -562,12 +562,12 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] now relink page(0x0000000087dbb000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087dbb000 old_list=0x0000000080145348 new_list=0x0000000080145350
+[KVM:relink_locked] slab=0x0000000087dbb000 old_list=0x0000000080145488 new_list=0x0000000080145490
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087db6000 order=0
-[KVM:add_to_list_locked] slab=0x0000000087db6000 list=0x0000000080145348
+[KVM:add_to_list_locked] slab=0x0000000087db6000 list=0x0000000080145488
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
@@ -666,12 +666,12 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] now relink page(0x0000000087db6000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087db6000 old_list=0x0000000080145348 new_list=0x0000000080145350
+[KVM:relink_locked] slab=0x0000000087db6000 old_list=0x0000000080145488 new_list=0x0000000080145490
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087db5000 order=0
-[KVM:add_to_list_locked] slab=0x0000000087db5000 list=0x0000000080145348
+[KVM:add_to_list_locked] slab=0x0000000087db5000 list=0x0000000080145488
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
@@ -769,12 +769,12 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] now relink page(0x0000000087db5000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087db5000 old_list=0x0000000080145348 new_list=0x0000000080145350
+[KVM:relink_locked] slab=0x0000000087db5000 old_list=0x0000000080145488 new_list=0x0000000080145490
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087db4000 order=0
-[KVM:add_to_list_locked] slab=0x0000000087db4000 list=0x0000000080145348
+[KVM:add_to_list_locked] slab=0x0000000087db4000 list=0x0000000080145488
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
@@ -873,12 +873,12 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] now relink page(0x0000000087db4000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087db4000 old_list=0x0000000080145348 new_list=0x0000000080145350
+[KVM:relink_locked] slab=0x0000000087db4000 old_list=0x0000000080145488 new_list=0x0000000080145490
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087da7000 order=0
-[KVM:add_to_list_locked] slab=0x0000000087da7000 list=0x0000000080145348
+[KVM:add_to_list_locked] slab=0x0000000087da7000 list=0x0000000080145488
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
@@ -977,12 +977,12 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] now relink page(0x0000000087da7000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087da7000 old_list=0x0000000080145348 new_list=0x0000000080145350
+[KVM:relink_locked] slab=0x0000000087da7000 old_list=0x0000000080145488 new_list=0x0000000080145490
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087da6000 order=0
-[KVM:add_to_list_locked] slab=0x0000000087da6000 list=0x0000000080145348
+[KVM:add_to_list_locked] slab=0x0000000087da6000 list=0x0000000080145488
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
@@ -1080,12 +1080,12 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] now relink page(0x0000000087da6000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087da6000 old_list=0x0000000080145348 new_list=0x0000000080145350
+[KVM:relink_locked] slab=0x0000000087da6000 old_list=0x0000000080145488 new_list=0x0000000080145490
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087da5000 order=0
-[KVM:add_to_list_locked] slab=0x0000000087da5000 list=0x0000000080145348
+[KVM:add_to_list_locked] slab=0x0000000087da5000 list=0x0000000080145488
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
@@ -1112,7 +1112,7 @@ current No.0 cpu try to alloc_vma_node!
 [TEST step 3] Freeing 50% of VMAs (Odd indices)...
 [KVM:reclaim_vma_node] node=0x0000000087dbb300
 [KVM:reclaim_vma_node] now relink page(0x0000000087dbb000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087dbb000 old_list=0x0000000080145350 new_list=0x0000000080145348
+[KVM:relink_locked] slab=0x0000000087dbb000 old_list=0x0000000080145490 new_list=0x0000000080145488
 [KVM:reclaim_vma_node] node=0x0000000087dbb3f0
 [KVM:reclaim_vma_node] node=0x0000000087dbb4e0
 [KVM:reclaim_vma_node] node=0x0000000087dbb5d0
@@ -1128,7 +1128,7 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:reclaim_vma_node] node=0x0000000087dbbf30
 [KVM:reclaim_vma_node] node=0x0000000087db60a8
 [KVM:reclaim_vma_node] now relink page(0x0000000087db6000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087db6000 old_list=0x0000000080145350 new_list=0x0000000080145348
+[KVM:relink_locked] slab=0x0000000087db6000 old_list=0x0000000080145490 new_list=0x0000000080145488
 [KVM:reclaim_vma_node] node=0x0000000087db6198
 [KVM:reclaim_vma_node] node=0x0000000087db6288
 [KVM:reclaim_vma_node] node=0x0000000087db6378
@@ -1146,7 +1146,7 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:reclaim_vma_node] node=0x0000000087db6eb8
 [KVM:reclaim_vma_node] node=0x0000000087db5030
 [KVM:reclaim_vma_node] now relink page(0x0000000087db5000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087db5000 old_list=0x0000000080145350 new_list=0x0000000080145348
+[KVM:relink_locked] slab=0x0000000087db5000 old_list=0x0000000080145490 new_list=0x0000000080145488
 [KVM:reclaim_vma_node] node=0x0000000087db5120
 [KVM:reclaim_vma_node] node=0x0000000087db5210
 [KVM:reclaim_vma_node] node=0x0000000087db5300
@@ -1165,7 +1165,7 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:reclaim_vma_node] node=0x0000000087db5f30
 [KVM:reclaim_vma_node] node=0x0000000087db40a8
 [KVM:reclaim_vma_node] now relink page(0x0000000087db4000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087db4000 old_list=0x0000000080145350 new_list=0x0000000080145348
+[KVM:relink_locked] slab=0x0000000087db4000 old_list=0x0000000080145490 new_list=0x0000000080145488
 [KVM:reclaim_vma_node] node=0x0000000087db4198
 [KVM:reclaim_vma_node] node=0x0000000087db4288
 [KVM:reclaim_vma_node] node=0x0000000087db4378
@@ -1183,7 +1183,7 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:reclaim_vma_node] node=0x0000000087db4eb8
 [KVM:reclaim_vma_node] node=0x0000000087da7030
 [KVM:reclaim_vma_node] now relink page(0x0000000087da7000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087da7000 old_list=0x0000000080145350 new_list=0x0000000080145348
+[KVM:relink_locked] slab=0x0000000087da7000 old_list=0x0000000080145490 new_list=0x0000000080145488
 [KVM:reclaim_vma_node] node=0x0000000087da7120
 [KVM:reclaim_vma_node] node=0x0000000087da7210
 [KVM:reclaim_vma_node] node=0x0000000087da7300
@@ -1202,7 +1202,7 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:reclaim_vma_node] node=0x0000000087da7f30
 [KVM:reclaim_vma_node] node=0x0000000087da60a8
 [KVM:reclaim_vma_node] now relink page(0x0000000087da6000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087da6000 old_list=0x0000000080145350 new_list=0x0000000080145348
+[KVM:relink_locked] slab=0x0000000087da6000 old_list=0x0000000080145490 new_list=0x0000000080145488
 [KVM:reclaim_vma_node] node=0x0000000087da6198
 [KVM:reclaim_vma_node] node=0x0000000087da6288
 [KVM:reclaim_vma_node] node=0x0000000087da6378
@@ -1273,7 +1273,7 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] now relink page(0x0000000087da6000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087da6000 old_list=0x0000000080145348 new_list=0x0000000080145350
+[KVM:relink_locked] slab=0x0000000087da6000 old_list=0x0000000080145488 new_list=0x0000000080145490
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
@@ -1326,7 +1326,7 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] now relink page(0x0000000087da7000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087da7000 old_list=0x0000000080145348 new_list=0x0000000080145350
+[KVM:relink_locked] slab=0x0000000087da7000 old_list=0x0000000080145488 new_list=0x0000000080145490
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
@@ -1376,7 +1376,7 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] now relink page(0x0000000087db4000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087db4000 old_list=0x0000000080145348 new_list=0x0000000080145350
+[KVM:relink_locked] slab=0x0000000087db4000 old_list=0x0000000080145488 new_list=0x0000000080145490
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
@@ -1429,7 +1429,7 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] now relink page(0x0000000087db5000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087db5000 old_list=0x0000000080145348 new_list=0x0000000080145350
+[KVM:relink_locked] slab=0x0000000087db5000 old_list=0x0000000080145488 new_list=0x0000000080145490
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
@@ -1479,7 +1479,7 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] now relink page(0x0000000087db6000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087db6000 old_list=0x0000000080145348 new_list=0x0000000080145350
+[KVM:relink_locked] slab=0x0000000087db6000 old_list=0x0000000080145488 new_list=0x0000000080145490
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
@@ -1523,7 +1523,7 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_vma_node] now relink page(0x0000000087dbb000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087dbb000 old_list=0x0000000080145348 new_list=0x0000000080145350
+[KVM:relink_locked] slab=0x0000000087dbb000 old_list=0x0000000080145488 new_list=0x0000000080145490
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
@@ -1540,10 +1540,10 @@ current No.0 cpu try to alloc_vma_node!
 [TEST step 5] Cleaning up remaining nodes...
 [KVM:reclaim_vma_node] node=0x0000000087da6eb8
 [KVM:reclaim_vma_node] now relink page(0x0000000087da6000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087da6000 old_list=0x0000000080145350 new_list=0x0000000080145348
+[KVM:relink_locked] slab=0x0000000087da6000 old_list=0x0000000080145490 new_list=0x0000000080145488
 [KVM:reclaim_vma_node] node=0x0000000087dbb378
 [KVM:reclaim_vma_node] now relink page(0x0000000087dbb000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087dbb000 old_list=0x0000000080145350 new_list=0x0000000080145348
+[KVM:relink_locked] slab=0x0000000087dbb000 old_list=0x0000000080145490 new_list=0x0000000080145488
 [KVM:reclaim_vma_node] node=0x0000000087da6dc8
 [KVM:reclaim_vma_node] node=0x0000000087dbb468
 [KVM:reclaim_vma_node] node=0x0000000087da6cd8
@@ -1571,14 +1571,14 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:reclaim_vma_node] node=0x0000000087da6288
 [KVM:reclaim_vma_node] node=0x0000000087db6030
 [KVM:reclaim_vma_node] now relink page(0x0000000087db6000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087db6000 old_list=0x0000000080145350 new_list=0x0000000080145348
+[KVM:relink_locked] slab=0x0000000087db6000 old_list=0x0000000080145490 new_list=0x0000000080145488
 [KVM:reclaim_vma_node] node=0x0000000087da6198
 [KVM:reclaim_vma_node] node=0x0000000087db6120
 [KVM:reclaim_vma_node] node=0x0000000087da60a8
 [KVM:reclaim_vma_node] node=0x0000000087db6210
 [KVM:reclaim_vma_node] node=0x0000000087da7f30
 [KVM:reclaim_vma_node] now relink page(0x0000000087da7000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087da7000 old_list=0x0000000080145350 new_list=0x0000000080145348
+[KVM:relink_locked] slab=0x0000000087da7000 old_list=0x0000000080145490 new_list=0x0000000080145488
 [KVM:reclaim_vma_node] node=0x0000000087db6300
 [KVM:reclaim_vma_node] node=0x0000000087da7e40
 [KVM:reclaim_vma_node] node=0x0000000087db63f0
@@ -1609,14 +1609,14 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:reclaim_vma_node] node=0x0000000087da7210
 [KVM:reclaim_vma_node] node=0x0000000087db50a8
 [KVM:reclaim_vma_node] now relink page(0x0000000087db5000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087db5000 old_list=0x0000000080145350 new_list=0x0000000080145348
+[KVM:relink_locked] slab=0x0000000087db5000 old_list=0x0000000080145490 new_list=0x0000000080145488
 [KVM:reclaim_vma_node] node=0x0000000087da7120
 [KVM:reclaim_vma_node] node=0x0000000087db5198
 [KVM:reclaim_vma_node] node=0x0000000087da7030
 [KVM:reclaim_vma_node] node=0x0000000087db5288
 [KVM:reclaim_vma_node] node=0x0000000087db4eb8
 [KVM:reclaim_vma_node] now relink page(0x0000000087db4000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087db4000 old_list=0x0000000080145350 new_list=0x0000000080145348
+[KVM:relink_locked] slab=0x0000000087db4000 old_list=0x0000000080145490 new_list=0x0000000080145488
 [KVM:reclaim_vma_node] node=0x0000000087db5378
 [KVM:reclaim_vma_node] node=0x0000000087db4dc8
 [KVM:reclaim_vma_node] node=0x0000000087db5468
@@ -1677,14 +1677,14 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:reclaim_vma_node] node=0x0000000087db5300
 [KVM:reclaim_vma_node] node=0x0000000087db4f30
 [KVM:reclaim_vma_node] now relink page(0x0000000087db4000) from partial_list to empty_list
-[KVM:relink_locked] slab=0x0000000087db4000 old_list=0x0000000080145348 new_list=0x0000000080145358
+[KVM:relink_locked] slab=0x0000000087db4000 old_list=0x0000000080145488 new_list=0x0000000080145498
 [KVM:reclaim_vma_node] node=0x0000000087db5210
 [KVM:reclaim_vma_node] node=0x0000000087da70a8
 [KVM:reclaim_vma_node] node=0x0000000087db5120
 [KVM:reclaim_vma_node] node=0x0000000087da7198
 [KVM:reclaim_vma_node] node=0x0000000087db5030
 [KVM:reclaim_vma_node] now relink page(0x0000000087db5000) from partial_list to empty_list
-[KVM:relink_locked] slab=0x0000000087db5000 old_list=0x0000000080145348 new_list=0x0000000080145358
+[KVM:relink_locked] slab=0x0000000087db5000 old_list=0x0000000080145488 new_list=0x0000000080145498
 [KVM:reclaim_vma_node] node=0x0000000087da7288
 [KVM:reclaim_vma_node] node=0x0000000087db6eb8
 [KVM:reclaim_vma_node] node=0x0000000087da7378
@@ -1713,14 +1713,14 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:reclaim_vma_node] node=0x0000000087db6378
 [KVM:reclaim_vma_node] node=0x0000000087da7eb8
 [KVM:reclaim_vma_node] now relink page(0x0000000087da7000) from partial_list to empty_list
-[KVM:relink_locked] slab=0x0000000087da7000 old_list=0x0000000080145348 new_list=0x0000000080145358
+[KVM:relink_locked] slab=0x0000000087da7000 old_list=0x0000000080145488 new_list=0x0000000080145498
 [KVM:reclaim_vma_node] node=0x0000000087db6288
 [KVM:reclaim_vma_node] node=0x0000000087da6030
 [KVM:reclaim_vma_node] node=0x0000000087db6198
 [KVM:reclaim_vma_node] node=0x0000000087da6120
 [KVM:reclaim_vma_node] node=0x0000000087db60a8
 [KVM:reclaim_vma_node] now relink page(0x0000000087db6000) from partial_list to empty_list
-[KVM:relink_locked] slab=0x0000000087db6000 old_list=0x0000000080145348 new_list=0x0000000080145358
+[KVM:relink_locked] slab=0x0000000087db6000 old_list=0x0000000080145488 new_list=0x0000000080145498
 [KVM:reclaim_vma_node] node=0x0000000087da6210
 [KVM:reclaim_vma_node] node=0x0000000087dbbf30
 [KVM:reclaim_vma_node] node=0x0000000087da6300
@@ -1751,7 +1751,7 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:reclaim_vma_node] node=0x0000000087dbb300
 [KVM:reclaim_vma_node] node=0x0000000087da6f30
 [KVM:reclaim_vma_node] now relink page(0x0000000087da6000) from partial_list to empty_list
-[KVM:relink_locked] slab=0x0000000087da6000 old_list=0x0000000080145348 new_list=0x0000000080145358
+[KVM:relink_locked] slab=0x0000000087da6000 old_list=0x0000000080145488 new_list=0x0000000080145498
 [KVM:reclaim_vma_node] reclaim_vma_node: shrink the pool!
 [KVM:reclaim_vma_node] node=0x0000000087da5300
 [KVM:reclaim_vma_node] node=0x0000000087da50a8
@@ -1762,7 +1762,7 @@ current No.0 cpu try to alloc_vma_node!
 [KVM:reclaim_vma_node] node=0x0000000087da5030
 [KVM:reclaim_vma_node] node=0x0000000087da5378
 [KVM:reclaim_vma_node] now relink page(0x0000000087da5000) from partial_list to empty_list
-[KVM:relink_locked] slab=0x0000000087da5000 old_list=0x0000000080145348 new_list=0x0000000080145358
+[KVM:relink_locked] slab=0x0000000087da5000 old_list=0x0000000080145488 new_list=0x0000000080145498
 [TEST step 6] Released lock.
 [32m[PASS][0m === VMA Slab Test Passed ===
 
@@ -1770,50 +1770,85 @@ current No.0 cpu try to alloc_vma_node!
 ======================================================
 === TEST 2: RB-Tree & List Consistency (Verbose) ===
 ======================================================
-now the canary_top addr is 0x0000003fffffce60, test_mm is 0x0000003fffffcde0, canary_hot is 0x0000003fffffcdd8
+now the canary_top addr is 0x0000003fffffce50, test_mm is 0x0000003fffffcdd0, canary_hot is 0x0000003fffffcdc8
 [TEST step 1] Initialized local test_mm struct.
 [TEST step 2] Creating VMA Nodes A, B, C...
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087db6000 order=0
-[KVM:add_to_list_locked] slab=0x0000000087db6000 list=0x0000000080145378
+current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
+current No.0 cpu try to alloc_vma_node!
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
+current No.0 cpu try to alloc_vma_node!
 [32m[PASS][0m Nodes created. Ref counts are default (1).
 [TEST step 3] Acquiring test_mm.mm_lock for insertion...
 [TEST step 4] Inserting VMA A [0x1000-0x2000)...
-[KVM:insert_vma] mm=0x0000003fffffcde0 vma=0x0000000087db6030
-[KVM:rb_search] node=0x0000000087db6080 predecessor=0x0000003fffffcd80 successor=0x0000003fffffcd78 root=0x0000003fffffcd88
+[KVM:insert_vma] mm=0x0000003fffffcdd0 vma=0x0000000087dbb300
+[KVM:rb_search] node=0x0000000087dbb350 predecessor=0x0000003fffffcd78 successor=0x0000003fffffcd70 root=0x0000003fffffcdd8
 [TEST step 5] Inserting VMA C [0x3000-0x4000) (Creating Gap)...
-[KVM:insert_vma] mm=0x0000003fffffcde0 vma=0x0000000087db60a8
-[KVM:rb_search] node=0x0000000087db60f8 predecessor=0x0000003fffffcd80 successor=0x0000003fffffcd78 root=0x0000003fffffcd88
+[KVM:insert_vma] mm=0x0000003fffffcdd0 vma=0x0000000087dbb3f0
+[KVM:rb_search] node=0x0000000087dbb440 predecessor=0x0000003fffffcd78 successor=0x0000003fffffcd70 root=0x0000003fffffcdd8
 [TEST step 6] Inserting VMA B [0x2000-0x3000) (Filling Gap)...
-[KVM:insert_vma] mm=0x0000003fffffcde0 vma=0x0000000087db6120
-[KVM:rb_search] node=0x0000000087db6170 predecessor=0x0000003fffffcd80 successor=0x0000003fffffcd78 root=0x0000003fffffcd88
+[KVM:insert_vma] mm=0x0000003fffffcdd0 vma=0x0000000087dbb4e0
+[KVM:rb_search] node=0x0000000087dbb530 predecessor=0x0000003fffffcd78 successor=0x0000003fffffcd70 root=0x0000003fffffcdd8
 [32m[PASS][0m All nodes inserted.
 [TEST step 7] Verifying RB-Tree Lookup...
     -> Looking up 0x1050...
-[KVM:find_vma] mm=0x0000003fffffcde0 vaddr=1050
+[KVM:find_vma] mm=0x0000003fffffcdd0 vaddr=1050
     -> Found VMA A (Ref count now: 2, Expected 2)
     -> Looking up 0x2050...
-[KVM:find_vma] mm=0x0000003fffffcde0 vaddr=2050
+[KVM:find_vma] mm=0x0000003fffffcdd0 vaddr=2050
 [32m[PASS][0m RB-Tree Lookup OK.
 [TEST step 8] Verifying Linked List Order (A -> B -> C)...
+color: vma_a is 0 and vma_b is 1 vma_c is 0
 [32m[PASS][0m Linked List Order OK.
 [TEST step 9] Verifying find_upper_vma (Target 0x1500)...
-[KVM:find_upper_vma] mm=0x0000003fffffcde0 vaddr=1500
+[KVM:find_upper_vma] mm=0x0000003fffffcdd0 vaddr=1500
 [32m[PASS][0m Upper Bound Check OK.
 [TEST step 10] Cleaning up (Removing nodes)...
-[KVM:remove_vma] mm=0x0000003fffffcde0 vma=0x0000000087db6030
-[KVM:reclaim_vma_node] node=0x0000000087db6030
-[KVM:remove_vma] mm=0x0000003fffffcde0 vma=0x0000000087db6120
-scause=0xd sepc=0x80014b9c stval=0x8
-panic: kerneltrap
-Init process have not init symbol_table!
+[KVM:remove_vma] mm=0x0000003fffffcdd0 vma=0x0000000087dbb300
+[KVM:reclaim_vma_node] node=0x0000000087dbb300
+[KVM:remove_vma] mm=0x0000003fffffcdd0 vma=0x0000000087dbb4e0
+[KVM:reclaim_vma_node] node=0x0000000087dbb4e0
+[KVM:remove_vma] mm=0x0000003fffffcdd0 vma=0x0000000087dbb3f0
+[KVM:reclaim_vma_node] node=0x0000000087dbb3f0
+[TEST step 11] Released test_mm.mm_lock.
+[32m[PASS][0m === RB-Tree & List Test Passed ===
+
+
+================================================
+=== TEST 3: kvmalloc Integration Test ===
+================================================
+[TEST step 1] Requesting kvmalloc for 2800 bytes...
+[KVM:kvmalloc] Kpagetable=0x0000000087de1000 req_sz=2800 xperm=6
+[KVM:get_unmapped_area] mm=0x00000000801455f0 len=3000 low_limit=90000000 high_limit=c0000000 cont=0x0000003fffffce30
+[KVM:find_upper_vma] mm=0x00000000801455f0 vaddr=90000000
+[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
+[KVM:alloc_vma_node] void
+current No.0 cpu try to alloc_vma_node!
+[KVM:gene_flags] vm_page_prot=6
+[KVM:insert_vma_fast] mm=0x00000000801455f0 vma=0x0000000087dbb3f0 cont=0x0000003fffffce30
+[KVM:Kernel_buddy_alloc_locked] Kpagetable=0x0000000087de1000 va=90000000 size=3000 xperm=6
+[KVM:in_kernel_heap] va=90000000
+[KVM:in_kernel_heap] va=90003000
+[KALLOC:alloc_memory] pid=1(init) allocated size=2000 at pa=0x0000000087da2000 order=1
+[VM:mappages] va=0x0000000090000000 size=0x2000 pa=0x0000000087da2000 perm=0x6
+[KALLOC:kalloc] pid=1(init) requesting PGSIZE
+[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087db6000 order=0
+[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087da6000 order=0
+[VM:mappages] va=0x0000000090002000 size=0x1000 pa=0x0000000087da6000 perm=0x6
+    -> Got address: 0x0000000090000000
+[TEST step 2] Verifying Read/Write access...
+[32m[PASS][0m Memory Access OK.
+[TEST step 3] Inspecting VMA metadata (Manual Locking)...
+[KVM:find_vma] mm=0x00000000801455f0 vaddr=90000000
+[32m[PASS][0m Metadata exists and is correct.
+[TEST step 4] Deallocating memory...
+[KVM:kvmdealloc] Kpagetable=0x0000000087de1000 start_va=90000000 sz=2800
+[KVM:kvmdealloc_range] Kpagetable=0x0000000087de1000 oldsz=90002800 newsz=90000000
+[KVM:in_kernel_heap] va=90002800
+[KVM:in_kernel_heap] va=90000000
 QEMU: Terminated
 

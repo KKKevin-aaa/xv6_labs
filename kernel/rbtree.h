@@ -29,6 +29,7 @@ static inline int rb_color(rb_node_t *rb){
 
 //Helper functions (static inline)
 static inline rb_node_t *rb_parent(rb_node_t *rb){
+    if(rb==NULL)    panic("Try to access nullptr's parent!\n");
     return (rb_node_t*)(rb->rb_parent_color & ~3);
 }
 // static inline int rb_color(rb_node_t *rb){
@@ -36,9 +37,11 @@ static inline rb_node_t *rb_parent(rb_node_t *rb){
 // }
 static inline void rb_set_parent(rb_node_t *rb, rb_node_t *rb_parent){
     //reset the parent of a node
+    if(rb==NULL)    return;
     rb->rb_parent_color=(rb->rb_parent_color & 3) | (uint64)rb_parent;
 }
 static inline void rb_set_color(rb_node_t *rb ,int color){
+    if(rb==NULL)    return;
     rb->rb_parent_color=(rb->rb_parent_color & ~1) | (uint64)color;
 }
 /*
@@ -48,3 +51,9 @@ static inline void rb_set_color(rb_node_t *rb ,int color){
 */
 #define rb_entry(ptr, type, member) \
     ((type *)((char *)(ptr) - offsetof(type, member)))
+
+static inline void rb_clear(rb_node_t *ptr){
+    ptr->rb_left=NULL;
+    ptr->rb_right=NULL;
+    ptr->rb_parent_color=0;
+}

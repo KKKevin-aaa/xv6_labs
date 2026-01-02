@@ -570,7 +570,7 @@ rb_node_t *rb_search(rb_node_t *node, vm_area_struct_t **predecessor,
 #endif
     //A helper functions that locates the insertion parent and idenitifies
     //the linear list neighbors(prev/next) in a signle traversal.
-    if(node==NULL){
+    if(node==NULL || root->rb_parent==NULL){
         *predecessor=NULL;
         *successor=NULL;
         return NULL;
@@ -598,13 +598,13 @@ rb_node_t *rb_search(rb_node_t *node, vm_area_struct_t **predecessor,
     rb_node_t *parent=root->rb_parent;
     while(find_used){
         vm_area_struct_t *find_used_vma=rb_entry(find_used, vm_area_struct_t, vm_rb_node);
-        if(find_used_vma->vm_start >= node_vma->vm_end){
+        if(find_used_vma->vm_start >= node_vma->vm_end){    //turn left
             if(found_succ==0)   *successor=rb_entry(find_used, vm_area_struct_t, vm_rb_node);   
             //Update whne it's not found!
             parent=find_used;
             find_used=find_used->rb_left;//don't record
         }
-        else if(node_vma->vm_start >= find_used_vma->vm_end){
+        else if(node_vma->vm_start >= find_used_vma->vm_end){   //turn right
             if(found_pred==0)  *predecessor=rb_entry(find_used, vm_area_struct_t, vm_rb_node);  
             //Update when it's not found!
             parent=find_used;
@@ -672,15 +672,24 @@ int insert_vma(mm_struct_t *mm, vm_area_struct_t *vma){
     if(!holding(&mm->mm_lock))
         panic("[Insert_vma]Race Condtions: access mm_struct without lock\n");
     rb_node_t *vma_node=&vma->vm_rb_node;
-    rb_root_t rb_root=mm->rb_root;
     rb_node_t **link=NULL;
     vm_area_struct_t *vm_prev, *vm_next;
-    rb_node_t *parent_node=rb_search(vma_node, &vm_prev, &vm_next, &rb_root);
-    if(vm_prev && vm_prev->vm_end > vma->vm_start)  return -1;
-    if(vm_next && vm_next->vm_start < vma->vm_end)  return -1;
+    rb_node_t *parent_node=rb_search(vma_node, &vm_prev, &vm_next, &mm->rb_root);
+    if(parent_node==vma_node){
+        printf("Attempt to insert duplicate node!\n");
+        return -1;
+    }
+    if(vm_prev && vm_prev->vm_end > vma->vm_start){
+        printf("Got the wrong predecessor node\n");
+        return -1;
+    }
+    if(vm_next && vm_next->vm_start < vma->vm_end){
+        printf("Got the wrong successor node\n");
+        return -1;
+    }
     //Insert to the RB tree
     if(parent_node==NULL){
-        link=&(rb_root.rb_parent);
+        link=&mm->rb_root.rb_parent;
         mm->mmap=vma;
         mm->rb_root.rb_parent=vma_node;
     }
@@ -688,6 +697,7 @@ int insert_vma(mm_struct_t *mm, vm_area_struct_t *vma){
         vm_area_struct_t *parent_vma=rb_entry(parent_node, vm_area_struct_t, vm_rb_node);
         if(parent_vma->vm_start >= vma->vm_end)  link=&parent_node->rb_left;
         else if(vma->vm_start >= parent_vma->vm_end)    link=&parent_node->rb_right;
+        else    panic("the Inserted vma overlap with the existing vma!\n");
     }
     rb_link_node(vma_node, parent_node, link);
     rb_insert_color(vma_node, &mm->rb_root);
@@ -714,6 +724,7 @@ int remove_vma(mm_struct_t *mm, vm_area_struct_t *vma){
     if(vm_next) vm_next->vm_prev=vm_prev;
     //tree-operation, Only here can edit rb_root
     rb_erase(vma_node, &mm->rb_root);//remove form the tree
+    rb_clear(vma_node); //Deleted nodes shoulds no longer hold pointers to the linked structure.
     //Update the cache to prevent Use-After-Free(UAF)
     if(mm->mmap_cache==vma) mm->mmap_cache=NULL;
     vma->vm_prev=NULL;vma->vm_next=NULL;
@@ -830,25 +841,13 @@ int Kernel_buddy_alloc_locked(pagetable_t Kpagetable, uint64 va, uint64 size, in
     }
     return 0;
 }
-void *kvmalloc(pagetable_t Kpagetable, uint64 req_sz, int xperm){
-#ifdef DEBUG_KVM
-    KVM_TRACE("Kpagetable=%p req_sz=%llx xperm=%d\n", (void *)Kpagetable, req_sz, xperm);
-#endif
-    if(req_sz==0){
-        printf("kernel_vmalloc:Invalid size : 0\n");
-        return NULL;    //Prior the acquiration of lock,just return
-    }
-    req_sz=PGROUNDUP(req_sz);
-    //Given fixed range:[KHEAP_START, KHEAP_END)
-    vma_context_t cont;
-    memset(&cont, 0, sizeof(vma_context_t));
-    acquire(&global_mm.mm_lock);
-    uint64 start_va=get_unmapped_area(&global_mm, req_sz, KHEAP_START, KHEAP_END, &cont);
-    if(start_va==(uint64)-1){
-        printf("Cannot find the avail_space!\n");
+static void *kvmalloc_range_locked(pagetable_t Kpagetable, uint64 start_va, 
+        uint64 sz, int xperm, vma_context_t cont){
+    //Alloc reserves metadata then physical resources.
+    if(!holding(&kvm_lock) || !holding(&global_mm.mm_lock)){
+        printf("Operator kernel_pagetable and global_mm without lock\n");
         goto error;
     }
-    //Alloc reserves metadata then physical resources.
     vm_area_struct_t *new_vma=NULL;
     if(sizeof(vm_area_struct_t)>=PGSIZE){   //The VMA header may span more than one page.
         uint64 nr_pages=PGROUNDUP(sizeof(vm_area_struct_t));
@@ -862,20 +861,45 @@ void *kvmalloc(pagetable_t Kpagetable, uint64 req_sz, int xperm){
     else new_vma=alloc_kernel_vma();
     if(new_vma==NULL)   goto error;
     new_vma->vm_start=start_va;
-    new_vma->vm_end=start_va+req_sz;
+    new_vma->vm_end=start_va+sz;
     new_vma->vm_page_prot=PTE_R | PTE_W;
     new_vma->vm_flags=gene_flags(new_vma->vm_page_prot);
     new_vma->vm_mm=&global_mm;
     //Omit values for unused arguments.
     insert_vma_fast(&global_mm, new_vma, &cont);
-    acquire(&kvm_lock);
     //allocate the corresponding size
-    int alloc_ret=Kernel_buddy_alloc_locked(kernel_pagetable, start_va, req_sz, xperm);
+    int alloc_ret=Kernel_buddy_alloc_locked(kernel_pagetable, start_va, sz, xperm);
     if(alloc_ret==-1){
         remove_vma(&global_mm, new_vma);    //clear the metadata
         printf("Kernel_buddy_alloc fail!\n");
         goto error;
     }
+    return (void *)start_va;
+error:
+    printf("Kvmalloc_range_locked fail\n");
+    return NULL;
+}
+void *kvmalloc(pagetable_t Kpagetable, uint64 req_sz, int xperm){
+#ifdef DEBUG_KVM
+    KVM_TRACE("Kpagetable=%p req_sz=%llx xperm=%d\n", (void *)Kpagetable, req_sz, xperm);
+#endif
+    if(req_sz==0){
+        printf("kernel_vmalloc:Invalid size : 0\n");
+        return NULL;    //Prior the acquiration of lock,just return
+    }
+    req_sz=PGROUNDUP(req_sz);
+    //Given fixed range:[KHEAP_START, KHEAP_END)
+    vma_context_t cont;
+    memset(&cont, 0, sizeof(vma_context_t));
+    acquire(&global_mm.mm_lock);
+    acquire(&kvm_lock);
+    uint64 start_va=get_unmapped_area(&global_mm, req_sz, KHEAP_START, KHEAP_END, &cont);
+    if(start_va==(uint64)-1){
+        printf("Cannot find the avail_space!\n");
+        goto error;
+    }
+    void *ret=kvmalloc_range_locked(Kpagetable, start_va, req_sz, xperm, cont);
+    if(ret!=(void *)start_va)   goto error;
     release(&kvm_lock); //must be held
     release(&global_mm.mm_lock);
     return (void *)start_va;
@@ -886,47 +910,93 @@ error:
     return NULL;
     //Address 0 is a unique error indicator because it's guaranteed to be invalid.
 }
-uint64 kvmdealloc_range(pagetable_t Kpagetable, uint64 oldsz, uint64 newsz){
+uint64 kvmdealloc_range(pagetable_t Kpagetable, uint64 va_start, uint64 va_end){
 #ifdef DEBUG_KVM
-    KVM_TRACE("Kpagetable=%p oldsz=%llx newsz=%llx\n", (void *)Kpagetable, oldsz, newsz);
+    KVM_TRACE("Kpagetable=%p start_addr=%llx end_addr=%llx\n", (void *)Kpagetable, va_start, va_end);
 #endif
     //Range Deallocation
-    if(newsz>=oldsz || !in_kernel_heap(oldsz) || !in_kernel_heap(newsz)){
+    if(va_start>=va_end || !in_kernel_heap(va_end) || !in_kernel_heap(va_start)){
         printf("free invalid area!\n");
         return -1;  //Before acquiring any lock, just return.
     }
-    uint64 aligned_newsz=PGROUNDUP(newsz);
-    uint64 aligned_oldsz=PGROUNDDOWN(oldsz);
-    if(aligned_newsz==aligned_oldsz)    return newsz;
+    uint64 align_start=PGROUNDUP(va_start);
+    uint64 align_end=PGROUNDDOWN(va_end);
+    if(align_start==align_end)    return va_start;
     acquire(&global_mm.mm_lock);
-    vm_area_struct_t *find_ret=find_vma_and_get(&global_mm, aligned_newsz);
-    if(find_ret==NULL){
-        printf("Kvmdealloc:cannot find vma sastify requiment!\n");
-        goto error;
-    }
-    else if(find_ret->vm_start!=aligned_newsz){
-        printf("kvmdealloc: try to dealloc from the existing vma's inner");
-        goto error;
-    }
-    else if(find_ret->vm_end!=aligned_oldsz){
-        printf("kvmdealloc: try to dealloc more than one vma one time!\n");
-        goto error;
-    }
-    //Pass the range test, current find_ret is located at [aligned_newsz, aligned_oldsz) exactly
-    //Free should release physical resources first, then metadata.
     acquire(&kvm_lock); //Only one kernel_tablepage, so only one lock!
-    uint64 ret=helper_kvmdealloc_locked(Kpagetable, aligned_oldsz, aligned_newsz);
-    if(remove_vma(&global_mm, find_ret)==-1){   
-        //The mm_struct reference is dropped within remove_vma,
-        //while callers manage their own local references.
-        printf("kvmdealloc_range: remove_vma fail\n");
+    vm_area_struct_t *find_ret=find_vma_and_get(&global_mm, align_start);
+    if(find_ret==NULL || !(find_ret->vm_start>=align_start && align_end<=find_ret->vm_end)){ 
+        //Pass the range test firstly
+        printf("Kvmdealloc:cannot find vma sastify requiment, ");
+        printf("Or Got the wrong vma, maybe dealloc a large range?\n");
         goto error;
+    }
+    //Free should release physical resources first, then metadata.
+    //Considering potential splits and possible failures, we might temporarily store data
+    //to allow for rollbacks in case of unexpected issues.
+    int xperm=PTE_FLAGS((uint64)walk(Kpagetable, find_ret->vm_start, 0, 0));
+    uint64 store_sz=align_end-align_start;
+    void *store_data=alloc_memory(store_sz);
+    if(store_data==NULL){   //If data cannot be saved, we deem it a failure and return immediately
+        printf("Save the delete data fail, for safety we stop dealloc and return.\n");
+        goto error; //Fail-fast
+    }
+    memset(store_data, 0, store_sz);
+    memmove(store_data, (void *)align_start, store_sz);
+    uint64 ret=helper_kvmdealloc_locked(Kpagetable, align_end, align_start);
+    if(ret!=align_start){
+        printf("Kvmdealloc:dealloc physical page fail!\n");
+        goto recover_data;
+    }
+    //Support partial release. which can be achieved by splitting the VMA if necessary
+    if(find_ret->vm_start==align_start && find_ret->vm_end==align_end){
+        if(remove_vma(&global_mm, find_ret)==-1){   
+            //The mm_struct reference is dropped within remove_vma,
+            //while callers manage their own local references.
+            printf("kvmdealloc_range: remove_vma fail\n");
+            goto error;
+        }
+    }
+    else if(find_ret->vm_start<align_start && find_ret->vm_end > align_end){
+        //Due to page alignment, two new vmas each at least one page in size, are guaranteed to remain here.
+        vma_context_t cont1={.prev=find_ret->vm_prev, .next=find_ret->vm_next};
+        uint64 prev_bound=find_ret->vm_end;
+        find_ret->vm_end=align_start;   //transform into a new vma
+        vm_area_struct_t *new_vma2=alloc_vma_node();
+        new_vma2->vm_start=align_end;
+        new_vma2->vm_end=prev_bound;
+        new_vma2->vm_page_prot=find_ret->vm_page_prot;
+        new_vma2->vm_flags=gene_flags(find_ret->vm_page_prot);
+        new_vma2->vm_mm=&global_mm;
+        new_vma2->ref_count=1;   //Held by mm_struct
+        //Omit values for unused arguments.
+        insert_vma(&global_mm, new_vma2);
+        ?????
+        //FIXME:
+    }
+    else if(find_ret->vm_start==align_start){
+        find_ret->vm_start=align_end;
+    }
+    else if(find_ret->vm_end==align_end){
+        find_ret->vm_end=align_end;
     }
     if(vma_put(find_ret)!=0)    //local reference from find_vma_and_get
         panic("reclaim resouces.");
     release(&kvm_lock);
     release(&global_mm.mm_lock);
     return ret;
+recover_data:
+    if(store_data!=NULL){   //Write the data back to the corresponding area.
+        memmove((void *)find_ret->vm_start, store_data, store_sz);
+        free_pages(store_data, store_sz);   //release the saved data to prevent data leakage.
+        store_data=NULL;
+    }
+    else{
+        printf("Enter rollback, but the stored data have been destoryed.\n");
+        panic("Current data cannot be recovered!\n");
+    }
+recover_vma:
+    insert_vma(&global_mm, find_ret);   //relink to the list
 error:
     if(vma_put(find_ret)!=0)    //local reference (if any)
         panic("reclaim resouces.");
@@ -934,6 +1004,11 @@ error:
     if(holding(&kvm_lock)) release(&kvm_lock);
     if(holding(&global_mm.mm_lock)) release(&global_mm.mm_lock);
     return -1;
+}
+uint64 kvmdealloc_range2(pagetable_t Kpagetable, uint64 va_start, uint64 va_end){
+    // While the delete_size is too large, the cost of copy is unacceptable.
+    // Another way is check-prepare-commit.
+
 }
 uint64 kvmdealloc(pagetable_t Kpagetable, uint64 start_va, uint64 sz){
 #ifdef DEBUG_KVM
@@ -1382,6 +1457,10 @@ void test_vma_rbtree_and_list() {
     if (vma_a->vm_next != vma_b) panic("A->next is not B!");
     if (vma_b->vm_next != vma_c) panic("B->next is not C!");
     if (vma_c->vm_prev != vma_b) panic("C->prev is not B!");
+    int vma_a_color=rb_color(&vma_a->vm_rb_node);
+    int vma_b_color=rb_color(&vma_b->vm_rb_node);
+    int vma_c_color=rb_color(&vma_c->vm_rb_node);
+    printf("color: vma_a is %d and vma_b is %d vma_c is %d\n", vma_a_color, vma_b_color, vma_c_color);
     TEST_PASS("Linked List Order OK.");
 
     // --- 验证 3: 上界查找 (Find Upper Bound) ---
