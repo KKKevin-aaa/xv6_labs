@@ -282,6 +282,7 @@ pagetable_t uvmcreate() {
     return pagetable;
 }
 uint64 uvmunmap_helper(pagetable_t pagetable, uint64 va, uint64 size, int cur_level, int do_free){
+    //Unmap and then free physical resource
 #ifdef DEBUG_VM
     VM_TRACE("va=%p size=0x%llx do_free=%d, cur_level is %d\n", (void *)va, size, do_free, cur_level);
 #endif
@@ -595,6 +596,41 @@ uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
         }
         // int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
         // uvmunmap(pagetable, PGROUNDUP(newsz), npages, 1);
+    }
+    VM_TRACE("uvmdealloc exiting newsz=0x%llx\n", newsz);
+    return newsz;
+}
+uint64 uvmdealloc_nounmap(pagetable_t pagetable, uint64 oldsz, uint64 newsz){
+    //Designed for all the ptes are cleared,and reclaim resources safety.
+    //And decoupling the unmap operator from memory deallocations.
+    #ifdef DEBUG_VM
+    VM_TRACE("oldsz=0x%llx newsz=0x%llx\n", oldsz, newsz);
+#endif
+    if (newsz >= oldsz) {
+        VM_TRACE("uvmdealloc no-op new>=old, returning oldsz=0x%llx\n", oldsz);
+        return oldsz;
+    }
+    uint64 aligned_newsz=PGROUNDUP(newsz), aligned_oldsz=PGROUNDUP(oldsz);
+    if (aligned_newsz < aligned_oldsz) {
+        // Perform the release step-by-step, following the reverse logic of alloc.
+        uint8 newsz_order=i_log2(aligned_newsz & -aligned_newsz);
+        newsz_order=(newsz_order==0 || newsz_order>MAX_ORDER+ORDER_BASE)
+            ?(MAX_ORDER+ORDER_BASE):newsz_order;
+        uint64 cur_max_size=1ull << newsz_order;
+        uint64 remain_size=aligned_oldsz-aligned_newsz, free_size=cur_max_size;
+        uint64 cur_va=aligned_newsz, cur_order=0;
+        while(remain_size>0){
+            free_size=cur_max_size;
+            while(remain_size < free_size && free_size>PGSIZE)
+                free_size/=2;
+            // uvmunmap(pagetable, cur_va, free_size, 1);
+            if(remain_size>free_size)  remain_size-=free_size;
+            else    break;
+            cur_va+=free_size;
+            cur_order=i_log2(cur_va & -cur_va);
+            cur_order=(cur_order > MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):cur_order;
+            cur_max_size=1ull << cur_order;
+        }
     }
     VM_TRACE("uvmdealloc exiting newsz=0x%llx\n", newsz);
     return newsz;
