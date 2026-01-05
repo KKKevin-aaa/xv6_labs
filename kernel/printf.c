@@ -19,7 +19,8 @@ void test_vma_slab_allocator();
 void test_vma_rbtree_and_list();
 void test_kvmalloc_integrity();
 void test_unmapped_area_search();
-
+void test_kvm_stress_worker(int iters, int max_live, int max_pages);
+void test_kvm_stress_parallel(int participants, int iters, int max_live, int max_pages);
 volatile int panicking = 0;  // printing a panic message
 //panicking enables a "lock escape" to prevent recursive deadlocks during emergency reporting.
 volatile int panicked = 0;   // spinning forever at end of a panic
@@ -336,7 +337,7 @@ uint64 sys_load_debug_sym(void){
     // test_vma_rbtree_and_list();
     // test_kvmalloc_integrity();
     // test_unmapped_area_search();
-
+    test_kvm_stress_worker(20000, 256, 64);
     return load_debug_sym_vm();
 }
 

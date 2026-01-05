@@ -278,6 +278,7 @@ typedef struct Reservation{
 #ifndef __ASSEMBLER__
 //exclude S files using the complier builtin macro
 inline uint8 __attribute__((always_inline)) i_log2(uint64 x){
+    //find most significant bits and floor it.
     if(x==0)    return 0;
     uint8 n=0;
     if(x & 0xffffffff00000000ull)   {n+=32;x>>=32;}

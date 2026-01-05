@@ -22,6 +22,7 @@ typedef struct mm_struct mm_struct_t;
 typedef struct vm_operation_struct vm_operation_struct_t;
 typedef struct page_slab_header page_slab_header_t;
 typedef struct vma_pool cpu_vma_pool_t;
+typedef struct mem_trans_stash mem_trans_stash_t;
 #ifndef offsetof
 #define offsetof(TYPE, MEMBER)  ((uint64)&((TYPE *)0)->MEMBER)
 #endif
@@ -30,6 +31,9 @@ struct rwspinlock;
 #endif
 #define MAX(a, b) (((a) < (b)) ? (b) : (a))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define POISON_BYTE 0X5A
+#define POISON_64 0x5a5a5a5a5a5a5a5aull
+
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
@@ -82,13 +86,16 @@ void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
 void            free_pages(void *pa, uint64 sz); //for huge page
+int             reclaim_orphan_pages(void *pa, uint64 size);
 void*           alloc_memory(uint64);
-uint16          get_order(uint64 pa);
+uint64          get_order(uint64 pa);
 uint8           is_head(uint64 pa);
 uint8           is_managed_memory(uint64 pa);
 void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz, int level);
 int             is_pagetable_empty(pagetable_t pagetable);
 void            dump_memory_map();
+int             check_poison(void *ptr, uint64 size);
+int             set_poison(void *ptr, uint64 size);
 // log.c
 void            initlog(int, struct superblock*);
 void            log_write(struct buf*);
@@ -194,7 +201,6 @@ int             mappages(pagetable_t, uint64, uint64, uint64, int);
 pagetable_t     uvmcreate(void);
 uint64          uvmalloc(pagetable_t, uint64, uint64, int);
 uint64          uvmdealloc(pagetable_t, uint64, uint64);
-uint64          uvmdealloc_nounmap(pagetable_t pagetable, uint64 oldsz, uint64 newsz);
 int             uvmcopy(res_block *, pagetable_t, pagetable_t, uint64);
 void            uvmfree(res_block *, pagetable_t, uint64);
 void            uvmunmap(pagetable_t, uint64, uint64, int);

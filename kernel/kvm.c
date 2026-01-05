@@ -60,7 +60,7 @@ uint64 gene_flags(uint64 vm_page_prot){
 }
 static inline uint8 in_kernel_heap(uint64 va){
 #ifdef DEBUG_KVM
-    KVM_TRACE("va=%llx\n", va);
+    KVM_TRACE("tssting: va=%llx in kernel_heap.\n", va);
 #endif
     if(va>=KHEAP_START && va<KHEAP_END) return 1;
     else    return 0;
@@ -134,6 +134,10 @@ int vma_put(vm_area_struct_t *vma){    //Drop one reference
 // Make a direct-map page table for the kernel.
 // Record the relavant info into global_mm
 pagetable_t kvmmake(void) {
+    //map kernel data and the physical RAM we'll use of.
+    //NOTE: This create a direct mapping(Identity Map) for all physical RAM.When we later allocate pages
+    //for Kernel_Heap, those page will be mapped again at a high virtual address.This create an
+    //"Alias",it's international and safe because kalloc() ensures exclusive ownership.
 #ifdef DEBUG_KVM
     KVM_TRACE("void\n");
 #endif
@@ -319,6 +323,159 @@ static int add_to_list_locked(page_slab_header_t *slab, page_slab_header_t **lis
     *list=slab;
     return 0;
 }
+//Below The following code has proven to be invalid, but the design rationale is worth referencing. 
+// (Mainly because once the PTE is cleared, 
+// the recorded data lacks other essential information required to re-establish the mapping; 
+// it is only useful under specific conditions)
+//----------------START--------------------------------------------------------
+int Kernel_create_snapshot_locked(mem_trans_stash_t *mts, void *start_addr, uint64 sz){
+    if(!holding(&kvm_lock))
+        panic("[kernel_create_snapshot_locked]Race condition: access kernel_pagetable without lock.\n");
+    if(mts==NULL || start_addr==NULL || sz==0 || sz%PGSIZE!=0 || mts->count!=0
+        || mts->magic!=MEM_TRANS_STACH_MAGIC || mts->is_occupied!=0){
+        printf("[Kernel_create_snapshot_locked]pass invalid parameter,please check again.\n");
+        return -1;
+    }
+    #ifdef DEBUG_KVM
+        //Cache-friendly Poison check, only check if debug_mode
+        KVM_TRACE("testing mem_trans_stash ...\n");
+        if(check_poison((void *)mts, sizeof(mts->ptr)+sizeof(mts->order))==-1){
+            printf("[Kernel_create_snapshot_locked]pass mts isn't emtpy, maybe reuse mts?\n");
+            return -1;
+        }
+    #endif
+    uint8 va_order=i_log2((uint64)start_addr & -(uint64)start_addr);
+    va_order=(va_order==0 || va_order>MAX_ORDER+ORDER_BASE)?
+        (MAX_ORDER+ORDER_BASE):va_order;
+    uint64 cur_max_size=1ull<<va_order ,alloc_size, cur_va=start_addr;
+    void *mem=NULL;
+    while(sz>0 && mts->count<=MAX_ORDER*2){
+        if(mts->count==MAX_ORDER*2){
+            KVM_TRACE("Copy block fragmentation exceeds maximum limit.\n");
+            goto free_resource;
+        }
+        alloc_size=cur_max_size;
+        while(sz < alloc_size && alloc_size>PGSIZE){
+            alloc_size/=2;
+            va_order--;
+        }
+        mem=alloc_memory(alloc_size);
+        if (mem == NULL)
+            goto free_resource;
+        memset(mem, 0, alloc_size);
+        memmove(mem, (void *)cur_va, alloc_size);
+        mts->ptr[mts->count]=mem;
+        mts->order[mts->count]=va_order;
+        mts->count++;
+        // KVM_TRACE("kvmalloc -> mappages cur_va=0x%llx alloc_size=0x%llx\n", cur_va, alloc_size);
+        if(sz>alloc_size)  sz-=alloc_size;
+        else    break;
+        cur_va+=alloc_size;
+        va_order=i_log2(cur_va & -cur_va);
+        va_order=(va_order > MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):va_order;
+        cur_max_size=1ull << va_order;
+    }
+    mts->is_occupied=1;
+    return 0;
+free_resource:
+    //reclaim the physical resource, and reset mts to avoid leakage.
+    for(int j=0;j<mts->count;j++){
+        if(mts->ptr[j]==NULL && mts->order[j]>MAX_ORDER){
+            #ifdef DEBUG_KVM
+                KVM_TRACE("store invalid parameter in create snapshot!\n");
+            #endif
+            return -1;
+        }
+        free_pages(mts->ptr[j], 1ull<<mts->order[j]);
+    }
+    #ifdef DEBUG_KVM
+        KVM_TRACE("alloc sub_blocks fail.\n");
+    #endif
+    set_poison(mts, sizeof(mts->ptr)+sizeof(mts->order));    //reset
+    mts->count=0;
+    return -1;
+}
+int Kernel_transfer_snapshot_lock(mem_trans_stash_t *mts, void *start_addr, uint64 sz){
+    //memmove the stored data in mts to start_addr
+    if(!holding(&kvm_lock))
+        panic("[kernel_create_snapshot_locked]Race condition: access kernel_pagetable without lock.\n");
+    if(mts==NULL || start_addr==NULL || sz==0 || sz%PGSIZE!=0 || mts->count==0
+        || mts->magic!=MEM_TRANS_STACH_MAGIC || mts->is_occupied==0){
+        KVM_TRACE("pass invalid parameter,please check again.\n");
+        return -1;
+    }
+    #ifdef DEBUG_KVM
+        //Cache-friendly Poison check, only check if debug_mode
+        KVM_TRACE("testing mem_trans_stash ...\n");
+        if(check_poison((void *)mts, sizeof(mts->ptr)+sizeof(mts->order))==0){
+            KVM_TRACE("Provided mts is clean,no data to copy\n");
+            return -1;
+        }
+    #endif
+    uint8 va_order=i_log2((uint64)start_addr & -(uint64)start_addr);
+    va_order=(va_order==0 || va_order>MAX_ORDER+ORDER_BASE)?
+        (MAX_ORDER+ORDER_BASE):va_order;
+    uint64 cur_max_size=1ull<<va_order ,alloc_size, cur_va=start_addr;
+    uint16 cnt=0;
+    while(sz>0 && cnt<mts->count){
+        alloc_size=cur_max_size;
+        while(sz < alloc_size && alloc_size>PGSIZE){
+            alloc_size/=2;
+            va_order--;
+        }
+        if(va_order!=mts->order[cnt])   goto dismatch;
+        memmove((void *)cur_va, mts->ptr[cnt], alloc_size);
+        if(sz>alloc_size)  sz-=alloc_size;
+        else    break;
+        cur_va+=alloc_size;
+        va_order=i_log2(cur_va & -cur_va);
+        va_order=(va_order > MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):va_order;
+        cur_max_size=1ull << va_order;
+        cnt++;
+    }
+    if(sz!=0 || cnt<mts->count) goto dismatch;
+    return 0;
+dismatch:
+    //Dismatch address order or dismatch size,so delete the copyed data and report error;
+    KVM_TRACE("Dismatch address or order...\n");
+    memset(start_addr, 0, cur_va-(uint64)start_addr);
+    return -1;
+}
+int Kernel_reclaim_snapshot_locked(mem_trans_stash_t *mts){
+    if(!holding(&kvm_lock))
+        panic("[Kernel_reclaim_snapshot_locked] access kernel_paegtable without access.\n");
+    if(mts==NULL || mts->is_occupied!=1 || mts->magic!=MEM_TRANS_STACH_MAGIC 
+        || mts->count>MAX_ORDER*2)
+        goto error;
+    #ifdef DEBUG_KVM
+        KVM_TRACE("testing mem_trans_stash...\n");
+        if(check_poison((void *)mts, sizeof(mts->ptr)+sizeof(mts->order))==0)
+            goto error;
+    #endif
+    //free the physical resources only if pass test
+    for(int j=0;j<MAX_ORDER*2;j++){
+        if(j<mts->count && (mts->ptr[j]==NULL || mts->order[j]>MAX_ORDER))
+            goto error;
+        else if(j>=mts->count && ((uint64)mts->ptr[j]!=POISON_64 || mts->order[j]!=POISON_BYTE))
+            goto error;
+    }
+    //pass tests,now we can reclaim all resource safely.
+    for(int j=0;j<mts->count;j++){
+        free_pages(mts->ptr[j], 1ull<<mts->order[j]);
+    }
+    mts->count=0;
+    mts->is_occupied=0;
+    set_poison((void *)mts, sizeof(mts->ptr)+sizeof(mts->order));
+    return 0;
+error:
+#ifdef DEBUG_KVM
+    KVM_TRACE("[Kernel_reclaim_snapshot_locked]pass an wrong element.\n");
+#endif
+    return -1;
+}
+//------------------END------------------------------------------------
+
+//-----------------------VMA_OPERATIONS--------------------------------
 __attribute__((warn_unused_result)) vm_area_struct_t *alloc_vma_node(){
 #ifdef DEBUG_KVM 
     KVM_TRACE("void\n");
@@ -483,7 +640,7 @@ vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr){
     //Assuming hold mm->mm_lock(Lock-Prected Borrowing)
     //No refcount update is needed since the object isn't leaked out of the critical sections.
 #ifdef DEBUG_KVM
-    KVM_TRACE("mm=%p vaddr=%llx\n", (void *)mm, vaddr);
+    KVM_TRACE("While mm=%p, try to find vaddr %llx\n", (void *)mm, vaddr);
 #endif
     if(!holding(&mm->mm_lock))
         panic("[find_vma]Race Conditions: Accessing mm without lock");
@@ -556,6 +713,7 @@ static vm_area_struct_t *find_upper_vma(mm_struct_t *mm, uint64 vaddr){
         return rb_entry(best_fit, vm_area_struct_t, vm_rb_node);
     return NULL; 
 }
+
 vm_area_struct_t *find_upper_vma_and_get(mm_struct_t *mm, uint64 addr){
     if(!holding(&mm->mm_lock))
         panic("[find_vma_and_get]Race Conditions: Accessing mm without lock");
@@ -563,6 +721,7 @@ vm_area_struct_t *find_upper_vma_and_get(mm_struct_t *mm, uint64 addr){
     if(vma!=NULL)   vma_get(vma);
     return vma;
 }
+
 rb_node_t *rb_search(rb_node_t *node, vm_area_struct_t **predecessor, 
         vm_area_struct_t **successor, const rb_root_t *root){
 #ifdef DEBUG_KVM
@@ -616,6 +775,7 @@ rb_node_t *rb_search(rb_node_t *node, vm_area_struct_t **predecessor,
     }
     return parent;
 }
+
 int insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont){
 #ifdef DEBUG_KVM
     KVM_TRACE("mm=%p vma=%p cont=%p\n", (void *)mm, (void *)vma, (void *)cont);
@@ -661,6 +821,7 @@ int insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont)
     rb_insert_color(&vma->vm_rb_node, &mm->rb_root);
     return 0;
 }
+
 int insert_vma(mm_struct_t *mm, vm_area_struct_t *vma){
 #ifdef DEBUG_KVM
     KVM_TRACE("mm=%p vma=%p\n", (void *)mm, (void *)vma);
@@ -710,6 +871,7 @@ int insert_vma(mm_struct_t *mm, vm_area_struct_t *vma){
     if(vm_next) vm_next->vm_prev=vma;
     return 0;
 }
+
 int remove_vma(mm_struct_t *mm, vm_area_struct_t *vma){
 #ifdef DEBUG_KVM
     KVM_TRACE("mm=%p vma=%p\n", (void *)mm, (void *)vma);
@@ -730,6 +892,7 @@ int remove_vma(mm_struct_t *mm, vm_area_struct_t *vma){
     vma->vm_prev=NULL;vma->vm_next=NULL;
     return vma_put(vma);
 }
+
 static uint64 get_unmapped_area(mm_struct_t *mm, uint64 len, 
         uint64 low_limit, uint64 high_limit, vma_context_t *cont){
 #ifdef DEBUG_KVM
@@ -784,24 +947,8 @@ static uint64 get_unmapped_area(mm_struct_t *mm, uint64 len,
     }
     return -1;
 }
-static uint64 helper_kvmdealloc_locked(pagetable_t Kpagetable, uint64 oldsz, uint64 new_sz){
-#ifdef DEBUG_KVM
-    KVM_TRACE("Kpagetable=%p oldsz=%llx new_sz=%llx\n", (void *)Kpagetable, oldsz, new_sz);
-#endif
-    if(!holding(&kvm_lock))
-        panic("[helper_kvmdealloc]Race Conditions: access kernel pagetable without lock!");
-    // release resources, exclude vma operations.
-    return uvmdealloc(Kpagetable, oldsz, new_sz);
-}
-static uint64 helper_kvmdealloc_nounmap_locked(pagetable_t Kpagetable, uint64 oldsz, uint64 new_sz){
-    #ifdef DEBUG_KVM
-    KVM_TRACE("Kpagetable=%p oldsz=%llx new_sz=%llx\n", (void *)Kpagetable, oldsz, new_sz);
-#endif
-    if(!holding(&kvm_lock))
-        panic("[helper_kvmdealloc]Race Conditions: access kernel pagetable without lock!");
-    // release resources, exclude vma operations.
-    return uvmdealloc_nounmap(Kpagetable, oldsz, new_sz);
-}
+//-------------------VMA_OPERATIONS_END---------------------------------
+
 static void kvmunmap(pagetable_t Kpagetable, uint64 va_start, uint64 size, int do_free){
 #ifdef DEBUG_KVM
     KVM_TRACE("Kpagetable=%p va_start=%llx size=%llx\n", (void *)Kpagetable, va_start, size);
@@ -811,6 +958,8 @@ static void kvmunmap(pagetable_t Kpagetable, uint64 va_start, uint64 size, int d
     // release resources, exclude vma operations.
     uvmunmap(Kpagetable, va_start, size, do_free);
 }
+
+//-------------------ALLOC-----------------------------------------
 int Kernel_buddy_alloc_locked(pagetable_t Kpagetable, uint64 va, uint64 size, int xperm){
 #ifdef DEBUG_KVM
     KVM_TRACE("Kpagetable=%p va=%llx size=%llx xperm=%d\n", (void *)Kpagetable, va, size, xperm);
@@ -859,6 +1008,7 @@ int Kernel_buddy_alloc_locked(pagetable_t Kpagetable, uint64 va, uint64 size, in
     }
     return 0;
 }
+
 static void *kvmalloc_range_locked(pagetable_t Kpagetable, uint64 start_va, 
         uint64 sz, int xperm, vma_context_t cont){
     //Alloc reserves metadata then physical resources.
@@ -897,6 +1047,7 @@ error:
     printf("Kvmalloc_range_locked fail\n");
     return NULL;
 }
+
 void *kvmalloc(pagetable_t Kpagetable, uint64 req_sz, int xperm){
 #ifdef DEBUG_KVM
     KVM_TRACE("Kpagetable=%p req_sz=%llx xperm=%d\n", (void *)Kpagetable, req_sz, xperm);
@@ -928,6 +1079,19 @@ error:
     return NULL;
     //Address 0 is a unique error indicator because it's guaranteed to be invalid.
 }
+
+//-------------------------DEALLOC-------------------------------------
+static uint64 helper_kvmdealloc_locked(pagetable_t Kpagetable, uint64 oldsz, uint64 new_sz){
+    #ifdef DEBUG_KVM
+        KVM_TRACE("Kpagetable=%p oldsz=%llx new_sz=%llx\n", (void *)Kpagetable, oldsz, new_sz);
+    #endif
+        if(!holding(&kvm_lock))
+            panic("[helper_kvmdealloc]Race Conditions: access kernel pagetable without lock!");
+        // release resources, exclude vma operations.
+        return uvmdealloc(Kpagetable, oldsz, new_sz);
+}
+
+//Legacy: PTE-level snapshots are mandatory for reliable remap-on-rollback.
 uint64 kvmdealloc_range(pagetable_t Kpagetable, uint64 va_start, uint64 va_end){
 #ifdef DEBUG_KVM
     KVM_TRACE("Kpagetable=%p start_addr=%llx end_addr=%llx\n", (void *)Kpagetable, va_start, va_end);
@@ -945,24 +1109,16 @@ uint64 kvmdealloc_range(pagetable_t Kpagetable, uint64 va_start, uint64 va_end){
     vm_area_struct_t *find_ret=find_vma_and_get(&global_mm, align_start);
     if(find_ret==NULL || !(find_ret->vm_start>=align_start && align_end<=find_ret->vm_end)){ 
         //Pass the range test firstly
-        printf("Kvmdealloc:cannot find vma sastify requiment, ");
+        printf("Kvmdealloc:cannot find vma sastify requirement.");
         printf("Or Got the wrong vma, maybe dealloc a large range?\n");
         goto error;
     }
-    //Free should release physical resources first, then metadata.
-    //NOTE:The existience of page faults and concurrency can lead to illegal access or use-after-free issues.
-    //Considering potential splits and possible failures, we might temporarily store data
-    //to allow for rollbacks in case of unexpected issues.
-    uint64 store_sz=align_end-align_start;
-    void *store_data=alloc_memory(store_sz);
-    if(store_data==NULL){   //If data cannot be saved, we deem it a failure and return immediately
-        printf("Save the delete data fail, for safety we stop dealloc and return.\n");
-        //maybe you can take more aggresive method.
-        goto error; //Fail-fast
-    }
-    memset(store_data, 0, store_sz);
-    memmove(store_data, (void *)align_start, store_sz);
-
+    
+    pte_t *kernel_pte=walk(Kpagetable, align_start, 0, 0);
+    if(kernel_pte==NULL)    goto reclaim_snapshot;
+    uint64 store_pa=PTE2PA(*kernel_pte);   //still located in kernel_ram actually
+    int store_xperm=PTE_FLAGS(*kernel_pte);
+    if(store_pa==0 || store_xperm==0)   goto reclaim_snapshot;  //at least Valid, so xperm cannot be 0.
     kvmunmap(Kpagetable, align_start, align_end-align_start, 0);
     sfence_vma();
     uint64 restore_start __attribute__((unused)) =find_ret->vm_start;
@@ -974,7 +1130,7 @@ uint64 kvmdealloc_range(pagetable_t Kpagetable, uint64 va_start, uint64 va_end){
             //The mm_struct reference is dropped within remove_vma,
             //while callers manage their own local references.
             printf("kvmdealloc_range: remove_vma fail\n");
-            goto error;
+            goto reclaim_snapshot;
         }
     }
     else if(find_ret->vm_start<align_start && find_ret->vm_end > align_end){
@@ -983,7 +1139,7 @@ uint64 kvmdealloc_range(pagetable_t Kpagetable, uint64 va_start, uint64 va_end){
         uint64 prev_bound=find_ret->vm_end;
         find_ret->vm_end=align_start;   //transform into a new vma
         new_vma=alloc_vma_node();
-        if(new_vma==NULL)  goto recover_data;
+        if(new_vma==NULL)  goto reset_vma;
         new_vma->vm_start=align_end;
         new_vma->vm_end=prev_bound;
         new_vma->vm_page_prot=find_ret->vm_page_prot;
@@ -992,7 +1148,7 @@ uint64 kvmdealloc_range(pagetable_t Kpagetable, uint64 va_start, uint64 va_end){
         new_vma->ref_count=1;   //Held by mm_struct
         //Omit values for unused arguments.
         if(insert_vma_fast(&global_mm, new_vma, &cont1)==-1)
-            goto recover_data;
+            goto reset_vma;
     }
     else if(find_ret->vm_start==align_start){
         find_ret->vm_start=align_end;
@@ -1001,40 +1157,50 @@ uint64 kvmdealloc_range(pagetable_t Kpagetable, uint64 va_start, uint64 va_end){
         find_ret->vm_end=align_end;
     }
     release(&global_mm.mm_lock);
-    uint64 ret=helper_kvmdealloc_nounmap_locked(Kpagetable, align_end, align_start);
-    //Physical memory was only partial deleted ,and the mapping still exists;
-    //therefore, it cannot be re-mapped. And when following steps fail, goto recover_data please.
-    if(ret!=align_start){
-        printf("Kvmdealloc:dealloc physical page fail!\n");
-        goto recover_data;
+    if(reclaim_orphan_pages((void *)align_start, store_sz)==-1){
+        KVM_TRACE("Problem encountered, initiating data restoration.\n");
+        if(mts.count!=0){   //Write the data back to the corresponding area(to physicall address)
+            if(Kernel_transfer_snapshot_lock(&mts, (void *)store_pa, store_sz)==-1)
+                panic("Unable to recover data!\n");
+            //rebuild the mapping 
+
+            if(mappages(Kpagetable, (void *)align_start, store_sz, store_pa, store_xperm)!=0){
+                panic("remapping fail.\n");
+            }
+        }
+        else{
+            printf("Enter rollback, but the stored data is destoryed.\n");
+            panic("Current data cannot be recovered!\n");
+        }
+        goto reset_vma;
     }
+    if(Kernel_reclaim_snapshot_locked(&mts)==-1){
+        panic("Unable to reclaim data!\n");
+    }   //release the saved data to prevent data leakage.
     if(vma_put(find_ret)!=0)    //local reference from find_vma_and_get
-        panic("reclaim resouces.");
+        panic("reclaim resources.");
     release(&kvm_lock);
-    return ret;
-recover_data:
-    if(store_data!=NULL){   //Write the data back to the corresponding area.
-        memmove((void *)align_start, store_data, store_sz);
-        free_pages(store_data, store_sz);   //release the saved data to prevent data leakage.
-        store_data=NULL;
-    }
-    else{
-        printf("Enter rollback, but the stored data have been destoryed.\n");
-        panic("Current data cannot be recovered!\n");
-    }
+    return va_start;
+reset_vma:
     find_ret->vm_start=restore_start;
     find_ret->vm_end=restore_end;   //reset
     if(new_vma!=NULL){
         vma_put(new_vma);
     }
+reclaim_snapshot:
+    if(Kernel_reclaim_snapshot_locked(&mts)==-1){
+        panic("Unable to reclaim data!\n");
+    }   //release the saved data to prevent data leakage.
 error:
     if(vma_put(find_ret)!=0)    //local reference (if any)
         panic("reclaim resouces.");
-    printf("kvmdealloc_range fail!\n");
+    KVM_TRACE("kvmdealloc_range fail!\n");
     if(holding(&kvm_lock)) release(&kvm_lock);
     if(holding(&global_mm.mm_lock)) release(&global_mm.mm_lock);
     return -1;
 }
+
+//A more recommend method: Batching, no additional memory cost, not support rollback
 uint64 kvmdealloc_range2(pagetable_t Kpagetable, uint64 va_start, uint64 va_end){
     // While the delete_size is too large, the cost of copy is unacceptable.
     // Another way is check-prepare-commit.
@@ -1068,7 +1234,8 @@ uint64 kvmdealloc_range2(pagetable_t Kpagetable, uint64 va_start, uint64 va_end)
     uint64 restore_end __attribute__((unused))=find_ret->vm_end;
 
     //Commit!(hareware teardown)
-    kvmunmap(Kpagetable, align_start, align_end-align_start, 0);    //zap_page_range
+    uint64 del_size=align_end-align_start;
+    kvmunmap(Kpagetable, align_start, del_size, 0);    //zap_page_range
     sfence_vma();
     //Logical Detach
     if(find_ret->vm_start==align_start && find_ret->vm_end==align_end){
@@ -1101,18 +1268,16 @@ uint64 kvmdealloc_range2(pagetable_t Kpagetable, uint64 va_start, uint64 va_end)
         find_ret->vm_end=align_end;
     }
     release(&global_mm.mm_lock); //free the lock, so that other cpus can operator vma_tree
-
-    uint64 ret=helper_kvmdealloc_nounmap_locked(Kpagetable, align_end, align_start);
-    //Physical memory was only partial deleted ,and the mapping still exists;
-    //therefore, it cannot be re-mapped. And when following steps fail, goto recover_data please.
-    if(ret!=align_start)
-        panic("Kvmdealloc:dealloc physical page fail!\n");
+    if(reclaim_orphan_pages((void *)align_start, del_size)==-1){
+        KVM_TRACE("reclaim orphan pages fail, cannot rollback in this version.\n");
+        panic("");
+    }
     if(vma_put(find_ret)!=0)    //local reference from find_vma_and_get
         panic("reclaim resouces.");
     if(vma_put(new_vma)!=0)
         panic("reclaim new_vma fail.\n");
     release(&kvm_lock);
-    return ret;
+    return va_start;
 error:
     find_ret->vm_start=restore_start;
     find_ret->vm_end=restore_end;
@@ -1125,6 +1290,7 @@ error:
     if(holding(&global_mm.mm_lock)) release(&global_mm.mm_lock);
     return -1;
 }
+
 uint64 kvmdealloc(pagetable_t Kpagetable, uint64 start_va, uint64 sz){
 #ifdef DEBUG_KVM
     KVM_TRACE("Kpagetable=%p start_va=%llx sz=%llx\n", (void *)Kpagetable, start_va, sz);
@@ -1134,7 +1300,9 @@ uint64 kvmdealloc(pagetable_t Kpagetable, uint64 start_va, uint64 sz){
 }
 //test-only code co-located to access status functions.
 
-//DEBUG_only functions
+
+
+//--------------------------------DEBUG_only functions----------------------------
 void identify_list_nolock(page_slab_header_t *page){
     if(page==NULL || page->magic!=PAGE_SLAB_HEADER_MAGIC) 
         panic("identify_list_nolock!\n");
@@ -1281,15 +1449,31 @@ void test_kvm_stress_worker(int iters, int max_live, int max_pages){
     if(max_pages <= 0) max_pages = 64;
     if(max_pages > 1024) max_pages = 1024;
 
+    int cpu = cpuid();
+    if(cpu < 0 || cpu >= NCPU)
+        panic("test_kvm_stress_worker: bad cpu id");
+
+    // The test does:
+    //  - random kvmalloc/kvmdealloc
+    //  - touch one byte per page (forces mapping)
+    //  - periodically check VMA list/RB-tree invariants under global_mm.mm_lock
+    printf("[kvm_test] stress_worker enter: cpu=%d iters=%d max_live=%d max_pages=%d\n",
+        cpu, iters, max_live, max_pages);
+
     if(holding(&kvm_lock) || holding(&global_mm.mm_lock))
         panic("test_kvm_stress_worker: lock already held");
 
-    // Fixed-size tracking; avoids allocator recursion in the test itself.
-    static kvm_alloc_rec_t recs[4096];
+    // Fixed-size tracking; avoid allocator recursion in the test itself.
+    // Must be per-CPU, otherwise parallel stress will race on bookkeeping.
+    enum { KVM_TEST_MAX_LIVE = 1024 };
+    static kvm_alloc_rec_t recs[NCPU][KVM_TEST_MAX_LIVE];
     int live = 0;
 
+    if(max_live > KVM_TEST_MAX_LIVE)
+        max_live = KVM_TEST_MAX_LIVE;
+
     // Per-cpu seed so multi-CPU runs are less correlated.
-    uint64 seed = (uint64)r_time() ^ ((uint64)cpuid() << 32) ^ (uint64)(cpuid() * 0x9e3779b97f4a7c15ULL);
+    uint64 seed = (uint64)r_time() ^ ((uint64)cpu << 32) ^ (uint64)(cpu * 0x9e3779b97f4a7c15ULL);
 
     int alloc_fail = 0;
 
@@ -1317,22 +1501,22 @@ void test_kvm_stress_worker(int iters, int max_live, int max_pages){
                 if(!in_kernel_heap(va) || !in_kernel_heap(va + sz - 1))
                     panic("kvm_test: allocation out of kernel heap");
 
-                kvm_test_touch_pages((char*)p, sz, (uint8)(cpuid() ^ i));
+                kvm_test_touch_pages((char*)p, sz, (uint8)(cpu ^ i));
 
-                recs[live].va = va;
-                recs[live].sz = sz;
+                recs[cpu][live].va = va;
+                recs[cpu][live].sz = sz;
                 live++;
             }
         } else {
             int idx = (int)(kvm_test_rng_next(&seed) % (uint64)live);
-            uint64 va = recs[idx].va;
-            uint64 sz = recs[idx].sz;
+            uint64 va = recs[cpu][idx].va;
+            uint64 sz = recs[cpu][idx].sz;
             uint64 ret = kvmdealloc(kernel_pagetable, va, sz);
             if(ret == (uint64)-1)
                 panic("kvm_test: kvmdealloc failed");
             // swap-remove
             live--;
-            recs[idx] = recs[live];
+            recs[cpu][idx] = recs[cpu][live];
         }
 
         // Periodic invariant checks. Keep it infrequent to allow contention.
@@ -1349,7 +1533,7 @@ void test_kvm_stress_worker(int iters, int max_live, int max_pages){
     // Drain.
     while(live > 0){
         live--;
-        uint64 ret = kvmdealloc(kernel_pagetable, recs[live].va, recs[live].sz);
+        uint64 ret = kvmdealloc(kernel_pagetable, recs[cpu][live].va, recs[cpu][live].sz);
         if(ret == (uint64)-1)
             panic("kvm_test: drain kvmdealloc failed");
     }
@@ -1358,14 +1542,24 @@ void test_kvm_stress_worker(int iters, int max_live, int max_pages){
     kvm_test_assert_mm_invariants_locked(&global_mm);
     release(&global_mm.mm_lock);
 
-    printf("[kvm_test] cpu=%d iters=%d max_live=%d max_pages=%d alloc_fail=%d\n",
-        cpuid(), iters, max_live, max_pages, alloc_fail);
+    printf("[kvm_test] stress_worker exit: cpu=%d iters=%d max_live=%d max_pages=%d alloc_fail=%d\n",
+        cpu, iters, max_live, max_pages, alloc_fail);
 }
 
 void test_kvm_stress_parallel(int participants, int iters, int max_live, int max_pages){
     // Barrier-based parallel runner.
     // Usage: invoke this function on N different CPUs with the same participants=N.
     // If called fewer than participants times, it will spin forever (by design).
+    if(participants <= 0 || participants > NCPU){
+        printf("[kvm_test] stress_parallel: invalid participants=%d (NCPU=%d)\n", participants, NCPU);
+        return;
+    }
+    if(participants == 1){
+        printf("[kvm_test] stress_parallel: participants=1, running worker directly\n");
+        test_kvm_stress_worker(iters, max_live, max_pages);
+        return;
+    }
+
     static volatile int ready = 0;
     static volatile int go = 0;
     static volatile int done = 0;
@@ -1373,15 +1567,14 @@ void test_kvm_stress_parallel(int participants, int iters, int max_live, int max
 
     int my_epoch = epoch;
     int ticket = __sync_fetch_and_add(&ready, 1) + 1;
-
-    while(epoch != my_epoch) {
-        // wait for previous epoch to finish
-    }
+    printf("[kvm_test] stress_parallel: cpu=%d epoch=%d ticket=%d/%d\n",
+        cpuid(), my_epoch, ticket, participants);
 
     // last arrival flips go
     if(ticket == participants){
         __sync_synchronize();
         go = 1;
+        printf("[kvm_test] stress_parallel: cpu=%d releasing barrier (epoch=%d)\n", cpuid(), my_epoch);
     }
     while(go == 0) {
         // spin
@@ -1397,6 +1590,7 @@ void test_kvm_stress_parallel(int participants, int iters, int max_live, int max
         go = 0;
         done = 0;
         epoch = my_epoch + 1;
+        printf("[kvm_test] stress_parallel: cpu=%d barrier done, next epoch=%d\n", cpuid(), epoch);
     } else {
         while(epoch == my_epoch) {
             // wait for reset

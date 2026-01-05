@@ -6,459 +6,459 @@ xv6 kernel is booting
 [KVM:kvminit] void
 [KVM:kvmmake] void
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087de0000 order=0
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008021f000 order=0
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x10000000 pa=0x10000000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000000010000000 size=0x1000 pa=0x0000000010000000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ddf000 order=0
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dde000 order=0
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x10001000 pa=0x10001000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000000010001000 size=0x1000 pa=0x0000000010001000 perm=0x6
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0xc000000 pa=0xc000000 sz=0x4000000 perm=6
-[VM:mappages] va=0x000000000c000000 size=0x4000000 pa=0x000000000c000000 perm=0x6
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x80000000 pa=0x80000000 sz=0x1b000 perm=10
-[VM:mappages] va=0x0000000080000000 size=0x1b000 pa=0x0000000080000000 perm=0xa
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ddd000 order=0
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ddc000 order=0
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x8001b000 pa=0x8001b000 sz=0x7fe5000 perm=6
-[VM:mappages] va=0x000000008001b000 size=0x7fe5000 pa=0x000000008001b000 perm=0x6
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffff000 pa=0x8001a000 sz=0x1000 perm=10
-[VM:mappages] va=0x0000003ffffff000 size=0x1000 pa=0x000000008001a000 perm=0xa
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087ddb000 order=0
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dda000 order=0
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd9000 order=0
-[proc_mapstacks] proc 0: kernel_stack located at 3fffffc000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3fffffc000 pa=0x87dd9000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003fffffc000 size=0x1000 pa=0x0000000087dd9000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd8000 order=0
-[proc_mapstacks] proc 1: kernel_stack located at 3fffffa000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3fffffa000 pa=0x87dd8000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003fffffa000 size=0x1000 pa=0x0000000087dd8000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd7000 order=0
-[proc_mapstacks] proc 2: kernel_stack located at 3fffff8000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3fffff8000 pa=0x87dd7000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003fffff8000 size=0x1000 pa=0x0000000087dd7000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd6000 order=0
-[proc_mapstacks] proc 3: kernel_stack located at 3fffff6000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3fffff6000 pa=0x87dd6000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003fffff6000 size=0x1000 pa=0x0000000087dd6000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd5000 order=0
-[proc_mapstacks] proc 4: kernel_stack located at 3fffff4000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3fffff4000 pa=0x87dd5000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003fffff4000 size=0x1000 pa=0x0000000087dd5000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd4000 order=0
-[proc_mapstacks] proc 5: kernel_stack located at 3fffff2000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3fffff2000 pa=0x87dd4000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003fffff2000 size=0x1000 pa=0x0000000087dd4000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd3000 order=0
-[proc_mapstacks] proc 6: kernel_stack located at 3fffff0000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3fffff0000 pa=0x87dd3000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003fffff0000 size=0x1000 pa=0x0000000087dd3000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd2000 order=0
-[proc_mapstacks] proc 7: kernel_stack located at 3ffffee000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffee000 pa=0x87dd2000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffee000 size=0x1000 pa=0x0000000087dd2000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd1000 order=0
-[proc_mapstacks] proc 8: kernel_stack located at 3ffffec000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffec000 pa=0x87dd1000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffec000 size=0x1000 pa=0x0000000087dd1000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
 [KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dd0000 order=0
-[proc_mapstacks] proc 9: kernel_stack located at 3ffffea000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffea000 pa=0x87dd0000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffea000 size=0x1000 pa=0x0000000087dd0000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dcf000 order=0
-[proc_mapstacks] proc 10: kernel_stack located at 3ffffe8000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffe8000 pa=0x87dcf000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffe8000 size=0x1000 pa=0x0000000087dcf000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dce000 order=0
-[proc_mapstacks] proc 11: kernel_stack located at 3ffffe6000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffe6000 pa=0x87dce000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffe6000 size=0x1000 pa=0x0000000087dce000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dcd000 order=0
-[proc_mapstacks] proc 12: kernel_stack located at 3ffffe4000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffe4000 pa=0x87dcd000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffe4000 size=0x1000 pa=0x0000000087dcd000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dcc000 order=0
-[proc_mapstacks] proc 13: kernel_stack located at 3ffffe2000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffe2000 pa=0x87dcc000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffe2000 size=0x1000 pa=0x0000000087dcc000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dcb000 order=0
-[proc_mapstacks] proc 14: kernel_stack located at 3ffffe0000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffe0000 pa=0x87dcb000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffe0000 size=0x1000 pa=0x0000000087dcb000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dca000 order=0
-[proc_mapstacks] proc 15: kernel_stack located at 3ffffde000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffde000 pa=0x87dca000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffde000 size=0x1000 pa=0x0000000087dca000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc9000 order=0
-[proc_mapstacks] proc 16: kernel_stack located at 3ffffdc000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffdc000 pa=0x87dc9000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffdc000 size=0x1000 pa=0x0000000087dc9000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc8000 order=0
-[proc_mapstacks] proc 17: kernel_stack located at 3ffffda000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffda000 pa=0x87dc8000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffda000 size=0x1000 pa=0x0000000087dc8000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc7000 order=0
-[proc_mapstacks] proc 18: kernel_stack located at 3ffffd8000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffd8000 pa=0x87dc7000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffd8000 size=0x1000 pa=0x0000000087dc7000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc6000 order=0
-[proc_mapstacks] proc 19: kernel_stack located at 3ffffd6000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffd6000 pa=0x87dc6000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffd6000 size=0x1000 pa=0x0000000087dc6000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc5000 order=0
-[proc_mapstacks] proc 20: kernel_stack located at 3ffffd4000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffd4000 pa=0x87dc5000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffd4000 size=0x1000 pa=0x0000000087dc5000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc4000 order=0
-[proc_mapstacks] proc 21: kernel_stack located at 3ffffd2000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffd2000 pa=0x87dc4000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffd2000 size=0x1000 pa=0x0000000087dc4000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc3000 order=0
-[proc_mapstacks] proc 22: kernel_stack located at 3ffffd0000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffd0000 pa=0x87dc3000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffd0000 size=0x1000 pa=0x0000000087dc3000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc2000 order=0
-[proc_mapstacks] proc 23: kernel_stack located at 3ffffce000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffce000 pa=0x87dc2000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffce000 size=0x1000 pa=0x0000000087dc2000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc1000 order=0
-[proc_mapstacks] proc 24: kernel_stack located at 3ffffcc000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffcc000 pa=0x87dc1000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffcc000 size=0x1000 pa=0x0000000087dc1000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc0000 order=0
-[proc_mapstacks] proc 25: kernel_stack located at 3ffffca000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffca000 pa=0x87dc0000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffca000 size=0x1000 pa=0x0000000087dc0000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008023f000 order=0
-[proc_mapstacks] proc 26: kernel_stack located at 3ffffc8000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffc8000 pa=0x8023f000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffc8000 size=0x1000 pa=0x000000008023f000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008023e000 order=0
-[proc_mapstacks] proc 27: kernel_stack located at 3ffffc6000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffc6000 pa=0x8023e000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffc6000 size=0x1000 pa=0x000000008023e000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008023d000 order=0
-[proc_mapstacks] proc 28: kernel_stack located at 3ffffc4000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffc4000 pa=0x8023d000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffc4000 size=0x1000 pa=0x000000008023d000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008023c000 order=0
-[proc_mapstacks] proc 29: kernel_stack located at 3ffffc2000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffc2000 pa=0x8023c000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffc2000 size=0x1000 pa=0x000000008023c000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008023b000 order=0
-[proc_mapstacks] proc 30: kernel_stack located at 3ffffc0000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffc0000 pa=0x8023b000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffc0000 size=0x1000 pa=0x000000008023b000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008023a000 order=0
-[proc_mapstacks] proc 31: kernel_stack located at 3ffffbe000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffbe000 pa=0x8023a000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffbe000 size=0x1000 pa=0x000000008023a000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080239000 order=0
-[proc_mapstacks] proc 32: kernel_stack located at 3ffffbc000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffbc000 pa=0x80239000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffbc000 size=0x1000 pa=0x0000000080239000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080238000 order=0
-[proc_mapstacks] proc 33: kernel_stack located at 3ffffba000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffba000 pa=0x80238000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffba000 size=0x1000 pa=0x0000000080238000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080237000 order=0
-[proc_mapstacks] proc 34: kernel_stack located at 3ffffb8000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffb8000 pa=0x80237000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffb8000 size=0x1000 pa=0x0000000080237000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080236000 order=0
-[proc_mapstacks] proc 35: kernel_stack located at 3ffffb6000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffb6000 pa=0x80236000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffb6000 size=0x1000 pa=0x0000000080236000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080235000 order=0
-[proc_mapstacks] proc 36: kernel_stack located at 3ffffb4000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffb4000 pa=0x80235000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffb4000 size=0x1000 pa=0x0000000080235000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080234000 order=0
-[proc_mapstacks] proc 37: kernel_stack located at 3ffffb2000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffb2000 pa=0x80234000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffb2000 size=0x1000 pa=0x0000000080234000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080233000 order=0
-[proc_mapstacks] proc 38: kernel_stack located at 3ffffb0000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffb0000 pa=0x80233000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffb0000 size=0x1000 pa=0x0000000080233000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080232000 order=0
-[proc_mapstacks] proc 39: kernel_stack located at 3ffffae000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffae000 pa=0x80232000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffae000 size=0x1000 pa=0x0000000080232000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080231000 order=0
-[proc_mapstacks] proc 40: kernel_stack located at 3ffffac000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffac000 pa=0x80231000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffac000 size=0x1000 pa=0x0000000080231000 perm=0x6
-[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080230000 order=0
-[proc_mapstacks] proc 41: kernel_stack located at 3ffffaa000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffaa000 pa=0x80230000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffaa000 size=0x1000 pa=0x0000000080230000 perm=0x6
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
 [KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008022f000 order=0
-[proc_mapstacks] proc 42: kernel_stack located at 3ffffa8000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffa8000 pa=0x8022f000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffa8000 size=0x1000 pa=0x000000008022f000 perm=0x6
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x10000000 pa=0x10000000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000000010000000 size=0x1000 pa=0x0000000010000000 perm=0x6
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008022e000 order=0
-[proc_mapstacks] proc 43: kernel_stack located at 3ffffa6000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffa6000 pa=0x8022e000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffa6000 size=0x1000 pa=0x000000008022e000 perm=0x6
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dcf000 order=0
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008022d000 order=0
-[proc_mapstacks] proc 44: kernel_stack located at 3ffffa4000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffa4000 pa=0x8022d000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffa4000 size=0x1000 pa=0x000000008022d000 perm=0x6
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dce000 order=0
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x10001000 pa=0x10001000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000000010001000 size=0x1000 pa=0x0000000010001000 perm=0x6
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0xc000000 pa=0xc000000 sz=0x4000000 perm=6
+[VM:mappages] va=0x000000000c000000 size=0x4000000 pa=0x000000000c000000 perm=0x6
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x80000000 pa=0x80000000 sz=0x1b000 perm=10
+[VM:mappages] va=0x0000000080000000 size=0x1b000 pa=0x0000000080000000 perm=0xa
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008022c000 order=0
-[proc_mapstacks] proc 45: kernel_stack located at 3ffffa2000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffa2000 pa=0x8022c000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffa2000 size=0x1000 pa=0x000000008022c000 perm=0x6
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dcd000 order=0
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008022b000 order=0
-[proc_mapstacks] proc 46: kernel_stack located at 3ffffa0000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffffa0000 pa=0x8022b000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffffa0000 size=0x1000 pa=0x000000008022b000 perm=0x6
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dcc000 order=0
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x8001b000 pa=0x8001b000 sz=0x7fe5000 perm=6
+[VM:mappages] va=0x000000008001b000 size=0x7fe5000 pa=0x000000008001b000 perm=0x6
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffff000 pa=0x8001a000 sz=0x1000 perm=10
+[VM:mappages] va=0x0000003ffffff000 size=0x1000 pa=0x000000008001a000 perm=0xa
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008022a000 order=0
-[proc_mapstacks] proc 47: kernel_stack located at 3ffff9e000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffff9e000 pa=0x8022a000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffff9e000 size=0x1000 pa=0x000000008022a000 perm=0x6
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dcb000 order=0
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080229000 order=0
-[proc_mapstacks] proc 48: kernel_stack located at 3ffff9c000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffff9c000 pa=0x80229000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffff9c000 size=0x1000 pa=0x0000000080229000 perm=0x6
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dca000 order=0
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080228000 order=0
-[proc_mapstacks] proc 49: kernel_stack located at 3ffff9a000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffff9a000 pa=0x80228000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffff9a000 size=0x1000 pa=0x0000000080228000 perm=0x6
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc9000 order=0
+[proc_mapstacks] proc 0: kernel_stack located at 3fffffc000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3fffffc000 pa=0x87dc9000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003fffffc000 size=0x1000 pa=0x0000000087dc9000 perm=0x6
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080227000 order=0
-[proc_mapstacks] proc 50: kernel_stack located at 3ffff98000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffff98000 pa=0x80227000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffff98000 size=0x1000 pa=0x0000000080227000 perm=0x6
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc8000 order=0
+[proc_mapstacks] proc 1: kernel_stack located at 3fffffa000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3fffffa000 pa=0x87dc8000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003fffffa000 size=0x1000 pa=0x0000000087dc8000 perm=0x6
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080226000 order=0
-[proc_mapstacks] proc 51: kernel_stack located at 3ffff96000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffff96000 pa=0x80226000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffff96000 size=0x1000 pa=0x0000000080226000 perm=0x6
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc7000 order=0
+[proc_mapstacks] proc 2: kernel_stack located at 3fffff8000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3fffff8000 pa=0x87dc7000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003fffff8000 size=0x1000 pa=0x0000000087dc7000 perm=0x6
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080225000 order=0
-[proc_mapstacks] proc 52: kernel_stack located at 3ffff94000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffff94000 pa=0x80225000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffff94000 size=0x1000 pa=0x0000000080225000 perm=0x6
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc6000 order=0
+[proc_mapstacks] proc 3: kernel_stack located at 3fffff6000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3fffff6000 pa=0x87dc6000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003fffff6000 size=0x1000 pa=0x0000000087dc6000 perm=0x6
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080224000 order=0
-[proc_mapstacks] proc 53: kernel_stack located at 3ffff92000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffff92000 pa=0x80224000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffff92000 size=0x1000 pa=0x0000000080224000 perm=0x6
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc5000 order=0
+[proc_mapstacks] proc 4: kernel_stack located at 3fffff4000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3fffff4000 pa=0x87dc5000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003fffff4000 size=0x1000 pa=0x0000000087dc5000 perm=0x6
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080223000 order=0
-[proc_mapstacks] proc 54: kernel_stack located at 3ffff90000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffff90000 pa=0x80223000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffff90000 size=0x1000 pa=0x0000000080223000 perm=0x6
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc4000 order=0
+[proc_mapstacks] proc 5: kernel_stack located at 3fffff2000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3fffff2000 pa=0x87dc4000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003fffff2000 size=0x1000 pa=0x0000000087dc4000 perm=0x6
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080222000 order=0
-[proc_mapstacks] proc 55: kernel_stack located at 3ffff8e000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffff8e000 pa=0x80222000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffff8e000 size=0x1000 pa=0x0000000080222000 perm=0x6
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc3000 order=0
+[proc_mapstacks] proc 6: kernel_stack located at 3fffff0000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3fffff0000 pa=0x87dc3000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003fffff0000 size=0x1000 pa=0x0000000087dc3000 perm=0x6
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080221000 order=0
-[proc_mapstacks] proc 56: kernel_stack located at 3ffff8c000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffff8c000 pa=0x80221000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffff8c000 size=0x1000 pa=0x0000000080221000 perm=0x6
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc2000 order=0
+[proc_mapstacks] proc 7: kernel_stack located at 3ffffee000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffee000 pa=0x87dc2000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffee000 size=0x1000 pa=0x0000000087dc2000 perm=0x6
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080220000 order=0
-[proc_mapstacks] proc 57: kernel_stack located at 3ffff8a000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffff8a000 pa=0x80220000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffff8a000 size=0x1000 pa=0x0000000080220000 perm=0x6
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc1000 order=0
+[proc_mapstacks] proc 8: kernel_stack located at 3ffffec000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffec000 pa=0x87dc1000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffec000 size=0x1000 pa=0x0000000087dc1000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dc0000 order=0
+[proc_mapstacks] proc 9: kernel_stack located at 3ffffea000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffea000 pa=0x87dc0000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffea000 size=0x1000 pa=0x0000000087dc0000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008023f000 order=0
+[proc_mapstacks] proc 10: kernel_stack located at 3ffffe8000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffe8000 pa=0x8023f000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffe8000 size=0x1000 pa=0x000000008023f000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008023e000 order=0
+[proc_mapstacks] proc 11: kernel_stack located at 3ffffe6000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffe6000 pa=0x8023e000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffe6000 size=0x1000 pa=0x000000008023e000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008023d000 order=0
+[proc_mapstacks] proc 12: kernel_stack located at 3ffffe4000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffe4000 pa=0x8023d000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffe4000 size=0x1000 pa=0x000000008023d000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008023c000 order=0
+[proc_mapstacks] proc 13: kernel_stack located at 3ffffe2000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffe2000 pa=0x8023c000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffe2000 size=0x1000 pa=0x000000008023c000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008023b000 order=0
+[proc_mapstacks] proc 14: kernel_stack located at 3ffffe0000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffe0000 pa=0x8023b000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffe0000 size=0x1000 pa=0x000000008023b000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x000000008023a000 order=0
+[proc_mapstacks] proc 15: kernel_stack located at 3ffffde000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffde000 pa=0x8023a000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffde000 size=0x1000 pa=0x000000008023a000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080239000 order=0
+[proc_mapstacks] proc 16: kernel_stack located at 3ffffdc000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffdc000 pa=0x80239000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffdc000 size=0x1000 pa=0x0000000080239000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080238000 order=0
+[proc_mapstacks] proc 17: kernel_stack located at 3ffffda000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffda000 pa=0x80238000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffda000 size=0x1000 pa=0x0000000080238000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080237000 order=0
+[proc_mapstacks] proc 18: kernel_stack located at 3ffffd8000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffd8000 pa=0x80237000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffd8000 size=0x1000 pa=0x0000000080237000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080236000 order=0
+[proc_mapstacks] proc 19: kernel_stack located at 3ffffd6000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffd6000 pa=0x80236000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffd6000 size=0x1000 pa=0x0000000080236000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080235000 order=0
+[proc_mapstacks] proc 20: kernel_stack located at 3ffffd4000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffd4000 pa=0x80235000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffd4000 size=0x1000 pa=0x0000000080235000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080234000 order=0
+[proc_mapstacks] proc 21: kernel_stack located at 3ffffd2000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffd2000 pa=0x80234000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffd2000 size=0x1000 pa=0x0000000080234000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080233000 order=0
+[proc_mapstacks] proc 22: kernel_stack located at 3ffffd0000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffd0000 pa=0x80233000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffd0000 size=0x1000 pa=0x0000000080233000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080232000 order=0
+[proc_mapstacks] proc 23: kernel_stack located at 3ffffce000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffce000 pa=0x80232000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffce000 size=0x1000 pa=0x0000000080232000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080231000 order=0
+[proc_mapstacks] proc 24: kernel_stack located at 3ffffcc000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffcc000 pa=0x80231000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffcc000 size=0x1000 pa=0x0000000080231000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000080230000 order=0
+[proc_mapstacks] proc 25: kernel_stack located at 3ffffca000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffca000 pa=0x80230000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffca000 size=0x1000 pa=0x0000000080230000 perm=0x6
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
 [KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dbf000 order=0
-[proc_mapstacks] proc 58: kernel_stack located at 3ffff88000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffff88000 pa=0x87dbf000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffff88000 size=0x1000 pa=0x0000000087dbf000 perm=0x6
+[proc_mapstacks] proc 26: kernel_stack located at 3ffffc8000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffc8000 pa=0x87dbf000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffc8000 size=0x1000 pa=0x0000000087dbf000 perm=0x6
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
 [KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dbe000 order=0
-[proc_mapstacks] proc 59: kernel_stack located at 3ffff86000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffff86000 pa=0x87dbe000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffff86000 size=0x1000 pa=0x0000000087dbe000 perm=0x6
+[proc_mapstacks] proc 27: kernel_stack located at 3ffffc6000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffc6000 pa=0x87dbe000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffc6000 size=0x1000 pa=0x0000000087dbe000 perm=0x6
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
 [KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dbd000 order=0
-[proc_mapstacks] proc 60: kernel_stack located at 3ffff84000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffff84000 pa=0x87dbd000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffff84000 size=0x1000 pa=0x0000000087dbd000 perm=0x6
+[proc_mapstacks] proc 28: kernel_stack located at 3ffffc4000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffc4000 pa=0x87dbd000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffc4000 size=0x1000 pa=0x0000000087dbd000 perm=0x6
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
 [KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dbc000 order=0
-[proc_mapstacks] proc 61: kernel_stack located at 3ffff82000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffff82000 pa=0x87dbc000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffff82000 size=0x1000 pa=0x0000000087dbc000 perm=0x6
+[proc_mapstacks] proc 29: kernel_stack located at 3ffffc2000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffc2000 pa=0x87dbc000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffc2000 size=0x1000 pa=0x0000000087dbc000 perm=0x6
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
 [KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dbb000 order=0
-[proc_mapstacks] proc 62: kernel_stack located at 3ffff80000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffff80000 pa=0x87dbb000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffff80000 size=0x1000 pa=0x0000000087dbb000 perm=0x6
+[proc_mapstacks] proc 30: kernel_stack located at 3ffffc0000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffc0000 pa=0x87dbb000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffc0000 size=0x1000 pa=0x0000000087dbb000 perm=0x6
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
 [KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dba000 order=0
+[proc_mapstacks] proc 31: kernel_stack located at 3ffffbe000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffbe000 pa=0x87dba000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffbe000 size=0x1000 pa=0x0000000087dba000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db9000 order=0
+[proc_mapstacks] proc 32: kernel_stack located at 3ffffbc000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffbc000 pa=0x87db9000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffbc000 size=0x1000 pa=0x0000000087db9000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db8000 order=0
+[proc_mapstacks] proc 33: kernel_stack located at 3ffffba000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffba000 pa=0x87db8000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffba000 size=0x1000 pa=0x0000000087db8000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db7000 order=0
+[proc_mapstacks] proc 34: kernel_stack located at 3ffffb8000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffb8000 pa=0x87db7000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffb8000 size=0x1000 pa=0x0000000087db7000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db6000 order=0
+[proc_mapstacks] proc 35: kernel_stack located at 3ffffb6000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffb6000 pa=0x87db6000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffb6000 size=0x1000 pa=0x0000000087db6000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db5000 order=0
+[proc_mapstacks] proc 36: kernel_stack located at 3ffffb4000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffb4000 pa=0x87db5000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffb4000 size=0x1000 pa=0x0000000087db5000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db4000 order=0
+[proc_mapstacks] proc 37: kernel_stack located at 3ffffb2000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffb2000 pa=0x87db4000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffb2000 size=0x1000 pa=0x0000000087db4000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db3000 order=0
+[proc_mapstacks] proc 38: kernel_stack located at 3ffffb0000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffb0000 pa=0x87db3000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffb0000 size=0x1000 pa=0x0000000087db3000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db2000 order=0
+[proc_mapstacks] proc 39: kernel_stack located at 3ffffae000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffae000 pa=0x87db2000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffae000 size=0x1000 pa=0x0000000087db2000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db1000 order=0
+[proc_mapstacks] proc 40: kernel_stack located at 3ffffac000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffac000 pa=0x87db1000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffac000 size=0x1000 pa=0x0000000087db1000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db0000 order=0
+[proc_mapstacks] proc 41: kernel_stack located at 3ffffaa000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffaa000 pa=0x87db0000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffaa000 size=0x1000 pa=0x0000000087db0000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087daf000 order=0
+[proc_mapstacks] proc 42: kernel_stack located at 3ffffa8000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffa8000 pa=0x87daf000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffa8000 size=0x1000 pa=0x0000000087daf000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dae000 order=0
+[proc_mapstacks] proc 43: kernel_stack located at 3ffffa6000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffa6000 pa=0x87dae000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffa6000 size=0x1000 pa=0x0000000087dae000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dad000 order=0
+[proc_mapstacks] proc 44: kernel_stack located at 3ffffa4000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffa4000 pa=0x87dad000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffa4000 size=0x1000 pa=0x0000000087dad000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dac000 order=0
+[proc_mapstacks] proc 45: kernel_stack located at 3ffffa2000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffa2000 pa=0x87dac000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffa2000 size=0x1000 pa=0x0000000087dac000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087dab000 order=0
+[proc_mapstacks] proc 46: kernel_stack located at 3ffffa0000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffffa0000 pa=0x87dab000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffffa0000 size=0x1000 pa=0x0000000087dab000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087daa000 order=0
+[proc_mapstacks] proc 47: kernel_stack located at 3ffff9e000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffff9e000 pa=0x87daa000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffff9e000 size=0x1000 pa=0x0000000087daa000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087da9000 order=0
+[proc_mapstacks] proc 48: kernel_stack located at 3ffff9c000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffff9c000 pa=0x87da9000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffff9c000 size=0x1000 pa=0x0000000087da9000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087da8000 order=0
+[proc_mapstacks] proc 49: kernel_stack located at 3ffff9a000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffff9a000 pa=0x87da8000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffff9a000 size=0x1000 pa=0x0000000087da8000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087da7000 order=0
+[proc_mapstacks] proc 50: kernel_stack located at 3ffff98000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffff98000 pa=0x87da7000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffff98000 size=0x1000 pa=0x0000000087da7000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087da6000 order=0
+[proc_mapstacks] proc 51: kernel_stack located at 3ffff96000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffff96000 pa=0x87da6000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffff96000 size=0x1000 pa=0x0000000087da6000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087da5000 order=0
+[proc_mapstacks] proc 52: kernel_stack located at 3ffff94000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffff94000 pa=0x87da5000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffff94000 size=0x1000 pa=0x0000000087da5000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087da4000 order=0
+[proc_mapstacks] proc 53: kernel_stack located at 3ffff92000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffff92000 pa=0x87da4000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffff92000 size=0x1000 pa=0x0000000087da4000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087da3000 order=0
+[proc_mapstacks] proc 54: kernel_stack located at 3ffff90000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffff90000 pa=0x87da3000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffff90000 size=0x1000 pa=0x0000000087da3000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087da2000 order=0
+[proc_mapstacks] proc 55: kernel_stack located at 3ffff8e000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffff8e000 pa=0x87da2000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffff8e000 size=0x1000 pa=0x0000000087da2000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087da1000 order=0
+[proc_mapstacks] proc 56: kernel_stack located at 3ffff8c000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffff8c000 pa=0x87da1000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffff8c000 size=0x1000 pa=0x0000000087da1000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087da0000 order=0
+[proc_mapstacks] proc 57: kernel_stack located at 3ffff8a000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffff8a000 pa=0x87da0000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffff8a000 size=0x1000 pa=0x0000000087da0000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087d9f000 order=0
+[proc_mapstacks] proc 58: kernel_stack located at 3ffff88000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffff88000 pa=0x87d9f000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffff88000 size=0x1000 pa=0x0000000087d9f000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087d9e000 order=0
+[proc_mapstacks] proc 59: kernel_stack located at 3ffff86000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffff86000 pa=0x87d9e000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffff86000 size=0x1000 pa=0x0000000087d9e000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087d9d000 order=0
+[proc_mapstacks] proc 60: kernel_stack located at 3ffff84000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffff84000 pa=0x87d9d000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffff84000 size=0x1000 pa=0x0000000087d9d000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087d9c000 order=0
+[proc_mapstacks] proc 61: kernel_stack located at 3ffff82000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffff82000 pa=0x87d9c000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffff82000 size=0x1000 pa=0x0000000087d9c000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087d9b000 order=0
+[proc_mapstacks] proc 62: kernel_stack located at 3ffff80000
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffff80000 pa=0x87d9b000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffff80000 size=0x1000 pa=0x0000000087d9b000 perm=0x6
+[KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087d9a000 order=0
 [proc_mapstacks] proc 63: kernel_stack located at 3ffff7e000
-[KVM:kvmmap_nolock] kpgtbl=0x0000000087de0000 va=0x3ffff7e000 pa=0x87dba000 sz=0x1000 perm=6
-[VM:mappages] va=0x0000003ffff7e000 size=0x1000 pa=0x0000000087dba000 perm=0x6
+[KVM:kvmmap_nolock] kpgtbl=0x0000000087dd0000 va=0x3ffff7e000 pa=0x87d9a000 sz=0x1000 perm=6
+[VM:mappages] va=0x0000003ffff7e000 size=0x1000 pa=0x0000000087d9a000 perm=0x6
 [KVM:vma_pool_init] vma_pool_init
 [KVM:insert_vma_helper] va=10000000 sz=1000 perm=6
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db9000 order=0
-[KVM:add_to_list_locked] slab=0x0000000087db9000 list=0x00000000801466a8
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087d99000 order=0
+[KVM:add_to_list_locked] slab=0x0000000087d99000 list=0x0000000080146878
 [KVM:gene_flags] vm_page_prot=6
-[KVM:insert_vma] mm=0x0000000080146810 vma=0x0000000087db9030
-[KVM:rb_search] node=0x0000000087db9080 predecessor=0x00000000801577c8 successor=0x00000000801577c0 root=0x0000000080146818
+[KVM:insert_vma] mm=0x00000000801469e0 vma=0x0000000087d99030
+[KVM:rb_search] node=0x0000000087d99080 predecessor=0x0000000080167998 successor=0x0000000080167990 root=0x00000000801469e8
 [KVM:insert_vma_helper] va=10001000 sz=1000 perm=6
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:gene_flags] vm_page_prot=6
-[KVM:insert_vma] mm=0x0000000080146810 vma=0x0000000087db90a8
-[KVM:rb_search] node=0x0000000087db90f8 predecessor=0x00000000801577c8 successor=0x00000000801577c0 root=0x0000000080146818
+[KVM:insert_vma] mm=0x00000000801469e0 vma=0x0000000087d990a8
+[KVM:rb_search] node=0x0000000087d990f8 predecessor=0x0000000080167998 successor=0x0000000080167990 root=0x00000000801469e8
 [KVM:insert_vma_helper] va=c000000 sz=4000000 perm=6
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:gene_flags] vm_page_prot=6
-[KVM:insert_vma] mm=0x0000000080146810 vma=0x0000000087db9120
-[KVM:rb_search] node=0x0000000087db9170 predecessor=0x00000000801577c8 successor=0x00000000801577c0 root=0x0000000080146818
+[KVM:insert_vma] mm=0x00000000801469e0 vma=0x0000000087d99120
+[KVM:rb_search] node=0x0000000087d99170 predecessor=0x0000000080167998 successor=0x0000000080167990 root=0x00000000801469e8
 [KVM:insert_vma_helper] va=80000000 sz=1b000 perm=10
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:gene_flags] vm_page_prot=a
-[KVM:insert_vma] mm=0x0000000080146810 vma=0x0000000087db9198
-[KVM:rb_search] node=0x0000000087db91e8 predecessor=0x00000000801577c8 successor=0x00000000801577c0 root=0x0000000080146818
+[KVM:insert_vma] mm=0x00000000801469e0 vma=0x0000000087d99198
+[KVM:rb_search] node=0x0000000087d991e8 predecessor=0x0000000080167998 successor=0x0000000080167990 root=0x00000000801469e8
 [KVM:insert_vma_helper] va=8001b000 sz=7fe5000 perm=6
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:gene_flags] vm_page_prot=6
-[KVM:insert_vma] mm=0x0000000080146810 vma=0x0000000087db9210
-[KVM:rb_search] node=0x0000000087db9260 predecessor=0x00000000801577c8 successor=0x00000000801577c0 root=0x0000000080146818
+[KVM:insert_vma] mm=0x00000000801469e0 vma=0x0000000087d99210
+[KVM:rb_search] node=0x0000000087d99260 predecessor=0x0000000080167998 successor=0x0000000080167990 root=0x00000000801469e8
 [KVM:insert_vma_helper] va=3ffffff000 sz=1000 perm=10
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.0 cpu try to alloc_vma_node!
 [KVM:gene_flags] vm_page_prot=a
-[KVM:insert_vma] mm=0x0000000080146810 vma=0x0000000087db9288
-[KVM:rb_search] node=0x0000000087db92d8 predecessor=0x00000000801577c8 successor=0x00000000801577c0 root=0x0000000080146818
+[KVM:insert_vma] mm=0x00000000801469e0 vma=0x0000000087d99288
+[KVM:rb_search] node=0x0000000087d992d8 predecessor=0x0000000080167998 successor=0x0000000080167990 root=0x00000000801469e8
 [KVM:kvminithart] void
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db8000 order=0
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087d98000 order=0
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db7000 order=0
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087d97000 order=0
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db6000 order=0
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087d96000 order=0
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db5000 order=0
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087d95000 order=0
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db4000 order=0
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087d94000 order=0
 [VM:mappages] va=0x0000003ffffff000 size=0x1000 pa=0x000000008001a000 perm=0xa
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db3000 order=0
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087d93000 order=0
 [KALLOC:kalloc] pid=-1(kernel) requesting PGSIZE
-[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087db2000 order=0
-[VM:mappages] va=0x0000003fffffe000 size=0x1000 pa=0x0000000087db5000 perm=0x6
-[VM:mappages] va=0x0000003fffffd000 size=0x1000 pa=0x000000008021f000 perm=0x12
-hart 1 starting
-[KVM:kvminithart] void
-hart 2 starting
+[KALLOC:alloc_memory] pid=-1(kernel) allocated size=1000 at pa=0x0000000087d92000 order=0
+[VM:mappages] va=0x0000003fffffe000 size=0x1000 pa=0x0000000087d95000 perm=0x6
+[VM:mappages] va=0x0000003fffffd000 size=0x1000 pa=0x000000008022f000 perm=0x12
 hart 3 starting
 [KVM:kvminithart] void
+hart 2 starting
+[KVM:kvminithart] void
+hart 1 starting
 [KVM:kvminithart] void
 [EXEC:kexec] ENTRY pid=1 path='/init' argv=0x0000003fffffcfb8
 [KALLOC:kalloc] pid=1() requesting PGSIZE
-[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087db1000 order=0
+[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087d91000 order=0
 [VM:mappages] va=0x0000003ffffff000 size=0x1000 pa=0x000000008001a000 perm=0xa
 [KALLOC:kalloc] pid=1() requesting PGSIZE
-[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087db0000 order=0
+[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087d90000 order=0
 [KALLOC:kalloc] pid=1() requesting PGSIZE
-[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087daf000 order=0
-[VM:mappages] va=0x0000003fffffe000 size=0x1000 pa=0x0000000087db5000 perm=0x6
-[VM:mappages] va=0x0000003fffffd000 size=0x1000 pa=0x000000008021f000 perm=0x12
-[EXEC:kexec] new pagetable 0x0000000087db1000 created for pid=1
+[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087d8f000 order=0
+[VM:mappages] va=0x0000003fffffe000 size=0x1000 pa=0x0000000087d95000 perm=0x6
+[VM:mappages] va=0x0000003fffffd000 size=0x1000 pa=0x000000008022f000 perm=0x12
+[EXEC:kexec] new pagetable 0x0000000087d91000 created for pid=1
 [VM:uvmalloc] oldsz=0x0 newsz=0x314f xperm=0x8
-[KALLOC:alloc_memory] pid=1() allocated size=4000 at pa=0x0000000087da8000 order=2
+[KALLOC:alloc_memory] pid=1() allocated size=4000 at pa=0x0000000087d88000 order=2
 [VM:buddy_alloc] uvmalloc -> mappages cur_va=0x0 alloc_size=0x4000
-[VM:mappages] va=0x0000000000000000 size=0x4000 pa=0x0000000087da8000 perm=0x1a
+[VM:mappages] va=0x0000000000000000 size=0x4000 pa=0x0000000087d88000 perm=0x1a
 [KALLOC:kalloc] pid=1() requesting PGSIZE
-[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087dae000 order=0
+[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087d8e000 order=0
 [KALLOC:kalloc] pid=1() requesting PGSIZE
-[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087dad000 order=0
+[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087d8d000 order=0
 [VM:uvmalloc] uvmalloc exiting success newsz=0x314f
 [EXEC:kexec] LOAD seg: va=0x0000000000001000 memsz=0x214f filesz=0x214f
 [VM:uvmalloc] oldsz=0x314f newsz=0x4048 xperm=0x4
-[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087dac000 order=0
+[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087d8c000 order=0
 [VM:buddy_alloc] uvmalloc -> mappages cur_va=0x4000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000004000 size=0x1000 pa=0x0000000087dac000 perm=0x16
+[VM:mappages] va=0x0000000000004000 size=0x1000 pa=0x0000000087d8c000 perm=0x16
 [VM:uvmalloc] uvmalloc exiting success newsz=0x4048
 [EXEC:kexec] LOAD seg: va=0x0000000000004000 memsz=0x48 filesz=0x21
 [VM:uvmalloc] oldsz=0x5000 newsz=0x7000 xperm=0x4
-[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087da7000 order=0
+[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087d87000 order=0
 [VM:buddy_alloc] uvmalloc -> mappages cur_va=0x5000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000005000 size=0x1000 pa=0x0000000087da7000 perm=0x16
-[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087da6000 order=0
+[VM:mappages] va=0x0000000000005000 size=0x1000 pa=0x0000000087d87000 perm=0x16
+[KALLOC:alloc_memory] pid=1() allocated size=1000 at pa=0x0000000087d86000 order=0
 [VM:buddy_alloc] uvmalloc -> mappages cur_va=0x6000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000006000 size=0x1000 pa=0x0000000087da6000 perm=0x16
+[VM:mappages] va=0x0000000000006000 size=0x1000 pa=0x0000000087d86000 perm=0x16
 [VM:uvmalloc] uvmalloc exiting success newsz=0x7000
 [EXEC:kexec] STACK setup: base=0x0000000000006000 top=0x0000000000007000 total_sz=0x7 pages
-[EXEC:kexec] COMMIT: switch pt, freeing old=0x0000000087db4000 oldsz=0x0
+[EXEC:kexec] COMMIT: switch pt, freeing old=0x0000000087d94000 oldsz=0x0
 [VM:uvmunmap] va=0x0000003ffffff000 size=0x1000 do_free=0
 [VM:uvmunmap_helper] va=0x0000003ffffff000 size=0x1000 do_free=0, cur_level is 2
 [VM:uvmunmap_helper] va=0x0000003ffffff000 size=0x1000 do_free=0, cur_level is 1
@@ -471,1544 +471,92 @@ hart 3 starting
 [VM:uvmunmap_helper] va=0x0000003fffffd000 size=0x1000 do_free=0, cur_level is 2
 [VM:uvmunmap_helper] va=0x0000003fffffd000 size=0x1000 do_free=0, cur_level is 1
 [VM:uvmunmap_helper] va=0x0000003fffffd000 size=0x1000 do_free=0, cur_level is 0
-[VM:freewalk] Freewalk Start: pt=0x0000000087db4000 base_va=0x0 max_sz=0x0
+[VM:freewalk] Freewalk Start: pt=0x0000000087d94000 base_va=0x0 max_sz=0x0
 [EXEC:kexec] SUCCESS: pid=1 exec complete. entry=0x1122
-
-
-================================================
-=== TEST 1: VMA Slab Allocator Stress Test ===
-================================================
-[TEST step 1] Acquired global_mm.mm_lock
-[TEST step 2] Allocating 200 VMAs...
+[kvm_test] stress_worker enter: cpu=1 iters=20000 max_live=256 max_pages=64
+[KVM:kvmalloc] Kpagetable=0x0000000087dd0000 req_sz=1000 xperm=6
+[KVM:get_unmapped_area] mm=0x00000000801469e0 len=1000 low_limit=90000000 high_limit=c0000000 cont=0x0000003fffffcde8
+[KVM:find_upper_vma] mm=0x00000000801469e0 vaddr=90000000
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.1 cpu try to alloc_vma_node!
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087db4000 order=0
-[KVM:add_to_list_locked] slab=0x0000000087db4000 list=0x00000000801466d8
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_vma_node] now relink page(0x0000000087db4000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087db4000 old_list=0x00000000801466d8 new_list=0x00000000801466e0
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087db3000 order=0
-[KVM:add_to_list_locked] slab=0x0000000087db3000 list=0x00000000801466d8
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-    ... allocated 50/200 nodes
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_vma_node] now relink page(0x0000000087db3000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087db3000 old_list=0x00000000801466d8 new_list=0x00000000801466e0
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087db2000 order=0
-[KVM:add_to_list_locked] slab=0x0000000087db2000 list=0x00000000801466d8
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_vma_node] now relink page(0x0000000087db2000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087db2000 old_list=0x00000000801466d8 new_list=0x00000000801466e0
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087da5000 order=0
-[KVM:add_to_list_locked] slab=0x0000000087da5000 list=0x00000000801466d8
-    ... allocated 100/200 nodes
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_vma_node] now relink page(0x0000000087da5000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087da5000 old_list=0x00000000801466d8 new_list=0x00000000801466e0
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087da4000 order=0
-[KVM:add_to_list_locked] slab=0x0000000087da4000 list=0x00000000801466d8
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-    ... allocated 150/200 nodes
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_vma_node] now relink page(0x0000000087da4000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087da4000 old_list=0x00000000801466d8 new_list=0x00000000801466e0
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087da3000 order=0
-[KVM:add_to_list_locked] slab=0x0000000087da3000 list=0x00000000801466d8
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_vma_node] now relink page(0x0000000087da3000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087da3000 old_list=0x00000000801466d8 new_list=0x00000000801466e0
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087da2000 order=0
-[KVM:add_to_list_locked] slab=0x0000000087da2000 list=0x00000000801466d8
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-    ... allocated 200/200 nodes
-[32m[PASS][0m Batch Allocation Completed.
-[TEST step 3] Freeing 50% of VMAs (Odd indices)...
-[KVM:reclaim_vma_node] node=0x0000000087db4030
-[KVM:reclaim_vma_node] now relink page(0x0000000087db4000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087db4000 old_list=0x00000000801466e0 new_list=0x00000000801466d8
-[KVM:reclaim_vma_node] node=0x0000000087db4120
-[KVM:reclaim_vma_node] node=0x0000000087db4210
-[KVM:reclaim_vma_node] node=0x0000000087db4300
-[KVM:reclaim_vma_node] node=0x0000000087db43f0
-[KVM:reclaim_vma_node] node=0x0000000087db44e0
-[KVM:reclaim_vma_node] node=0x0000000087db45d0
-[KVM:reclaim_vma_node] node=0x0000000087db46c0
-[KVM:reclaim_vma_node] node=0x0000000087db47b0
-[KVM:reclaim_vma_node] node=0x0000000087db48a0
-[KVM:reclaim_vma_node] node=0x0000000087db4990
-[KVM:reclaim_vma_node] node=0x0000000087db4a80
-[KVM:reclaim_vma_node] node=0x0000000087db4b70
-[KVM:reclaim_vma_node] node=0x0000000087db4c60
-[KVM:reclaim_vma_node] node=0x0000000087db4d50
-[KVM:reclaim_vma_node] node=0x0000000087db4e40
-[KVM:reclaim_vma_node] node=0x0000000087db4f30
-[KVM:reclaim_vma_node] node=0x0000000087db30a8
-[KVM:reclaim_vma_node] now relink page(0x0000000087db3000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087db3000 old_list=0x00000000801466e0 new_list=0x00000000801466d8
-[KVM:reclaim_vma_node] node=0x0000000087db3198
-[KVM:reclaim_vma_node] node=0x0000000087db3288
-[KVM:reclaim_vma_node] node=0x0000000087db3378
-[KVM:reclaim_vma_node] node=0x0000000087db3468
-[KVM:reclaim_vma_node] node=0x0000000087db3558
-[KVM:reclaim_vma_node] node=0x0000000087db3648
-[KVM:reclaim_vma_node] node=0x0000000087db3738
-[KVM:reclaim_vma_node] node=0x0000000087db3828
-[KVM:reclaim_vma_node] node=0x0000000087db3918
-[KVM:reclaim_vma_node] node=0x0000000087db3a08
-[KVM:reclaim_vma_node] node=0x0000000087db3af8
-[KVM:reclaim_vma_node] node=0x0000000087db3be8
-[KVM:reclaim_vma_node] node=0x0000000087db3cd8
-[KVM:reclaim_vma_node] node=0x0000000087db3dc8
-[KVM:reclaim_vma_node] node=0x0000000087db3eb8
-[KVM:reclaim_vma_node] node=0x0000000087db2030
-[KVM:reclaim_vma_node] now relink page(0x0000000087db2000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087db2000 old_list=0x00000000801466e0 new_list=0x00000000801466d8
-[KVM:reclaim_vma_node] node=0x0000000087db2120
-[KVM:reclaim_vma_node] node=0x0000000087db2210
-[KVM:reclaim_vma_node] node=0x0000000087db2300
-[KVM:reclaim_vma_node] node=0x0000000087db23f0
-[KVM:reclaim_vma_node] node=0x0000000087db24e0
-[KVM:reclaim_vma_node] node=0x0000000087db25d0
-[KVM:reclaim_vma_node] node=0x0000000087db26c0
-[KVM:reclaim_vma_node] node=0x0000000087db27b0
-[KVM:reclaim_vma_node] node=0x0000000087db28a0
-[KVM:reclaim_vma_node] node=0x0000000087db2990
-[KVM:reclaim_vma_node] node=0x0000000087db2a80
-[KVM:reclaim_vma_node] node=0x0000000087db2b70
-[KVM:reclaim_vma_node] node=0x0000000087db2c60
-[KVM:reclaim_vma_node] node=0x0000000087db2d50
-[KVM:reclaim_vma_node] node=0x0000000087db2e40
-[KVM:reclaim_vma_node] node=0x0000000087db2f30
-[KVM:reclaim_vma_node] node=0x0000000087da50a8
-[KVM:reclaim_vma_node] now relink page(0x0000000087da5000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087da5000 old_list=0x00000000801466e0 new_list=0x00000000801466d8
-[KVM:reclaim_vma_node] node=0x0000000087da5198
-[KVM:reclaim_vma_node] node=0x0000000087da5288
-[KVM:reclaim_vma_node] node=0x0000000087da5378
-[KVM:reclaim_vma_node] node=0x0000000087da5468
-[KVM:reclaim_vma_node] node=0x0000000087da5558
-[KVM:reclaim_vma_node] node=0x0000000087da5648
-[KVM:reclaim_vma_node] node=0x0000000087da5738
-[KVM:reclaim_vma_node] node=0x0000000087da5828
-[KVM:reclaim_vma_node] node=0x0000000087da5918
-[KVM:reclaim_vma_node] node=0x0000000087da5a08
-[KVM:reclaim_vma_node] node=0x0000000087da5af8
-[KVM:reclaim_vma_node] node=0x0000000087da5be8
-[KVM:reclaim_vma_node] node=0x0000000087da5cd8
-[KVM:reclaim_vma_node] node=0x0000000087da5dc8
-[KVM:reclaim_vma_node] node=0x0000000087da5eb8
-[KVM:reclaim_vma_node] node=0x0000000087da4030
-[KVM:reclaim_vma_node] now relink page(0x0000000087da4000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087da4000 old_list=0x00000000801466e0 new_list=0x00000000801466d8
-[KVM:reclaim_vma_node] node=0x0000000087da4120
-[KVM:reclaim_vma_node] node=0x0000000087da4210
-[KVM:reclaim_vma_node] node=0x0000000087da4300
-[KVM:reclaim_vma_node] node=0x0000000087da43f0
-[KVM:reclaim_vma_node] node=0x0000000087da44e0
-[KVM:reclaim_vma_node] node=0x0000000087da45d0
-[KVM:reclaim_vma_node] node=0x0000000087da46c0
-[KVM:reclaim_vma_node] node=0x0000000087da47b0
-[KVM:reclaim_vma_node] node=0x0000000087da48a0
-[KVM:reclaim_vma_node] node=0x0000000087da4990
-[KVM:reclaim_vma_node] node=0x0000000087da4a80
-[KVM:reclaim_vma_node] node=0x0000000087da4b70
-[KVM:reclaim_vma_node] node=0x0000000087da4c60
-[KVM:reclaim_vma_node] node=0x0000000087da4d50
-[KVM:reclaim_vma_node] node=0x0000000087da4e40
-[KVM:reclaim_vma_node] node=0x0000000087da4f30
-[KVM:reclaim_vma_node] node=0x0000000087da30a8
-[KVM:reclaim_vma_node] now relink page(0x0000000087da3000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087da3000 old_list=0x00000000801466e0 new_list=0x00000000801466d8
-[KVM:reclaim_vma_node] node=0x0000000087da3198
-[KVM:reclaim_vma_node] node=0x0000000087da3288
-[KVM:reclaim_vma_node] node=0x0000000087da3378
-[KVM:reclaim_vma_node] node=0x0000000087da3468
-[KVM:reclaim_vma_node] node=0x0000000087da3558
-[KVM:reclaim_vma_node] node=0x0000000087da3648
-[KVM:reclaim_vma_node] node=0x0000000087da3738
-[KVM:reclaim_vma_node] node=0x0000000087da3828
-[KVM:reclaim_vma_node] node=0x0000000087da3918
-[KVM:reclaim_vma_node] node=0x0000000087da3a08
-[KVM:reclaim_vma_node] node=0x0000000087da3af8
-[KVM:reclaim_vma_node] node=0x0000000087da3be8
-[KVM:reclaim_vma_node] node=0x0000000087da3cd8
-[KVM:reclaim_vma_node] node=0x0000000087da3dc8
-[KVM:reclaim_vma_node] node=0x0000000087da3eb8
-[KVM:reclaim_vma_node] node=0x0000000087da2030
-[32m[PASS][0m Half VMAs freed.
-[TEST step 4] Re-allocating freed slots...
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_vma_node] now relink page(0x0000000087da3000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087da3000 old_list=0x00000000801466d8 new_list=0x00000000801466e0
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_vma_node] now relink page(0x0000000087da4000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087da4000 old_list=0x00000000801466d8 new_list=0x00000000801466e0
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_vma_node] now relink page(0x0000000087da5000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087da5000 old_list=0x00000000801466d8 new_list=0x00000000801466e0
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_vma_node] now relink page(0x0000000087db2000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087db2000 old_list=0x00000000801466d8 new_list=0x00000000801466e0
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_vma_node] now relink page(0x0000000087db3000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087db3000 old_list=0x00000000801466d8 new_list=0x00000000801466e0
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_vma_node] now relink page(0x0000000087db4000) from partial_list to full_list
-[KVM:relink_locked] slab=0x0000000087db4000 old_list=0x00000000801466d8 new_list=0x00000000801466e0
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[32m[PASS][0m Re-allocation successful (Reuse mechanism OK).
-[TEST step 5] Cleaning up remaining nodes...
-[KVM:reclaim_vma_node] node=0x0000000087da3eb8
-[KVM:reclaim_vma_node] now relink page(0x0000000087da3000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087da3000 old_list=0x00000000801466e0 new_list=0x00000000801466d8
-[KVM:reclaim_vma_node] node=0x0000000087db40a8
-[KVM:reclaim_vma_node] now relink page(0x0000000087db4000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087db4000 old_list=0x00000000801466e0 new_list=0x00000000801466d8
-[KVM:reclaim_vma_node] node=0x0000000087da3dc8
-[KVM:reclaim_vma_node] node=0x0000000087db4198
-[KVM:reclaim_vma_node] node=0x0000000087da3cd8
-[KVM:reclaim_vma_node] node=0x0000000087db4288
-[KVM:reclaim_vma_node] node=0x0000000087da3be8
-[KVM:reclaim_vma_node] node=0x0000000087db4378
-[KVM:reclaim_vma_node] node=0x0000000087da3af8
-[KVM:reclaim_vma_node] node=0x0000000087db4468
-[KVM:reclaim_vma_node] node=0x0000000087da3a08
-[KVM:reclaim_vma_node] node=0x0000000087db4558
-[KVM:reclaim_vma_node] node=0x0000000087da3918
-[KVM:reclaim_vma_node] node=0x0000000087db4648
-[KVM:reclaim_vma_node] node=0x0000000087da3828
-[KVM:reclaim_vma_node] node=0x0000000087db4738
-[KVM:reclaim_vma_node] node=0x0000000087da3738
-[KVM:reclaim_vma_node] node=0x0000000087db4828
-[KVM:reclaim_vma_node] node=0x0000000087da3648
-[KVM:reclaim_vma_node] node=0x0000000087db4918
-[KVM:reclaim_vma_node] node=0x0000000087da3558
-[KVM:reclaim_vma_node] node=0x0000000087db4a08
-[KVM:reclaim_vma_node] node=0x0000000087da3468
-[KVM:reclaim_vma_node] node=0x0000000087db4af8
-[KVM:reclaim_vma_node] node=0x0000000087da3378
-[KVM:reclaim_vma_node] node=0x0000000087db4be8
-[KVM:reclaim_vma_node] node=0x0000000087da3288
-[KVM:reclaim_vma_node] node=0x0000000087db4cd8
-[KVM:reclaim_vma_node] node=0x0000000087da3198
-[KVM:reclaim_vma_node] node=0x0000000087db4dc8
-[KVM:reclaim_vma_node] node=0x0000000087da30a8
-[KVM:reclaim_vma_node] node=0x0000000087db4eb8
-[KVM:reclaim_vma_node] node=0x0000000087da4f30
-[KVM:reclaim_vma_node] now relink page(0x0000000087da4000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087da4000 old_list=0x00000000801466e0 new_list=0x00000000801466d8
-[KVM:reclaim_vma_node] node=0x0000000087db3030
-[KVM:reclaim_vma_node] now relink page(0x0000000087db3000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087db3000 old_list=0x00000000801466e0 new_list=0x00000000801466d8
-[KVM:reclaim_vma_node] node=0x0000000087da4e40
-[KVM:reclaim_vma_node] node=0x0000000087db3120
-[KVM:reclaim_vma_node] node=0x0000000087da4d50
-[KVM:reclaim_vma_node] node=0x0000000087db3210
-[KVM:reclaim_vma_node] node=0x0000000087da4c60
-[KVM:reclaim_vma_node] node=0x0000000087db3300
-[KVM:reclaim_vma_node] node=0x0000000087da4b70
-[KVM:reclaim_vma_node] node=0x0000000087db33f0
-[KVM:reclaim_vma_node] node=0x0000000087da4a80
-[KVM:reclaim_vma_node] node=0x0000000087db34e0
-[KVM:reclaim_vma_node] node=0x0000000087da4990
-[KVM:reclaim_vma_node] node=0x0000000087db35d0
-[KVM:reclaim_vma_node] node=0x0000000087da48a0
-[KVM:reclaim_vma_node] node=0x0000000087db36c0
-[KVM:reclaim_vma_node] node=0x0000000087da47b0
-[KVM:reclaim_vma_node] node=0x0000000087db37b0
-[KVM:reclaim_vma_node] node=0x0000000087da46c0
-[KVM:reclaim_vma_node] node=0x0000000087db38a0
-[KVM:reclaim_vma_node] node=0x0000000087da45d0
-[KVM:reclaim_vma_node] node=0x0000000087db3990
-[KVM:reclaim_vma_node] node=0x0000000087da44e0
-[KVM:reclaim_vma_node] node=0x0000000087db3a80
-[KVM:reclaim_vma_node] node=0x0000000087da43f0
-[KVM:reclaim_vma_node] node=0x0000000087db3b70
-[KVM:reclaim_vma_node] node=0x0000000087da4300
-[KVM:reclaim_vma_node] node=0x0000000087db3c60
-[KVM:reclaim_vma_node] node=0x0000000087da4210
-[KVM:reclaim_vma_node] node=0x0000000087db3d50
-[KVM:reclaim_vma_node] node=0x0000000087da4120
-[KVM:reclaim_vma_node] node=0x0000000087db3e40
-[KVM:reclaim_vma_node] node=0x0000000087da4030
-[KVM:reclaim_vma_node] node=0x0000000087db3f30
-[KVM:reclaim_vma_node] node=0x0000000087da5eb8
-[KVM:reclaim_vma_node] now relink page(0x0000000087da5000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087da5000 old_list=0x00000000801466e0 new_list=0x00000000801466d8
-[KVM:reclaim_vma_node] node=0x0000000087db20a8
-[KVM:reclaim_vma_node] now relink page(0x0000000087db2000) from full_list to partial_list
-[KVM:relink_locked] slab=0x0000000087db2000 old_list=0x00000000801466e0 new_list=0x00000000801466d8
-[KVM:reclaim_vma_node] node=0x0000000087da5dc8
-[KVM:reclaim_vma_node] node=0x0000000087db2198
-[KVM:reclaim_vma_node] node=0x0000000087da5cd8
-[KVM:reclaim_vma_node] node=0x0000000087db2288
-[KVM:reclaim_vma_node] node=0x0000000087da5be8
-[KVM:reclaim_vma_node] node=0x0000000087db2378
-[KVM:reclaim_vma_node] node=0x0000000087da5af8
-[KVM:reclaim_vma_node] node=0x0000000087db2468
-[KVM:reclaim_vma_node] node=0x0000000087da5a08
-[KVM:reclaim_vma_node] node=0x0000000087db2558
-[KVM:reclaim_vma_node] node=0x0000000087da5918
-[KVM:reclaim_vma_node] node=0x0000000087db2648
-[KVM:reclaim_vma_node] node=0x0000000087da5828
-[KVM:reclaim_vma_node] node=0x0000000087db2738
-[KVM:reclaim_vma_node] node=0x0000000087da5738
-[KVM:reclaim_vma_node] node=0x0000000087db2828
-[KVM:reclaim_vma_node] node=0x0000000087da5648
-[KVM:reclaim_vma_node] node=0x0000000087db2918
-[KVM:reclaim_vma_node] node=0x0000000087da5558
-[KVM:reclaim_vma_node] node=0x0000000087db2a08
-[KVM:reclaim_vma_node] node=0x0000000087da5468
-[KVM:reclaim_vma_node] node=0x0000000087db2af8
-[KVM:reclaim_vma_node] node=0x0000000087da5378
-[KVM:reclaim_vma_node] node=0x0000000087db2be8
-[KVM:reclaim_vma_node] node=0x0000000087da5288
-[KVM:reclaim_vma_node] node=0x0000000087db2cd8
-[KVM:reclaim_vma_node] node=0x0000000087da5198
-[KVM:reclaim_vma_node] node=0x0000000087db2dc8
-[KVM:reclaim_vma_node] node=0x0000000087da50a8
-[KVM:reclaim_vma_node] node=0x0000000087db2eb8
-[KVM:reclaim_vma_node] node=0x0000000087db2f30
-[KVM:reclaim_vma_node] node=0x0000000087da5030
-[KVM:reclaim_vma_node] node=0x0000000087db2e40
-[KVM:reclaim_vma_node] node=0x0000000087da5120
-[KVM:reclaim_vma_node] node=0x0000000087db2d50
-[KVM:reclaim_vma_node] node=0x0000000087da5210
-[KVM:reclaim_vma_node] node=0x0000000087db2c60
-[KVM:reclaim_vma_node] node=0x0000000087da5300
-[KVM:reclaim_vma_node] node=0x0000000087db2b70
-[KVM:reclaim_vma_node] node=0x0000000087da53f0
-[KVM:reclaim_vma_node] node=0x0000000087db2a80
-[KVM:reclaim_vma_node] node=0x0000000087da54e0
-[KVM:reclaim_vma_node] node=0x0000000087db2990
-[KVM:reclaim_vma_node] node=0x0000000087da55d0
-[KVM:reclaim_vma_node] node=0x0000000087db28a0
-[KVM:reclaim_vma_node] node=0x0000000087da56c0
-[KVM:reclaim_vma_node] node=0x0000000087db27b0
-[KVM:reclaim_vma_node] node=0x0000000087da57b0
-[KVM:reclaim_vma_node] node=0x0000000087db26c0
-[KVM:reclaim_vma_node] node=0x0000000087da58a0
-[KVM:reclaim_vma_node] node=0x0000000087db25d0
-[KVM:reclaim_vma_node] node=0x0000000087da5990
-[KVM:reclaim_vma_node] node=0x0000000087db24e0
-[KVM:reclaim_vma_node] node=0x0000000087da5a80
-[KVM:reclaim_vma_node] node=0x0000000087db23f0
-[KVM:reclaim_vma_node] node=0x0000000087da5b70
-[KVM:reclaim_vma_node] node=0x0000000087db2300
-[KVM:reclaim_vma_node] node=0x0000000087da5c60
-[KVM:reclaim_vma_node] node=0x0000000087db2210
-[KVM:reclaim_vma_node] node=0x0000000087da5d50
-[KVM:reclaim_vma_node] node=0x0000000087db2120
-[KVM:reclaim_vma_node] node=0x0000000087da5e40
-[KVM:reclaim_vma_node] node=0x0000000087db2030
-[KVM:reclaim_vma_node] now relink page(0x0000000087db2000) from partial_list to empty_list
-[KVM:relink_locked] slab=0x0000000087db2000 old_list=0x00000000801466d8 new_list=0x00000000801466e8
-[KVM:reclaim_vma_node] node=0x0000000087da5f30
-[KVM:reclaim_vma_node] now relink page(0x0000000087da5000) from partial_list to empty_list
-[KVM:relink_locked] slab=0x0000000087da5000 old_list=0x00000000801466d8 new_list=0x00000000801466e8
-[KVM:reclaim_vma_node] node=0x0000000087db3eb8
-[KVM:reclaim_vma_node] node=0x0000000087da40a8
-[KVM:reclaim_vma_node] node=0x0000000087db3dc8
-[KVM:reclaim_vma_node] node=0x0000000087da4198
-[KVM:reclaim_vma_node] node=0x0000000087db3cd8
-[KVM:reclaim_vma_node] node=0x0000000087da4288
-[KVM:reclaim_vma_node] node=0x0000000087db3be8
-[KVM:reclaim_vma_node] node=0x0000000087da4378
-[KVM:reclaim_vma_node] node=0x0000000087db3af8
-[KVM:reclaim_vma_node] node=0x0000000087da4468
-[KVM:reclaim_vma_node] node=0x0000000087db3a08
-[KVM:reclaim_vma_node] node=0x0000000087da4558
-[KVM:reclaim_vma_node] node=0x0000000087db3918
-[KVM:reclaim_vma_node] node=0x0000000087da4648
-[KVM:reclaim_vma_node] node=0x0000000087db3828
-[KVM:reclaim_vma_node] node=0x0000000087da4738
-[KVM:reclaim_vma_node] node=0x0000000087db3738
-[KVM:reclaim_vma_node] node=0x0000000087da4828
-[KVM:reclaim_vma_node] node=0x0000000087db3648
-[KVM:reclaim_vma_node] node=0x0000000087da4918
-[KVM:reclaim_vma_node] node=0x0000000087db3558
-[KVM:reclaim_vma_node] node=0x0000000087da4a08
-[KVM:reclaim_vma_node] node=0x0000000087db3468
-[KVM:reclaim_vma_node] node=0x0000000087da4af8
-[KVM:reclaim_vma_node] node=0x0000000087db3378
-[KVM:reclaim_vma_node] node=0x0000000087da4be8
-[KVM:reclaim_vma_node] node=0x0000000087db3288
-[KVM:reclaim_vma_node] node=0x0000000087da4cd8
-[KVM:reclaim_vma_node] node=0x0000000087db3198
-[KVM:reclaim_vma_node] node=0x0000000087da4dc8
-[KVM:reclaim_vma_node] node=0x0000000087db30a8
-[KVM:reclaim_vma_node] now relink page(0x0000000087db3000) from partial_list to empty_list
-[KVM:relink_locked] slab=0x0000000087db3000 old_list=0x00000000801466d8 new_list=0x00000000801466e8
-[KVM:reclaim_vma_node] node=0x0000000087da4eb8
-[KVM:reclaim_vma_node] now relink page(0x0000000087da4000) from partial_list to empty_list
-[KVM:relink_locked] slab=0x0000000087da4000 old_list=0x00000000801466d8 new_list=0x00000000801466e8
-[KVM:reclaim_vma_node] node=0x0000000087db4f30
-[KVM:reclaim_vma_node] node=0x0000000087da3030
-[KVM:reclaim_vma_node] node=0x0000000087db4e40
-[KVM:reclaim_vma_node] node=0x0000000087da3120
-[KVM:reclaim_vma_node] node=0x0000000087db4d50
-[KVM:reclaim_vma_node] node=0x0000000087da3210
-[KVM:reclaim_vma_node] node=0x0000000087db4c60
-[KVM:reclaim_vma_node] node=0x0000000087da3300
-[KVM:reclaim_vma_node] node=0x0000000087db4b70
-[KVM:reclaim_vma_node] node=0x0000000087da33f0
-[KVM:reclaim_vma_node] node=0x0000000087db4a80
-[KVM:reclaim_vma_node] node=0x0000000087da34e0
-[KVM:reclaim_vma_node] node=0x0000000087db4990
-[KVM:reclaim_vma_node] node=0x0000000087da35d0
-[KVM:reclaim_vma_node] node=0x0000000087db48a0
-[KVM:reclaim_vma_node] node=0x0000000087da36c0
-[KVM:reclaim_vma_node] node=0x0000000087db47b0
-[KVM:reclaim_vma_node] node=0x0000000087da37b0
-[KVM:reclaim_vma_node] node=0x0000000087db46c0
-[KVM:reclaim_vma_node] node=0x0000000087da38a0
-[KVM:reclaim_vma_node] node=0x0000000087db45d0
-[KVM:reclaim_vma_node] node=0x0000000087da3990
-[KVM:reclaim_vma_node] node=0x0000000087db44e0
-[KVM:reclaim_vma_node] node=0x0000000087da3a80
-[KVM:reclaim_vma_node] node=0x0000000087db43f0
-[KVM:reclaim_vma_node] node=0x0000000087da3b70
-[KVM:reclaim_vma_node] node=0x0000000087db4300
-[KVM:reclaim_vma_node] node=0x0000000087da3c60
-[KVM:reclaim_vma_node] node=0x0000000087db4210
-[KVM:reclaim_vma_node] node=0x0000000087da3d50
-[KVM:reclaim_vma_node] node=0x0000000087db4120
-[KVM:reclaim_vma_node] node=0x0000000087da3e40
-[KVM:reclaim_vma_node] node=0x0000000087db4030
-[KVM:reclaim_vma_node] now relink page(0x0000000087db4000) from partial_list to empty_list
-[KVM:relink_locked] slab=0x0000000087db4000 old_list=0x00000000801466d8 new_list=0x00000000801466e8
-[KVM:reclaim_vma_node] reclaim_vma_node: shrink the pool!
-[KVM:reclaim_vma_node] node=0x0000000087da3f30
-[KVM:reclaim_vma_node] now relink page(0x0000000087da3000) from partial_list to empty_list
-[KVM:relink_locked] slab=0x0000000087da3000 old_list=0x00000000801466d8 new_list=0x00000000801466e8
-[KVM:reclaim_vma_node] node=0x0000000087da2030
-[KVM:reclaim_vma_node] node=0x0000000087da20a8
-[KVM:reclaim_vma_node] now relink page(0x0000000087da2000) from partial_list to empty_list
-[KVM:relink_locked] slab=0x0000000087da2000 old_list=0x00000000801466d8 new_list=0x00000000801466e8
-[KVM:reclaim_vma_node] reclaim_vma_node: shrink the pool!
-[TEST step 6] Released lock.
-[32m[PASS][0m === VMA Slab Test Passed ===
-
-
-======================================================
-=== TEST 2: RB-Tree & List Consistency (Verbose) ===
-======================================================
-now the canary_top addr is 0x0000003fffffce50, test_mm is 0x0000003fffffcdd0, canary_hot is 0x0000003fffffcdc8
-[TEST step 1] Initialized local test_mm struct.
-[TEST step 2] Creating VMA Nodes A, B, C...
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087da4000 order=0
-[KVM:add_to_list_locked] slab=0x0000000087da4000 list=0x00000000801466d8
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[32m[PASS][0m Nodes created. Ref counts are default (1).
-[TEST step 3] Acquiring test_mm.mm_lock for insertion...
-[TEST step 4] Inserting VMA A [0x1000-0x2000)...
-[KVM:insert_vma] mm=0x0000003fffffcdd0 vma=0x0000000087da4030
-[KVM:rb_search] node=0x0000000087da4080 predecessor=0x0000003fffffcd78 successor=0x0000003fffffcd70 root=0x0000003fffffcdd8
-[TEST step 5] Inserting VMA C [0x3000-0x4000) (Creating Gap)...
-[KVM:insert_vma] mm=0x0000003fffffcdd0 vma=0x0000000087da40a8
-[KVM:rb_search] node=0x0000000087da40f8 predecessor=0x0000003fffffcd78 successor=0x0000003fffffcd70 root=0x0000003fffffcdd8
-[TEST step 6] Inserting VMA B [0x2000-0x3000) (Filling Gap)...
-[KVM:insert_vma] mm=0x0000003fffffcdd0 vma=0x0000000087da4120
-[KVM:rb_search] node=0x0000000087da4170 predecessor=0x0000003fffffcd78 successor=0x0000003fffffcd70 root=0x0000003fffffcdd8
-[32m[PASS][0m All nodes inserted.
-[TEST step 7] Verifying RB-Tree Lookup...
-    -> Looking up 0x1050...
-[KVM:find_vma] mm=0x0000003fffffcdd0 vaddr=1050
-    -> Found VMA A (Ref count now: 2, Expected 2)
-    -> Looking up 0x2050...
-[KVM:find_vma] mm=0x0000003fffffcdd0 vaddr=2050
-[32m[PASS][0m RB-Tree Lookup OK.
-[TEST step 8] Verifying Linked List Order (A -> B -> C)...
-color: vma_a is 0 and vma_b is 1 vma_c is 0
-[32m[PASS][0m Linked List Order OK.
-[TEST step 9] Verifying find_upper_vma (Target 0x1500)...
-[KVM:find_upper_vma] mm=0x0000003fffffcdd0 vaddr=1500
-[32m[PASS][0m Upper Bound Check OK.
-[TEST step 10] Cleaning up (Removing nodes)...
-[KVM:remove_vma] mm=0x0000003fffffcdd0 vma=0x0000000087da4030
-[KVM:reclaim_vma_node] node=0x0000000087da4030
-[KVM:remove_vma] mm=0x0000003fffffcdd0 vma=0x0000000087da4120
-[KVM:reclaim_vma_node] node=0x0000000087da4120
-[KVM:remove_vma] mm=0x0000003fffffcdd0 vma=0x0000000087da40a8
-[KVM:reclaim_vma_node] node=0x0000000087da40a8
-[KVM:reclaim_vma_node] now relink page(0x0000000087da4000) from partial_list to empty_list
-[KVM:relink_locked] slab=0x0000000087da4000 old_list=0x00000000801466d8 new_list=0x00000000801466e8
-[TEST step 11] Released test_mm.mm_lock.
-[32m[PASS][0m === RB-Tree & List Test Passed ===
-
-
-================================================
-=== TEST 3: kvmalloc Integration Test ===
-================================================
-[TEST step 1] Requesting kvmalloc for 2800 bytes...
-[KVM:kvmalloc] Kpagetable=0x0000000087de0000 req_sz=2800 xperm=6
-[KVM:get_unmapped_area] mm=0x0000000080146810 len=3000 low_limit=90000000 high_limit=c0000000 cont=0x0000003fffffce38
-[KVM:find_upper_vma] mm=0x0000000080146810 vaddr=90000000
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087db4000 order=0
-[KVM:add_to_list_locked] slab=0x0000000087db4000 list=0x00000000801466d8
+[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087d94000 order=0
+[KVM:add_to_list_locked] slab=0x0000000087d94000 list=0x00000000801468a8
 [KVM:gene_flags] vm_page_prot=6
-[KVM:insert_vma_fast] mm=0x0000000080146810 vma=0x0000000087db4030 cont=0x0000003fffffcdf0
-[KVM:Kernel_buddy_alloc_locked] Kpagetable=0x0000000087de0000 va=90000000 size=3000 xperm=6
-[KVM:in_kernel_heap] va=90000000
-[KVM:in_kernel_heap] va=90003000
-[KALLOC:alloc_memory] pid=1(init) allocated size=2000 at pa=0x0000000087da2000 order=1
-[VM:mappages] va=0x0000000090000000 size=0x2000 pa=0x0000000087da2000 perm=0x6
-[KALLOC:kalloc] pid=1(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087da1000 order=0
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087da0000 order=0
-[VM:mappages] va=0x0000000090002000 size=0x1000 pa=0x0000000087da0000 perm=0x6
-    -> Got address: 0x0000000090000000
-[TEST step 2] Verifying Read/Write access...
-[32m[PASS][0m Memory Access OK.
-[TEST step 3] Inspecting VMA metadata (Manual Locking)...
-[KVM:find_vma] mm=0x0000000080146810 vaddr=90000000
-[32m[PASS][0m Metadata exists and is correct.
-[TEST step 4] Deallocating memory...
-[KVM:kvmdealloc] Kpagetable=0x0000000087de0000 start_va=90000000 sz=2800
-[KVM:kvmdealloc_range] Kpagetable=0x0000000087de0000 start_addr=90000000 end_addr=90002800
-[KVM:in_kernel_heap] va=90002800
-[KVM:in_kernel_heap] va=90000000
-[KVM:find_vma] mm=0x0000000080146810 vaddr=90000000
-[KALLOC:alloc_memory] pid=1(init) allocated size=2000 at pa=0x0000000087d9e000 order=1
-[KVM:kvmunmap] Kpagetable=0x0000000087de0000 va_start=90000000 size=2000
-[VM:uvmunmap] va=0x0000000090000000 size=0x2000 do_free=0
-[VM:uvmunmap_helper] va=0x0000000090000000 size=0x2000 do_free=0, cur_level is 2
-[VM:uvmunmap_helper] va=0x0000000090000000 size=0x2000 do_free=0, cur_level is 1
-[VM:uvmunmap_helper] va=0x0000000090000000 size=0x2000 do_free=0, cur_level is 0
-[KVM:helper_kvmdealloc_nounmap_locked] Kpagetable=0x0000000087de0000 oldsz=90002000 new_sz=90000000
-[VM:uvmdealloc_nounmap] oldsz=0x90002000 newsz=0x90000000
-[VM:uvmdealloc_nounmap] uvmdealloc exiting newsz=0x90000000
-[TEST step 5] Verifying removal...
-[KVM:find_vma] mm=0x0000000080146810 vaddr=90000000
-[32m[PASS][0m === kvmalloc Test Passed ===
-
-
-================================================
-=== TEST 4: Unmapped Area Search Test ===
-================================================
-=== Unmapped Area Test Passed ===
-[KVM:kvmalloc] Kpagetable=0x8000000000087de0 req_sz=1000 xperm=6
-[KVM:get_unmapped_area] mm=0x0000000080146810 len=1000 low_limit=90000000 high_limit=c0000000 cont=0x0000003fffffce08
-[KVM:find_upper_vma] mm=0x0000000080146810 vaddr=90000000
-[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
-[KVM:alloc_vma_node] void
-current No.1 cpu try to alloc_vma_node!
-[KVM:gene_flags] vm_page_prot=6
-[KVM:insert_vma_fast] mm=0x0000000080146810 vma=0x0000000087db40a8 cont=0x0000003fffffcdc0
-[KVM:Kernel_buddy_alloc_locked] Kpagetable=0x0000000087de0000 va=90000000 size=1000 xperm=6
+[KVM:insert_vma_fast] mm=0x00000000801469e0 vma=0x0000000087d94030 cont=0x0000003fffffcda0
+[KVM:Kernel_buddy_alloc_locked] Kpagetable=0x0000000087dd0000 va=90000000 size=1000 xperm=6
 [KVM:in_kernel_heap] va=90000000
 [KVM:in_kernel_heap] va=90001000
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087d9d000 order=0
-[VM:mappages] va=0x0000000090000000 size=0x1000 pa=0x0000000087d9d000 perm=0x6
-[KVM:kvmalloc] Kpagetable=0x8000000000087de0 req_sz=b000 xperm=6
-[KVM:get_unmapped_area] mm=0x0000000080146810 len=b000 low_limit=90000000 high_limit=c0000000 cont=0x0000003fffffce08
-[KVM:find_upper_vma] mm=0x0000000080146810 vaddr=90000000
+[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087d93000 order=0
+[VM:mappages] va=0x0000000090000000 size=0x1000 pa=0x0000000087d93000 perm=0x6
+[KALLOC:kalloc] pid=1(init) requesting PGSIZE
+[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087d92000 order=0
+[KVM:in_kernel_heap] va=90000000
+[KVM:in_kernel_heap] va=90000fff
+[KVM:find_vma] mm=0x00000000801469e0 vaddr=c000000
+[KVM:find_vma] mm=0x00000000801469e0 vaddr=10000000
+[KVM:find_vma] mm=0x00000000801469e0 vaddr=10001000
+[KVM:find_vma] mm=0x00000000801469e0 vaddr=80000000
+[KVM:find_vma] mm=0x00000000801469e0 vaddr=8001b000
+[KVM:find_vma] mm=0x00000000801469e0 vaddr=90000000
+[KVM:find_vma] mm=0x00000000801469e0 vaddr=3ffffff000
+[KVM:find_vma] mm=0x00000000801469e0 vaddr=3ffffff000
+[KVM:kvmalloc] Kpagetable=0x0000000087dd0000 req_sz=e000 xperm=14
+[KVM:get_unmapped_area] mm=0x00000000801469e0 len=e000 low_limit=90000000 high_limit=c0000000 cont=0x0000003fffffcde8
+[KVM:find_upper_vma] mm=0x00000000801469e0 vaddr=90000000
 [KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
 [KVM:alloc_vma_node] void
 current No.1 cpu try to alloc_vma_node!
 [KVM:gene_flags] vm_page_prot=6
-[KVM:insert_vma_fast] mm=0x0000000080146810 vma=0x0000000087db4120 cont=0x0000003fffffcdc0
-[KVM:Kernel_buddy_alloc_locked] Kpagetable=0x0000000087de0000 va=90003000 size=b000 xperm=6
-[KVM:in_kernel_heap] va=90003000
-[KVM:in_kernel_heap] va=9000e000
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087d9c000 order=0
-[VM:mappages] va=0x0000000090003000 size=0x1000 pa=0x0000000087d9c000 perm=0x6
-[KALLOC:alloc_memory] pid=1(init) allocated size=4000 at pa=0x0000000087d98000 order=2
-[VM:mappages] va=0x0000000090004000 size=0x4000 pa=0x0000000087d98000 perm=0x6
-[KALLOC:alloc_memory] pid=1(init) allocated size=4000 at pa=0x0000000087d94000 order=2
-[VM:mappages] va=0x0000000090008000 size=0x4000 pa=0x0000000087d94000 perm=0x6
-[KALLOC:alloc_memory] pid=1(init) allocated size=2000 at pa=0x0000000087d92000 order=1
-[VM:mappages] va=0x000000009000c000 size=0x2000 pa=0x0000000087d92000 perm=0x6
-now the allocated data is 0xb000, and str_len is 0x1000
-init: starting sh
-[FORK:kfork] ENTRY parent pid=1 name='init' sz=0x7000 mask=0x0
-[KALLOC:kalloc] pid=1(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087d91000 order=0
-[KALLOC:kalloc] pid=1(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087d90000 order=0
-[VM:mappages] va=0x0000003ffffff000 size=0x1000 pa=0x000000008001a000 perm=0xa
-[KALLOC:kalloc] pid=1(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087d8f000 order=0
-[KALLOC:kalloc] pid=1(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087d8e000 order=0
-[VM:mappages] va=0x0000003fffffe000 size=0x1000 pa=0x0000000087d91000 perm=0x6
-[VM:mappages] va=0x0000003fffffd000 size=0x1000 pa=0x000000008021f000 perm=0x12
-[FORK:kfork] allocproc success: child pid=2 pt=0x0000000087d90000
-[FORK:kfork] START uvmcopy: parent_pt=0x0000000087db1000 -> child_pt=0x0000000087d90000 sz=0x7000
-[VM:uvmcopy] old_pg=0x0000000087db1000 new_pg=0x0000000087d90000 sz=0x7000
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087d8d000 order=0
-[VM:copywalk] [DIR ] L2 idx=0: va=0x0 -> new_tbl=0x0000000087d8d000 (recurse)
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087d8c000 order=0
-[VM:copywalk]   |-- [DIR ] L1 idx=0: va=0x0 -> new_tbl=0x0000000087d8c000 (recurse)
-[KALLOC:alloc_memory] pid=1(init) allocated size=4000 at pa=0x0000000087d88000 order=2
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087d87000 order=0
-[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087d86000 order=0
+[KVM:insert_vma_fast] mm=0x00000000801469e0 vma=0x0000000087d940a8 cont=0x0000003fffffcda0
+[KVM:Kernel_buddy_alloc_locked] Kpagetable=0x0000000087dd0000 va=90001000 size=e000 xperm=14
+[KVM:in_kernel_heap] va=90001000
+[KVM:in_kernel_heap] va=9000f000
 [KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087d85000 order=0
-[VM:uvmcopy] after uvmcopy start_va is 0x0, while ret_va is 0x40000000
-[FORK:kfork] END uvmcopy: success. child sz=0x7000
-[FORK:kfork] STATE UPDATE: child pid=2 is now RUNNABLE
-[FORK:kfork] EXIT returns child pid=2
-[KALLOC:kalloc] pid=2(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x0000000087d84000 order=0
-[EXEC:kexec] ENTRY pid=2 path='sh' argv=0x0000003fffffad48
-[KALLOC:kalloc] pid=2(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x0000000087d83000 order=0
-[VM:mappages] va=0x0000003ffffff000 size=0x1000 pa=0x000000008001a000 perm=0xa
-[KALLOC:kalloc] pid=2(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x0000000087d82000 order=0
-[KALLOC:kalloc] pid=2(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x0000000087d81000 order=0
-[VM:mappages] va=0x0000003fffffe000 size=0x1000 pa=0x0000000087d91000 perm=0x6
-[VM:mappages] va=0x0000003fffffd000 size=0x1000 pa=0x000000008021f000 perm=0x12
-[EXEC:kexec] new pagetable 0x0000000087d83000 created for pid=2
-[VM:uvmalloc] oldsz=0x0 newsz=0x6647 xperm=0x8
-[KALLOC:alloc_memory] pid=2(init) allocated size=4000 at pa=0x000000008027c000 order=2
-[VM:buddy_alloc] uvmalloc -> mappages cur_va=0x0 alloc_size=0x4000
-[VM:mappages] va=0x0000000000000000 size=0x4000 pa=0x000000008027c000 perm=0x1a
-[KALLOC:kalloc] pid=2(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x0000000087d80000 order=0
-[KALLOC:kalloc] pid=2(init) requesting PGSIZE
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x000000008027b000 order=0
-[KALLOC:alloc_memory] pid=2(init) allocated size=2000 at pa=0x0000000080278000 order=1
-[VM:buddy_alloc] uvmalloc -> mappages cur_va=0x4000 alloc_size=0x2000
-[VM:mappages] va=0x0000000000004000 size=0x2000 pa=0x0000000080278000 perm=0x1a
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x000000008027a000 order=0
-[VM:buddy_alloc] uvmalloc -> mappages cur_va=0x6000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000006000 size=0x1000 pa=0x000000008027a000 perm=0x1a
-[VM:uvmalloc] uvmalloc exiting success newsz=0x6647
-[EXEC:kexec] LOAD seg: va=0x0000000000001000 memsz=0x5647 filesz=0x5647
-[VM:uvmalloc] oldsz=0x6647 newsz=0x8dc8 xperm=0x4
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x0000000080277000 order=0
-[VM:buddy_alloc] uvmalloc -> mappages cur_va=0x7000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000007000 size=0x1000 pa=0x0000000080277000 perm=0x16
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x0000000080276000 order=0
-[VM:buddy_alloc] uvmalloc -> mappages cur_va=0x8000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000008000 size=0x1000 pa=0x0000000080276000 perm=0x16
-[VM:uvmalloc] uvmalloc exiting success newsz=0x8dc8
-[EXEC:kexec] LOAD seg: va=0x0000000000007000 memsz=0x1dc8 filesz=0x31
-[VM:uvmalloc] oldsz=0x9000 newsz=0xb000 xperm=0x4
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x0000000080275000 order=0
-[VM:buddy_alloc] uvmalloc -> mappages cur_va=0x9000 alloc_size=0x1000
-[VM:mappages] va=0x0000000000009000 size=0x1000 pa=0x0000000080275000 perm=0x16
-[KALLOC:alloc_memory] pid=2(init) allocated size=1000 at pa=0x0000000080274000 order=0
-[VM:buddy_alloc] uvmalloc -> mappages cur_va=0xa000 alloc_size=0x1000
-[VM:mappages] va=0x000000000000a000 size=0x1000 pa=0x0000000080274000 perm=0x16
-[VM:uvmalloc] uvmalloc exiting success newsz=0xb000
-[EXEC:kexec] STACK setup: base=0x000000000000a000 top=0x000000000000b000 total_sz=0xb pages
-[EXEC:kexec] COMMIT: switch pt, freeing old=0x0000000087d90000 oldsz=0x7
-[VM:uvmunmap] va=0x0000003ffffff000 size=0x1000 do_free=0
-[VM:uvmunmap_helper] va=0x0000003ffffff000 size=0x1000 do_free=0, cur_level is 2
-[VM:uvmunmap_helper] va=0x0000003ffffff000 size=0x1000 do_free=0, cur_level is 1
-[VM:uvmunmap_helper] va=0x0000003ffffff000 size=0x1000 do_free=0, cur_level is 0
-[VM:uvmunmap] va=0x0000003fffffe000 size=0x1000 do_free=0
-[VM:uvmunmap_helper] va=0x0000003fffffe000 size=0x1000 do_free=0, cur_level is 2
-[VM:uvmunmap_helper] va=0x0000003fffffe000 size=0x1000 do_free=0, cur_level is 1
-[VM:uvmunmap_helper] va=0x0000003fffffe000 size=0x1000 do_free=0, cur_level is 0
-[VM:uvmunmap] va=0x0000003fffffd000 size=0x1000 do_free=0
-[VM:uvmunmap_helper] va=0x0000003fffffd000 size=0x1000 do_free=0, cur_level is 2
-[VM:uvmunmap_helper] va=0x0000003fffffd000 size=0x1000 do_free=0, cur_level is 1
-[VM:uvmunmap_helper] va=0x0000003fffffd000 size=0x1000 do_free=0, cur_level is 0
-[VM:freewalk] Freewalk Start: pt=0x0000000087d90000 base_va=0x0 max_sz=0x7000
-[VM:freewalk] Dir: idx=0 va=0x0 -> next_pa=0x0000000087d8d000
-[VM:freewalk]   |-- Dir: idx=0 va=0x0 -> next_pa=0x0000000087d8c000
-[VM:freewalk]   |    |-- Leaf: idx=0 va=0x0 pa=0x0000000087d88000 order=2 size=0x4000 (step=4)
-[VM:freewalk]   |    |-- Leaf: idx=4 va=0x4000 pa=0x0000000087d87000 order=0 size=0x1000 (step=1)
-[VM:freewalk]   |    |-- Leaf: idx=5 va=0x5000 pa=0x0000000087d86000 order=0 size=0x1000 (step=1)
-[VM:freewalk]   |    |-- Leaf: idx=6 va=0x6000 pa=0x0000000087d85000 order=0 size=0x1000 (step=1)
-[EXEC:kexec] SUCCESS: pid=2 exec complete. entry=0x4338
-[KALLOC:kfree] pid=2(sh) freeing pa=0x0000000087d84000
-$ QEMU: Terminated
+[VM:mappages] va=0x0000000090001000 size=0x1000 pa=0x0000000087d85000 perm=0xe
+[KALLOC:alloc_memory] pid=1(init) allocated size=2000 at pa=0x0000000087d82000 order=1
+[VM:mappages] va=0x0000000090002000 size=0x2000 pa=0x0000000087d82000 perm=0xe
+[KALLOC:alloc_memory] pid=1(init) allocated size=4000 at pa=0x000000008027c000 order=2
+[VM:mappages] va=0x0000000090004000 size=0x4000 pa=0x000000008027c000 perm=0xe
+[KALLOC:alloc_memory] pid=1(init) allocated size=4000 at pa=0x0000000080278000 order=2
+[VM:mappages] va=0x0000000090008000 size=0x4000 pa=0x0000000080278000 perm=0xe
+[KALLOC:alloc_memory] pid=1(init) allocated size=2000 at pa=0x0000000087d80000 order=1
+[VM:mappages] va=0x000000009000c000 size=0x2000 pa=0x0000000087d80000 perm=0xe
+[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000087d84000 order=0
+[VM:mappages] va=0x000000009000e000 size=0x1000 pa=0x0000000087d84000 perm=0xe
+[KVM:in_kernel_heap] va=90001000
+[KVM:in_kernel_heap] va=9000efff
+[KVM:kvmalloc] Kpagetable=0x0000000087dd0000 req_sz=2a000 xperm=6
+[KVM:get_unmapped_area] mm=0x00000000801469e0 len=2a000 low_limit=90000000 high_limit=c0000000 cont=0x0000003fffffcde8
+[KVM:find_upper_vma] mm=0x00000000801469e0 vaddr=90000000
+[KVM:alloc_kernel_vma] enter alloc_kernel_vma: the mm_struct is fixed as global_mm
+[KVM:alloc_vma_node] void
+current No.3 cpu try to alloc_vma_node!
+[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000080277000 order=0
+[KVM:add_to_list_locked] slab=0x0000000080277000 list=0x0000000080146908
+[KVM:gene_flags] vm_page_prot=6
+[KVM:insert_vma_fast] mm=0x00000000801469e0 vma=0x0000000080277030 cont=0x0000003fffffcda0
+[KVM:Kernel_buddy_alloc_locked] Kpagetable=0x0000000087dd0000 va=9000f000 size=2a000 xperm=6
+[KVM:in_kernel_heap] va=9000f000
+[KVM:in_kernel_heap] va=90039000
+[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000080276000 order=0
+[VM:mappages] va=0x000000009000f000 size=0x1000 pa=0x0000000080276000 perm=0x6
+[KALLOC:alloc_memory] pid=1(init) allocated size=10000 at pa=0x0000000080260000 order=4
+[VM:mappages] va=0x0000000090010000 size=0x10000 pa=0x0000000080260000 perm=0x6
+[KALLOC:alloc_memory] pid=1(init) allocated size=10000 at pa=0x0000000080250000 order=4
+[VM:mappages] va=0x0000000090020000 size=0x10000 pa=0x0000000080250000 perm=0x6
+[KALLOC:alloc_memory] pid=1(init) allocated size=8000 at pa=0x0000000080248000 order=3
+[VM:mappages] va=0x0000000090030000 size=0x8000 pa=0x0000000080248000 perm=0x6
+[KALLOC:alloc_memory] pid=1(init) allocated size=1000 at pa=0x0000000080275000 order=0
+[VM:mappages] va=0x0000000090038000 size=0x1000 pa=0x0000000080275000 perm=0x6
+[KVM:in_kernel_heap] va=9000f000
+[KVM:in_kernel_heap] va=90038fff
+[KVM:kvmdealloc] Kpagetable=0x0000000087dd0000 start_va=9000f000 sz=2a000
+[KVM:kvmdealloc_range] Kpagetable=0x0000000087dd0000 start_addr=9000f000 end_addr=90039000
+[KVM:in_kernel_heap] va=90039000
+[KVM:in_kernel_heap] va=9000f000
+[KVM:find_vma] mm=0x00000000801469e0 vaddr=9000f000
+[KALLOC:alloc_memory] alloc memory: allocation size is not basic unit supported!panic: alloc_memory
+Init process have not init symbol_table!
+QEMU: Terminated
 
