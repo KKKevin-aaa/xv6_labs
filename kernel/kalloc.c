@@ -147,7 +147,7 @@ static void init_whole_area(uint64 end_addr, uint64 maximum_addr){
     release(&kmem.lock);
 }
 //Ensure the element in the list are valid(in the range[start_pfn ,total_size))
-static void del_from_list_nolock(struct page *p, int order){    //Occupied
+static void del_from_list_nolock(struct page *p, uint64 order){    //Occupied
     struct page *prev=p->prev, *next=p->next;
     //check first!
     uint64 p_pfn=(uint64)(p-kmem.mem_bitmaps);
@@ -162,12 +162,12 @@ static void del_from_list_nolock(struct page *p, int order){    //Occupied
     p->prev=NULL;
     //check if this block's oreder is expected
     if(GET_ORDER(p->flags)!=order){
-        KALLOC_TRACE("try to delete Order.%d block list while this block is Order.%d \n",
+        KALLOC_TRACE("try to delete Order.%llu block list while this block is Order.%llu \n",
             order, GET_ORDER(p->flags));
         panic("del_form_list");
     }
 }
-static void add_to_list_nolock(struct page *p, int order){  //free
+static void add_to_list_nolock(struct page *p, uint64 order){  //free
     uint64 p_pfn=p-kmem.mem_bitmaps;
     ensure_pfn_valid(p_pfn+(1ull<<order)-1);
     struct page *old_head=kmem.free_area[order].head;
@@ -178,7 +178,7 @@ static void add_to_list_nolock(struct page *p, int order){  //free
     }
     kmem.free_area[order].head=new_head;
     if(GET_ORDER(p->flags)!=order){
-        KALLOC_TRACE("try to add to Order.%d block list, while this block is Order.%d\n",
+        KALLOC_TRACE("try to add to Order.%llu block list, while this block is Order.%llu\n",
             order, GET_ORDER(p->flags));
         panic("add_to_list");
     }
@@ -294,9 +294,9 @@ void free_pages_nolock(void *pa, uint64 size){
     if(size==0) return; //stop early
     size=PGROUNDUP(size);   //at least one page
     uint64 cur_order, req_order;
-    uint64 b_head_pfn, b_tail_pfn, b_buddy_pfn;
+    uint64 b_head_pfn, b_tail_pfn;
     uint64 head_pfn, mid_pfn, tail_pfn;
-    struct page *b_head, *head, *b_buddy;
+    struct page *b_head, *head;
     b_head_pfn=paddr_to_pfn((uint64)pa);
     b_head=get_page_desc_assert(b_head_pfn);
     req_order=i_log2(size-1)-11;
@@ -349,7 +349,7 @@ void free_pages(void *pa, uint64 size){
 int reclaim_orphan_pages(void *pa, uint64 size){
     //Designed for those unmap area but still holds the physical resources.
     //Bypass pte and reclaim them
-    if(pa<free_start_addr){
+    if((uint64)pa<free_start_addr){
         KALLOC_TRACE("try to free the data segment, check the pa validity.\n");
         return -1;
     }
@@ -358,9 +358,9 @@ int reclaim_orphan_pages(void *pa, uint64 size){
     uint64 cur_order, size_order, incr_order;
     //Respectively represent the order of the current block involved, the order of the 
     //downward-aligned buddy scale, and the incremental order.
-    uint64 b_head_pfn, b_tail_pfn, b_buddy_pfn;
+    uint64 b_head_pfn, b_tail_pfn;
     uint64 head_pfn, mid_pfn, tail_pfn; //Involved blocks description
-    struct page *b_head, *head, *b_buddy;
+    struct page *b_head, *head;
     b_head_pfn=paddr_to_pfn((uint64)pa);
     size_order=i_log2(size-1)-12;
     b_tail_pfn=b_head_pfn+(1ull<<size_order);
@@ -434,15 +434,20 @@ int is_all_same_swar(const uint8 *data, uint64 len){    //SIMD Within A Register
     }
     return 1;
 }
-int is_pagetable_empty(pagetable_t pagetable){
+
+//Check if the pagetable is entirely vacant()
+//So that we can reclaim this pagetable.
+int is_directory_empty(pagetable_t pagetable){
     uint64 *ptr64=(uint64 *)pagetable;
-    for(int i=0;i<512;i+=8){    //Using Cache Line(the minimum unit data transfer,typically 64 bytes in size)
+    for(int i=0;i<512;i+=8){
+        //Using Cache Line(the minimum unit data transfer,typically 64 bytes in size)
         if(ptr64[i] | ptr64[i+1] | ptr64[i+2] | ptr64[i+3] | 
             ptr64[i+4] | ptr64[i+5] | ptr64[i+6] | ptr64[i+7])
         return 0;
     }
     return 1;
 }
+
 void kinit() {
 #ifdef DEBUG_KALLOC
     KALLOC_TRACE("initializing memory allocator\n");
@@ -453,6 +458,8 @@ void kinit() {
     KALLOC_TRACE("initialization complete\n");
 #endif
 }
+//return 1 while pa at [free_start_addr, PHYstop) --RAM region
+//return 0 while pa outside this region.
 uint8 is_managed_memory(uint64 pa){
     if(pa<free_start_addr || pa>=PHYSTOP)   return 0;
     return 1;

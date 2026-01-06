@@ -51,9 +51,8 @@
 // in both user and kernel space.
 #define TRAMPOLINE (MAXVA - PGSIZE)
 
-// map kernel stacks beneath the trampoline,
-// each surrounded by invalid guard pages.
-// Allocate one more the reserved pgsize for USYSCALL
+// map kernel stacks  and one reversed page for USYSCALL beneath the trampoline,
+// each surrounded by invalid guard pages.(2+1 =3)
 #define KSTACK(p) (TRAMPOLINE - (p)*2*PGSIZE - 3*PGSIZE)
 
 // User memory layout.
@@ -63,6 +62,8 @@
 //   fixed-size stack
 //   expandable heap
 //   ...
+//   all processes's kernel stack and one invalid guard page.(2*NPROCS)
+//   one invliad GUARD_page
 //   USYSCALL (shared with kernel)
 //   TRAPFRAME (p->trapframe, used by the trampoline)
 //   TRAMPOLINE (the same page as in the kernel)

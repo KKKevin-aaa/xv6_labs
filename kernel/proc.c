@@ -43,13 +43,13 @@ struct spinlock wait_lock;
 // guard page.
 void proc_mapstacks(pagetable_t kpgtbl) {
     struct proc *p;
-    void kvmmap_nolock(pagetable_t,uint64,uint64,uint64,int);
+    void kvmmap_boot_only(pagetable_t,uint64,uint64,uint64,int);
     for (p = proc; p < &proc[NPROC]; p++) {
         char *pa = kalloc();
         if (pa == 0) panic("kalloc");
         uint64 va = KSTACK((int)(p - proc));
         printf("[proc_mapstacks] proc %d: kernel_stack located at %llx\n", (int)(p-proc), va);
-        kvmmap_nolock(kpgtbl, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+        kvmmap_boot_only(kpgtbl, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
     }
 }
 

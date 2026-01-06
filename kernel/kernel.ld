@@ -13,6 +13,11 @@ SECTIONS
     */entry.o(_entry)
     *(.text .text.*)
     . = ALIGN(0x1000);
+    PROVIDE(_init_start = .);
+    *(.init.text)
+    . = ALIGN(0x1000);
+    PROVIDE(_init_end = .);
+
     _trampoline = .;
     *(trampsec)
     . = ALIGN(0x1000);

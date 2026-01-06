@@ -100,7 +100,7 @@ struct proc {              // Process control block(PCB)
     struct proc *parent;  // Parent process()
 
     // these are private to the process, so p->lock need not be held.
-    uint64 kstack;  // Virtual address of kernel stack
+    uint64 kstack;  // Virtual address of kernel stack(allocated and mappage in proc_mapstacks)
     uint64 sz;  // Size of process memory (bytes),indicates the top of the user heap, modified by
                 // sbrk()
     pagetable_t pagetable;   // User page table
@@ -113,7 +113,7 @@ struct proc {              // Process control block(PCB)
     struct file *ofile[NOFILE];  // Open files
     struct inode *cwd;           // Current directory
     char name[16];               // Process name (debugging)
-    res_block rb_array[MAX_RES_BLOCK];// To support reserved area,this can track the init heap start.
+    res_block rb_array[MAX_RES_BLOCK];// Track the init heap start to support reserved heap area.
 };
 
 struct vm_dupl_ctx {
@@ -126,6 +126,7 @@ struct vm_dupl_ctx {
     res_block *rblocks;
 };
 
+//Used for copywalk, store the basic info about two pagetable and e.t.c
 struct vm_partial_copy_ctx{
     pte_t *dst_pt;  //Dest Page table
     pte_t *src_pt;  //Source Page table

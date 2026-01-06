@@ -52,7 +52,7 @@ static void __rb_rotate_right(rb_node_t *node, rb_root_t *root){
     node->rb_left=right_node;
     if(right_node!=NULL)    rb_set_parent(right_node, node);
 }
-//Reblance the tree after an insertion
+//Rebalence the tree after an insertion
 void rb_insert_color(rb_node_t *node, rb_root_t *root){
     //Assume the new_added node is red
     rb_node_t *parent, *gparent;
@@ -202,7 +202,6 @@ void rb_erase(rb_node_t *node, rb_root_t *root){
     * 'successor' is the node effectively removed from its original place to replace 'node'
     * 'child' is 'successor''s only child (can be NULL)
     */
-
     // Case 1 & 2: Node has at most one child
     if(node->rb_left == NULL){
         node_child = node->rb_right;
@@ -245,7 +244,7 @@ void rb_erase(rb_node_t *node, rb_root_t *root){
         rb_set_color(successor, node_color);
         rb_set_parent(successor, node_parent);
 
-        //have inhertis node's rb_right.
+        //have inherties node's rb_right.
         successor->rb_left = node->rb_left;
         rb_set_parent(node->rb_left, successor); //left and right succ_child must exist!
 
@@ -261,7 +260,6 @@ void rb_erase(rb_node_t *node, rb_root_t *root){
         // Fixup starts from the hole left by successor
         goto start_fixup;
     }
-
     // Simple case handling (Node has 0 or 1 succ_child)    
     rb_set_parent(node_child, node_parent);
     if(node_parent){

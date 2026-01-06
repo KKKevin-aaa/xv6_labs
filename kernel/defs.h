@@ -92,7 +92,7 @@ uint64          get_order(uint64 pa);
 uint8           is_head(uint64 pa);
 uint8           is_managed_memory(uint64 pa);
 void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz, int level);
-int             is_pagetable_empty(pagetable_t pagetable);
+int             is_directory_empty(pagetable_t pagetable);
 void            dump_memory_map();
 int             check_poison(void *ptr, uint64 size);
 int             set_poison(void *ptr, uint64 size);

@@ -5,6 +5,7 @@
 #include "defs.h"
 
 volatile static int started = 0;
+
 //define in main.c(absolutely would be linked with)
 //With -finstrument_function flags,force all functions convert to non-leaf functions, 
 // save ra So that we can establish a complete calling chain
@@ -17,6 +18,7 @@ __attribute__((no_instrument_function))
 void __cyg_profile_func_exit(void *this_fn, void *call_site){
     return;
 }
+void free_initmem();
 
 // start() jumps here in supervisor mode on all CPUs.
 void main() {
@@ -50,5 +52,6 @@ void main() {
         trapinithart();  // install kernel trap vector
         plicinithart();  // ask PLIC for device interrupts
     }
+    free_initmem();
     scheduler();
 }

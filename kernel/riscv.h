@@ -296,9 +296,12 @@ inline uint8 __attribute__((always_inline)) i_log2(uint64 x){
 #define ORDER_LIMIT (MAX_ORDER+ORDER_BASE+3)
 #define MEGAPGSIZE (1ULL << 21)
 #define GIGAPGSIZE (1ULL << 30)
-#define SUPERPGSIZE (2 * (1 << 20)) // bytes per page
+#define SUPERPGSIZE (1 << 21) // bytes per page
 #define SUPERPGROUNDUP(sz)  (((sz)+SUPERPGSIZE-1) & ~(SUPERPGSIZE-1))
 #define SUPERPGROUNDDOWN(sz) ((sz) & ~(SUPERPGSIZE-1))
+#define HUGEPGSIZE (1 << 30) // bytes per page
+#define HUGEPGROUNDUP(sz)  (((sz)+HUGEPGSIZE-1) & ~(HUGEPGSIZE-1))
+#define HUGEPGROUNDDOWN(sz) ((sz) & ~(HUGEPGSIZE-1))
 
 #define PGROUNDUP(sz) (((sz) + PGSIZE - 1) & ~(PGSIZE - 1))
 #define PGROUNDDOWN(a) (((a)) & ~(PGSIZE - 1))
