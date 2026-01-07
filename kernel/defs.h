@@ -225,9 +225,11 @@ void reclaim_res_memory_range(res_block *rb_array, pagetable_t pagetable, uint64
 uint64          Simp_alloc_res_memory(res_block *, pagetable_t, uint64, int);
 
 //rbtree_impl.c
-void rb_link_node(rb_node_t *node, rb_node_t *rb_parent, rb_node_t **rb_link);
-void rb_insert_color(rb_node_t *node, rb_root_t*root);
-void rb_erase(rb_node_t *node, rb_root_t*root);
+void            Cycle_detection(rb_root_t *root);
+void            check_rbtree_integrity(rb_root_t *root);
+void            rb_link_node(rb_node_t *node, rb_node_t *rb_parent, rb_node_t **rb_link);
+void            rb_insert_color(rb_node_t *node, rb_root_t*root);
+void            rb_erase(rb_node_t *node, rb_root_t*root);
 
 
 //kvm.c

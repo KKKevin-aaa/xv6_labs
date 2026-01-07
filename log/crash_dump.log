@@ -1,0 +1,226 @@
+++echo log reset to ./logs/crash_dump.log
+log reset to ./logs/crash_dump.log+rbview mm->rb_root->rb_parent rb_left rb_right rb_parent_color
+
+=== RB Tree View: mm->rb_root->rb_parent ===
+Fields: L->rb_left, R->rb_right, PC->rb_parent_color
+
+[Root] (BLK) @ 0x87d931e8
+├── [L] (BLK) @ 0x87d93080
+│   ├── [L] (BLK) @ 0x87d93170
+│   └── [R] (BLK) @ 0x87d462d8
+│       └── [CYCLE DETECTED: 0x87d931e8]
+│       └── [R] (RED) @ 0x87d091e8
+│           ├── [L] (BLK) @ 0x87d092d8
+│           │   ├── [L] (RED) @ 0x87d463c8
+│           │   │   ├── [L] (BLK) @ 0x87d933c8
+│           │   │   └── [R] (BLK) @ 0x87d58080
+│           │   │       └── [R] (RED) @ 0x87d93440
+│           │   └── [R] (BLK) @ 0x87d46170
+│           └── [R] (BLK) @ 0x87d09350
+│               ├── [L] (BLK) @ 0x87d46440
+│               └── [R] (RED) @ 0x87d464b8
+│                   ├── [L] (BLK) @ 0x87d93350
+│                   └── [R] (BLK) @ 0x87d46350
+│                       ├── [L] (RED) @ 0x87d46080
+│                       └── [R] (RED) @ 0x87d932d8
+└── [R] (BLK) @ 0x87d095a8
+    ├── [L] (BLK) @ 0x87d93260
+    └── [R] (BLK) @ 0x87d46260
+        └── [R] (RED) @ 0x87d461e8
+
+
++bt
+#0  panic (s=0x8001e5a8 "kerneltrap") at kernel/printf.c:443
+#1  0x0000000080009eac in kerneltrap () at kernel/trap.c:146
+#2  <signal handler called>
+   0x000000008000faa4 <kernelvec+52>:	82 60	ld	ra,0(sp)
+#3  0x0000000000000000 in ?? ()
+#4  0x0000000080015fc8 in rb_color (rb=0x87d93170) at kernel/rbtree.h:22
+#5  0x00000000800161e4 in mid_order_trav (node=0x87d93170, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:28
+#6  0x0000000080016264 in mid_order_trav (node=0x87d93080, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#7  0x0000000080016264 in mid_order_trav (node=0x87d931e8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#8  0x0000000080016264 in mid_order_trav (node=0x87d462d8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#9  0x00000000800162fc in mid_order_trav (node=0x87d93080, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:48
+#10 0x0000000080016264 in mid_order_trav (node=0x87d931e8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#11 0x0000000080016264 in mid_order_trav (node=0x87d462d8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#12 0x00000000800162fc in mid_order_trav (node=0x87d93080, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:48
+#13 0x0000000080016264 in mid_order_trav (node=0x87d931e8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#14 0x0000000080016264 in mid_order_trav (node=0x87d462d8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#15 0x00000000800162fc in mid_order_trav (node=0x87d93080, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:48
+#16 0x0000000080016264 in mid_order_trav (node=0x87d931e8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#17 0x0000000080016264 in mid_order_trav (node=0x87d462d8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#18 0x00000000800162fc in mid_order_trav (node=0x87d93080, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:48
+#19 0x0000000080016264 in mid_order_trav (node=0x87d931e8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#20 0x0000000080016264 in mid_order_trav (node=0x87d462d8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#21 0x00000000800162fc in mid_order_trav (node=0x87d93080, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:48
+#22 0x0000000080016264 in mid_order_trav (node=0x87d931e8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#23 0x0000000080016264 in mid_order_trav (node=0x87d462d8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#24 0x00000000800162fc in mid_order_trav (node=0x87d93080, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:48
+#25 0x0000000080016264 in mid_order_trav (node=0x87d931e8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#26 0x0000000080016264 in mid_order_trav (node=0x87d462d8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#27 0x00000000800162fc in mid_order_trav (node=0x87d93080, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:48
+#28 0x0000000080016264 in mid_order_trav (node=0x87d931e8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#29 0x0000000080016264 in mid_order_trav (node=0x87d462d8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#30 0x00000000800162fc in mid_order_trav (node=0x87d93080, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:48
+#31 0x0000000080016264 in mid_order_trav (node=0x87d931e8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#32 0x0000000080016264 in mid_order_trav (node=0x87d462d8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#33 0x00000000800162fc in mid_order_trav (node=0x87d93080, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:48
+#34 0x0000000080016264 in mid_order_trav (node=0x87d931e8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#35 0x0000000080016264 in mid_order_trav (node=0x87d462d8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#36 0x00000000800162fc in mid_order_trav (node=0x87d93080, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:48
+#37 0x0000000080016264 in mid_order_trav (node=0x87d931e8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#38 0x0000000080016264 in mid_order_trav (node=0x87d462d8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#39 0x00000000800162fc in mid_order_trav (node=0x87d93080, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:48
+#40 0x0000000080016264 in mid_order_trav (node=0x87d931e8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#41 0x0000000080016264 in mid_order_trav (node=0x87d462d8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#42 0x00000000800162fc in mid_order_trav (node=0x87d93080, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:48
+#43 0x0000000080016264 in mid_order_trav (node=0x87d931e8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#44 0x00000000800164b4 in check_rbtree_integrity (
+    root=0x80149048 <global_mm+8>) at kernel/rbtree_impl.c:76
+#45 0x0000000080016844 in rb_insert_color (node=0x87d091e8, 
+    root=0x80149048 <global_mm+8>) at kernel/rbtree_impl.c:171
+#46 0x00000000800130d8 in insert_vma_fast (mm=0x80149040 <global_mm>, 
+    vma=0x87d933f0, cont=0x3fffffcda0) at kernel/kvm.c:904
+#47 0x0000000080014384 in kvmalloc_range_locked (Kpagetable=0x87dcd000, 
+    start_va=0x900a6000, sz=0x2b000, xperm=0x6, cont=...) at kernel/kvm.c:1307
+#48 0x0000000080014524 in kvmalloc (Kpagetable=0x87dcd000, req_sz=0x2b000, 
+    xperm=0x6) at kernel/kvm.c:1341
+#49 0x0000000080014e50 in test_kvm_stress_worker (iters=0x4e20, 
+    max_live=0x100, max_pages=0x40) at kernel/kvm.c:1545
+#50 0x0000000080019600 in sys_load_debug_sym () at kernel/printf.c:340
+#51 0x000000008000a626 in syscall () at kernel/syscall.c:206
+#52 0x0000000080009b50 in usertrap () at kernel/trap.c:56
+#53 0x0000003ffffff09c in ?? ()
++frame 46
+#46 0x00000000800130d8 in insert_vma_fast (mm=0x80149040 <global_mm>, 
+    vma=0x87d933f0, cont=0x3fffffcda0) at kernel/kvm.c:904
++bt
+#0  panic (s=0x8001e5a8 "kerneltrap") at kernel/printf.c:443
+#1  0x0000000080009eac in kerneltrap () at kernel/trap.c:146
+#2  <signal handler called>
+   0x000000008000faa4 <kernelvec+52>:	82 60	ld	ra,0(sp)
+#3  0x0000000000000000 in ?? ()
+#4  0x0000000080015fc8 in rb_color (rb=0x87d93170) at kernel/rbtree.h:22
+#5  0x00000000800161e4 in mid_order_trav (node=0x87d93170, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:28
+#6  0x0000000080016264 in mid_order_trav (node=0x87d93080, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#7  0x0000000080016264 in mid_order_trav (node=0x87d931e8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#8  0x0000000080016264 in mid_order_trav (node=0x87d462d8, 
+    index=0x3fffffcc7c, array=0x801690e8 <check_bts_prop>)
+    at kernel/rbtree_impl.c:39
+#9  0x00000000800162fc in mid_order_trav (node=0x87d93080, 
+Quit
++rbview mm->rb_root->rb_parent rb_left rb_right rb_parent_color
+
+=== RB Tree View: mm->rb_root->rb_parent ===
+Fields: L->rb_left, R->rb_right, PC->rb_parent_color
+
+[Root] (BLK) @ 0x87d931e8
+├── [L] (BLK) @ 0x87d93080
+│   ├── [L] (BLK) @ 0x87d93170
+│   └── [R] (BLK) @ 0x87d462d8
+│       └── [CYCLE DETECTED: 0x87d931e8]
+│       └── [R] (RED) @ 0x87d091e8
+│           ├── [L] (BLK) @ 0x87d092d8
+│           │   ├── [L] (RED) @ 0x87d463c8
+│           │   │   ├── [L] (BLK) @ 0x87d933c8
+│           │   │   └── [R] (BLK) @ 0x87d58080
+│           │   │       └── [R] (RED) @ 0x87d93440
+│           │   └── [R] (BLK) @ 0x87d46170
+│           └── [R] (BLK) @ 0x87d09350
+│               ├── [L] (BLK) @ 0x87d46440
+│               └── [R] (RED) @ 0x87d464b8
+│                   ├── [L] (BLK) @ 0x87d93350
+│                   └── [R] (BLK) @ 0x87d46350
+│                       ├── [L] (RED) @ 0x87d46080
+│                       └── [R] (RED) @ 0x87d932d8
+└── [R] (BLK) @ 0x87d095a8
+    ├── [L] (BLK) @ 0x87d93260
+    └── [R] (BLK) @ 0x87d46260
+        └── [R] (RED) @ 0x87d461e8
+
+
++q

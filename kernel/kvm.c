@@ -10,7 +10,7 @@
 #include "rbtree.h"
 #include "kvm.h"
 
-#define DEBUG_KVM // 默认开启调试
+// #define DEBUG_KVM // 默认开启调试
 #ifdef DEBUG_KVM
 #define KVM_TRACE(fmt, ...) \
     do { \
@@ -72,7 +72,7 @@ uint64 gene_flags(uint64 vm_page_prot){
 }
 static inline uint8 in_kernel_heap(uint64 va){
 #ifdef DEBUG_KVM
-    KVM_TRACE("tssting: va=%llx in kernel_heap.\n", va);
+    KVM_TRACE("testing: va=%llx in kernel_heap.\n", va);
 #endif
     if(va>=KHEAP_START && va<KHEAP_END) return 1;
     else    return 0;
@@ -560,7 +560,9 @@ __attribute__((warn_unused_result)) vm_area_struct_t *alloc_vma_node(){
     int id=cpuid();
     acquire(&my_cpu_vma_pool[id].pool_lock);
     page_slab_header_t *tmp=my_cpu_vma_pool[id].partial;//Extract space from partial list
-    printf("current No.%d cpu try to alloc_vma_node!\n", id);
+    #ifdef DEBUG_KVM
+        KVM_TRACE("current No.%d cpu try to alloc_vma_node!\n", id);
+    #endif
     while(tmp!=NULL){
         if(tmp->inuse_count==VMA_SLAB_LIMIT){
             tmp=tmp->next_page;
@@ -638,6 +640,7 @@ __attribute__((warn_unused_result)) vm_area_struct_t *alloc_kernel_vma(void){
 __attribute__((warn_unused_result)) mm_struct_t *mm_create() {
     return NULL;
 }
+
 int reclaim_vma_node(vm_area_struct_t *node){
     //from active VMA to free slab Object(Scrub on Free)
 #ifdef DEBUG_KVM
@@ -713,6 +716,7 @@ cleanup:
     release(&my_cpu_vma_pool[id].pool_lock);
     return -1;
 }
+
 vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr){
     //Assuming hold mm->mm_lock(Lock-Prected Borrowing)
     //No refcount update is needed since the object isn't leaked out of the critical sections.
@@ -743,13 +747,16 @@ vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr){
     if(found){
         mm->mmap_cache=found; //if found, update the cache
     }
+    else    panic("find_vma.\n");
     return found; 
 }
+
 vm_area_struct_t *find_vma_and_get(mm_struct_t *mm, uint64 addr){
     if(!holding(&mm->mm_lock))
         panic("[find_vma_and_get]Race Conditions: Accessing mm without lock");
     vm_area_struct_t *vma=find_vma(mm, addr);
     if(vma!=NULL)   vma_get(vma);
+    else    panic("1.\n");
     return vma;
 }
 static vm_area_struct_t *find_upper_vma(mm_struct_t *mm, uint64 vaddr){
@@ -856,6 +863,7 @@ rb_node_t *rb_search(rb_node_t *node, vm_area_struct_t **predecessor,
 int insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont){
 #ifdef DEBUG_KVM
     KVM_TRACE("mm=%p vma=%p cont=%p\n", (void *)mm, (void *)vma, (void *)cont);
+    KVM_TRACE("trying to insert [%llx, %llx)\n", vma->vm_start, vma->vm_end);
 #endif
     //Check if cont qualifies for the fast path,
     //if not;fallback to the generic insetions.
@@ -895,6 +903,7 @@ int insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont)
     }
     else    return insert_vma(mm, vma);
     rb_link_node(&vma->vm_rb_node, parent_node, link);
+    Cycle_detection(&mm->rb_root);
     rb_insert_color(&vma->vm_rb_node, &mm->rb_root);
     return 0;
 }
@@ -938,6 +947,7 @@ int insert_vma(mm_struct_t *mm, vm_area_struct_t *vma){
         else    panic("the Inserted vma overlap with the existing vma!\n");
     }
     rb_link_node(vma_node, parent_node, link);
+    Cycle_detection(&mm->rb_root);
     rb_insert_color(vma_node, &mm->rb_root);
     //Insert into the list according to tree hierarchy
     //vma should be between the vm_prev and vm_next
@@ -1059,7 +1069,7 @@ uint64 kvmdealloc_range(pagetable_t Kpagetable, uint64 va_start, uint64 va_end){
     vm_area_struct_t *find_ret=find_vma_and_get(&global_mm, align_start);
     if(find_ret==NULL || !(find_ret->vm_start>=align_start && align_end<=find_ret->vm_end)){ 
         //Pass the range test firstly
-        printf("Kvmdealloc:cannot find vma sastify requirement.");
+        printf("Kvmdealloc:cannot find vma sastify requirement. ");
         printf("Or Got the wrong vma, maybe dealloc a large range?\n");
         goto error;
     }
@@ -1119,6 +1129,7 @@ error:
     KVM_TRACE("kvmdealloc_range fail!\n");
     if(holding(&kvm_lock)) release(&kvm_lock);
     if(holding(&global_mm.mm_lock)) release(&global_mm.mm_lock);
+    panic("1");
     return -1;
 }
 
@@ -1144,13 +1155,13 @@ uint64 kvmdealloc_range2(pagetable_t Kpagetable, uint64 va_start, uint64 va_end)
         //Pass the range test firstly
         printf("Kvmdealloc:cannot find vma sastify requiment, ");
         printf("Or Got the wrong vma, maybe dealloc a large range?\n");
-        goto error;
+        goto error_exit;
     }
     //alloc new_vma for potential usage.
     vm_area_struct_t *new_vma=alloc_vma_node();
     if(new_vma==NULL){
         printf("kvmdealloc: alloc new_vma fail.\n");
-        goto error;
+        goto error_exit;
     }
     uint64 restore_start __attribute__((unused)) =find_ret->vm_start;
     uint64 restore_end __attribute__((unused))=find_ret->vm_end;
@@ -1165,7 +1176,7 @@ uint64 kvmdealloc_range2(pagetable_t Kpagetable, uint64 va_start, uint64 va_end)
             //The mm_struct reference is dropped within remove_vma,
             //while callers manage their own local references.
             printf("kvmdealloc_range: remove_vma fail\n");
-            goto error;
+            goto error_exit;
         }
     }
     else if(find_ret->vm_start<align_start && find_ret->vm_end > align_end){
@@ -1180,8 +1191,9 @@ uint64 kvmdealloc_range2(pagetable_t Kpagetable, uint64 va_start, uint64 va_end)
         new_vma->vm_mm=&global_mm;
         new_vma->ref_count=1;   //Held by mm_struct
         //Omit values for unused arguments.
-        if(insert_vma_fast(&global_mm, new_vma, &cont1)==-1)
-            goto error;
+        if(insert_vma_fast(&global_mm, new_vma, &cont1)==-1){
+            goto error_restore;
+        }
     }
     else if(find_ret->vm_start==align_start){
         find_ret->vm_start=align_end;
@@ -1200,11 +1212,12 @@ uint64 kvmdealloc_range2(pagetable_t Kpagetable, uint64 va_start, uint64 va_end)
         panic("reclaim new_vma fail.\n");
     release(&kvm_lock);
     return va_start;
-error:
+error_restore:
     find_ret->vm_start=restore_start;
     find_ret->vm_end=restore_end;
     if(vma_put(new_vma)!=0)
-        panic("reclaim new_vma fail.\n");
+    panic("reclaim new_vma fail.\n");
+error_exit:
     if(vma_put(find_ret)!=0)    //local reference (if any)
         panic("reclaim resouces.");
     printf("kvmdealloc_range fail!\n");
@@ -1297,7 +1310,8 @@ static void *kvmalloc_range_locked(pagetable_t Kpagetable, uint64 start_va,
     new_vma->vm_flags=gene_flags(new_vma->vm_page_prot);
     new_vma->vm_mm=&global_mm;
     //Omit values for unused arguments.
-    insert_vma_fast(&global_mm, new_vma, &cont);
+    if(insert_vma_fast(&global_mm, new_vma, &cont)==-1)
+        goto error;
     //allocate the corresponding size
     int alloc_ret=Kernel_buddy_alloc_locked(kernel_pagetable, start_va, sz, xperm);
     if(alloc_ret==-1){

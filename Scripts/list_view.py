@@ -19,7 +19,8 @@ class LinkedListPrinter(gdb.Command):
         # 1. get argument
         ptr_expr = args[0]      # 例如: global_mm.mmap
         next_field = args[1]    # 例如: vm_next
-        summary_field = args[2] if len(args) > 2 else None # 例如: vm_start
+        # summary_field = args[2] if len(args) > 2 else None # 例如: vm_start
+        summary_fields=args[2:] if len(args)>2 else None
 
         # 2. Parsing header_ptr
         try:
@@ -55,15 +56,17 @@ class LinkedListPrinter(gdb.Command):
 
             # gettng the summary
             summary_str = ""
-            if summary_field:
-                try:
-                    # 尝试读取摘要字段
-                    field_val = curr[summary_field]
-                    summary_str = f" | {summary_field}: {field_val}"
-                except:
-                    summary_str = f" | {summary_field}: ?"
+            if summary_fields:
+                for field_name in summary_fields:
+                    try:
+                        # 尝试读取摘要字段
+                        field_val = curr[field_name]
+                        summary_str += f" | {field_name}: {field_val}"
+                    except:
+                        summary_str += f" | {field_name}: ?"
 
             print(f"\033[1;33m[{idx}]\033[0m @ \033[32m0x{addr:x}\033[0m{summary_str}")
+                
             try:
                 # 关键点：利用Python的反射能力，通过字符串名字访问结构体成员
                 next_val = curr[next_field]

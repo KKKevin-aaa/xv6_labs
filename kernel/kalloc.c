@@ -380,6 +380,7 @@ int reclaim_orphan_pages(void *pa, uint64 size){
             return -1;
         }
         tail_pfn=head_pfn+(1ull<<cur_order);
+        mid_pfn=head_pfn+((tail_pfn-head_pfn)>>1);
         ensure_pfn_valid(tail_pfn-1);
         if(cur_order>size_order){    //Reach the final block
             do{

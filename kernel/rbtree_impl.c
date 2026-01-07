@@ -13,14 +13,125 @@
 * 3. red node's child node should be black(Red-red)
 * 4. start by arbitry node to all leaf_node, these path should contain the same black node.(black-Height)
 */
+#define MAX_TEST_NODE 100
+#define PER_MAX_DEPTH   64  //limit the depth of tree as 64
+#define NR_BITMAP   16
+static vm_area_struct_t *check_bts_prop[MAX_TEST_NODE];
+static rb_node_t *path_stack[PER_MAX_DEPTH*NR_BITMAP];
+static uint64 filter_array[NR_BITMAP];
 void dummy_force_save_ra(void){
     asm volatile("nop");    //Solely to prevent being optimized away.
 }
-static void my_earse_color(rb_node_t * node, rb_node_t *parent, rb_root_t *root);
-//All rotataion process the upper-layer structure first, then the sub-structure.
+
+//Fast calculation of the hash bit for a pointer.
+//
+static inline int ptr_hash_bit(void *ptr){
+    return ((uint64)ptr >> 3) & (PER_MAX_DEPTH*NR_BITMAP-1);
+    //Struct are typically 8-byte aligned, so the lowest three bits are always zero.
+}
+static void __cycle_detection_worker(rb_node_t *node, int cur_depth, uint64 *ancestor_bitmap){
+    //Perform cycle detection by treating the red-black tree as a general tree.
+    if(node==NULL)  return;
+    if(cur_depth>=PER_MAX_DEPTH*NR_BITMAP)
+        panic("Over maximum depth, plz relarge the array.\n");
+    int hash_ret=ptr_hash_bit(node);
+    uint64 bit_val=1ull<< (hash_ret & PER_MAX_DEPTH);
+    uint8 idx=hash_ret / PER_MAX_DEPTH, collision=0;
+    if((ancestor_bitmap[idx] & bit_val) != 0 ){
+        //collision occurs, employ an exhaustive liner search.
+        for(int i=0;i<cur_depth;i++){
+            if(node==path_stack[i])
+                panic("detect cycle.\n");
+        }
+        collision=1;
+    }
+    else{
+        ancestor_bitmap[idx] |= bit_val;
+        collision=0;
+    }
+    path_stack[cur_depth]=node; //push stack.
+    __cycle_detection_worker(node->rb_left, cur_depth+1, ancestor_bitmap);
+    __cycle_detection_worker(node->rb_right, cur_depth+1, ancestor_bitmap);
+    path_stack[cur_depth]=NULL; //pop stack and clear mask.
+    if(!collision)   ancestor_bitmap[idx] &= ~bit_val;
+}
+
+//Wrapper (public api)
+void Cycle_detection(rb_root_t *root){
+    if(root==NULL || root->rb_parent==NULL)
+        panic("Invalid root.\n");
+    memset(path_stack, 0, sizeof(path_stack));
+    memset(filter_array, 0, sizeof(filter_array));
+    __cycle_detection_worker(root->rb_parent, 0, filter_array);
+}
+
+static int mid_order_trav(rb_node_t *node, int *index, vm_area_struct_t **array){
+    //also check double property and compare the height of two children(if exist.)
+    if(*index>=MAX_TEST_NODE)  panic("plz relarge this array.\n");
+    if(node==0) return 0;
+    if(node->rb_left==NULL && node->rb_right==NULL){
+        array[(*index)++]=rb_entry(node, vm_area_struct_t, vm_rb_node);
+        if(rb_color(node)==RB_RED)  return 0;
+        else    return 1;
+    }
+    int left_height __attribute__((unused))=0;
+    int right_height __attribute__((unused))=0;
+    if(node->rb_left!=NULL){
+        if(rb_color(node)==RB_RED && rb_color(node->rb_left)==RB_RED)
+            panic("double red.\n");
+        if(rb_color(node)==RB_RED)
+            left_height=mid_order_trav(node->rb_left, index, array);
+        else
+            left_height=mid_order_trav(node->rb_left, index, array);
+    }
+    array[(*index)++]=rb_entry(node, vm_area_struct_t, vm_rb_node);
+    if(node->rb_right!=NULL){
+        if(rb_color(node)==RB_RED && rb_color(node->rb_right)==RB_RED)
+            panic("double red.\n");
+        if(rb_color(node)==RB_RED)
+            right_height=mid_order_trav(node->rb_right, index, array);
+        else
+            right_height=mid_order_trav(node->rb_right, index, array);
+    }
+    if(left_height!=right_height)
+        panic("children height dismatch.\n");
+    if(rb_color(node)==RB_RED)  return left_height;
+    return left_height+1;
+}
+static void check_order(vm_area_struct_t **array, int idx){
+    // uint64 lowerbound=KHEAP_START;
+    uint64 lowerbound=0;
+    for(int i=0;i<idx;i++){
+        if(array[i]->vm_start >= array[i]->vm_end)
+            panic("wrong vma, invalid range.\n");
+        if(array[i]->vm_start < lowerbound)
+            panic("wrong vma, overlap with prev vma.\n");
+        // if(array[i]->vm_end > KHEAP_END)
+        //     panic("wrong vma, over kernerl heap limit.\n");
+        lowerbound=array[i]->vm_end;
+    }
+}
+
+void check_rbtree_integrity(rb_root_t *root){
+    if(root==NULL)  return;
+    if(root->rb_parent==NULL)   panic("destory root.\n");
+    if(rb_color(root->rb_parent)!=RB_BLACK)
+        panic("root must be black.\n");
+    memset(check_bts_prop, 0, MAX_TEST_NODE);
+    int idx=0;
+    mid_order_trav(root->rb_parent, &idx, check_bts_prop);
+    check_order(check_bts_prop, idx);
+}
+
+
+static void my_erase_color(rb_node_t * node, rb_node_t *parent, rb_root_t *root);
+//All rotation process the upper-layer structure first, then the sub-structure.
 static void __rb_rotate_left(rb_node_t *node, rb_root_t *root){
     rb_node_t *new_parent=node->rb_right, *left_node=new_parent->rb_left, *gparent=rb_parent(node);
-    if(gparent==NULL)   root->rb_parent=new_parent;
+    if(gparent==NULL){
+        root->rb_parent=new_parent;
+        rb_set_parent(new_parent, gparent);
+    }
     else if(gparent->rb_left==node){
         rb_set_parent(new_parent, gparent);
         gparent->rb_left=new_parent;
@@ -34,11 +145,15 @@ static void __rb_rotate_left(rb_node_t *node, rb_root_t *root){
     node->rb_right=left_node;
     if(left_node!=NULL)    rb_set_parent(left_node, node);
 }
+
 static void __rb_rotate_right(rb_node_t *node, rb_root_t *root){
     rb_node_t *new_parent=node->rb_left;
     rb_node_t *right_node=new_parent->rb_right;
     rb_node_t *gparent=rb_parent(node);
-    if(gparent==NULL)   root->rb_parent=new_parent;
+    if(gparent==NULL){
+        root->rb_parent=new_parent;
+        rb_set_parent(new_parent, gparent);
+    }
     else if(gparent->rb_left==node){
         rb_set_parent(new_parent, gparent);
         gparent->rb_left=new_parent;
@@ -52,9 +167,10 @@ static void __rb_rotate_right(rb_node_t *node, rb_root_t *root){
     node->rb_left=right_node;
     if(right_node!=NULL)    rb_set_parent(right_node, node);
 }
+
 //Rebalence the tree after an insertion
 void rb_insert_color(rb_node_t *node, rb_root_t *root){
-    //Assume the new_added node is red
+    //Assume the new_added node is red(So eliminate potentional double red)
     rb_node_t *parent, *gparent;
     while((parent=rb_parent(node)) && rb_color(parent)==RB_RED){
         //1. parent should exist, or we reach root, exit 
@@ -63,18 +179,20 @@ void rb_insert_color(rb_node_t *node, rb_root_t *root){
         if(parent==gparent->rb_left){
             rb_node_t *uncle=gparent->rb_right;
             if(uncle && rb_color(uncle)==RB_RED){//uncle is red, change the color 
-                rb_set_color(node, RB_BLACK);
+                rb_set_color(parent, RB_BLACK);
                 rb_set_color(uncle, RB_BLACK);
                 rb_set_color(gparent, RB_RED);
                 node=gparent;
                 continue;
+                //The double_Red property is currently violated.
+                //Insertion does not affect the tree height, and this operation maintains the original height.
             }
             //Uncle is black or NULL
             if(node==parent->rb_right){
                 __rb_rotate_left(parent, root);
                 rb_node_t *tmp=parent;
                 parent=node;
-                node=tmp;
+                node=tmp;   //exchange the node and parent.
             }
             rb_set_color(parent, RB_BLACK);
             rb_set_color(gparent, RB_RED);
@@ -83,7 +201,7 @@ void rb_insert_color(rb_node_t *node, rb_root_t *root){
         else{
             rb_node_t *uncle=gparent->rb_left;
             if(uncle && rb_color(uncle)==RB_RED){
-                rb_set_color(node, RB_BLACK);
+                rb_set_color(parent, RB_BLACK);
                 rb_set_color(uncle, RB_BLACK);
                 rb_set_color(gparent, RB_RED);
                 node=gparent;
@@ -102,6 +220,7 @@ void rb_insert_color(rb_node_t *node, rb_root_t *root){
         }
     }
     rb_set_color(root->rb_parent, RB_BLACK);
+    check_rbtree_integrity(root);
 }
 /*
 * Internal fixup function called by rb_erase
@@ -112,6 +231,7 @@ void rb_insert_color(rb_node_t *node, rb_root_t *root){
 * By locating a red nephew node, we rotate it into the target path and turn it black. 
 * Since that node was already red on the sibling's side, we have effectively "borrowed" the required black height
 */
+__attribute__((used))
 static void __rb_erase_color(rb_node_t *node, rb_node_t *parent, rb_root_t *root){
     rb_node_t *other=NULL;  //slibing node
     //As long as 'node' is not the root and 'node' is black the loops continue
@@ -275,20 +395,24 @@ void rb_erase(rb_node_t *node, rb_root_t *root){
 start_fixup:
     // Only trigger rebalancing if we removed a BLACK node
     // replace_node current is double black, it can be NULL
-    if(del_node_color==RB_BLACK) my_earse_color(repl_node, repl_parent, root);
+    Cycle_detection(root);
+    if(del_node_color==RB_BLACK) my_erase_color(repl_node, repl_parent, root);
+    check_rbtree_integrity(root);
 }
 
 
 void rb_link_node(rb_node_t *node, rb_node_t *parent, rb_node_t **rb_link){
-    if(node==NULL || rb_link==NULL)   return;  
-    node->rb_parent_color=(unsigned long)parent;
+    if(node==NULL || rb_link==NULL)   return;
+    if((uint64)node==0x87d931e8 && (uint64)parent!=0x87d930f8)
+        panic("rb_link_node:link to root.\n");
+    rb_set_parent(node, parent);
     node->rb_left=NULL;
     node->rb_right=NULL;
     *rb_link=node;
 }
 
 
-static void my_earse_color(rb_node_t *node, rb_node_t *parent, rb_root_t *root){
+static void my_erase_color(rb_node_t *node, rb_node_t *parent, rb_root_t *root){
     rb_node_t *other=NULL;
     while(node!=root->rb_parent && rb_color(node)==RB_BLACK){
         if(parent==NULL)    break;
@@ -356,5 +480,6 @@ static void my_earse_color(rb_node_t *node, rb_node_t *parent, rb_root_t *root){
             return;
         }
     }
+    rb_set_color(node, RB_BLACK);
     rb_set_color(root->rb_parent, RB_BLACK);    //Maintain black root
 }

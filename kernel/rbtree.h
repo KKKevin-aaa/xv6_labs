@@ -32,6 +32,7 @@ static inline rb_node_t *rb_parent(rb_node_t *rb){
     if(rb==NULL)    panic("Try to access nullptr's parent!\n");
     return (rb_node_t*)(rb->rb_parent_color & ~3);
 }
+
 // static inline int rb_color(rb_node_t *rb){
 //     return rb->rb_parent_color & 1;
 // }
@@ -40,6 +41,7 @@ static inline void rb_set_parent(rb_node_t *rb, rb_node_t *rb_parent){
     if(rb==NULL)    return;
     rb->rb_parent_color=(rb->rb_parent_color & 3) | (uint64)rb_parent;
 }
+
 static inline void rb_set_color(rb_node_t *rb ,int color){
     if(rb==NULL)    return;
     rb->rb_parent_color=(rb->rb_parent_color & ~1) | (uint64)color;

@@ -194,7 +194,7 @@ endif
 BUILD_ROOT_DIR := build
 
 ifeq ($(DEBUG), 1)
-  CFLAGS += -DDEBUG_FORK -DDEBUG_VM -DDEBUG_KALLOC -DDEBUG_EXEC -O0 -g3 -gdwarf-4
+  CFLAGS += -DDEBUG_FORK -DDEBUG_VM -DDEBUG_KALLOC -DDEBUG_EXEC -O0 -ggdb3 -gdwarf-4
   CFLAGS += -fno-omit-frame-pointer
   CFLAGS += -fno-inline
   CFLAGS += -fno-optimize-sibling-calls
@@ -206,7 +206,7 @@ else
   CFLAGS += -O2 -ggdb -gdwarf-4
   OBJ_DIR := $(BUILD_ROOT_DIR)/release
 endif
-LOG_FILE := qemu_output.log
+LOG_FILE := ./log/qemu_output.log
 ifeq ($(PIPE), 1)
 LOG_SUFFIX := 2>&1 | tee $(LOG_FILE)
 else
@@ -393,8 +393,11 @@ UEXTRA += big.txt bigger.txt biggerer.txt huge.txt
 
 # here | is Order-only:create if noexist and don't anything if they just become newer
 # Introduce a kernel dependency to effectively force a rebuild of the assembly files.
-fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS) $(K)/$(OBJ_DIR)/kernel gene_addr2line.py | $(OBJ_DIR)
-	python gene_addr2line.py $(K)/$(OBJ_DIR)/kernel.asm $(KERNEL_TBL)
+script_tools: ./Analysis_tools/gene_addr2line.py $(K)/$(OBJ_DIR)/kernel
+	python ./Analysis_tools/gene_addr2line.py $(K)/$(OBJ_DIR)/kernel.asm $(KERNEL_TBL)
+
+
+fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS) $(K)/$(OBJ_DIR)/kernel script_tools | $(OBJ_DIR)
 	mkfs/mkfs fs.img README $(KERNEL_TBL) $(UEXTRA) $(UPROGS)
 
 newfs.img: 
