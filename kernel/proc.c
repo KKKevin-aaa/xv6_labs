@@ -20,6 +20,7 @@
 // #define PROC_TEST_TIME 
 struct cpu cpus[NCPU];
 
+/// @brief static pcb array
 struct proc proc[NPROC];
 
 struct proc *initproc;
@@ -102,10 +103,10 @@ int allocpid() {
     return pid;
 }
 
-// Look in the process table for an UNUSED proc.
-// If found, initialize state required to run in the kernel,
-// and return with p->lock held.
+// Look in the process table to search an UNUSED proc.
+// If found, initialize state required to run in the kernel, and return with p->lock held
 // If there are no free procs, or a memory allocation fails, return 0.
+// Default return funtion is forkret, which kexec "init process" and return to userspace.
 static struct proc *allocproc(void) {
     struct proc *p;
 
@@ -293,10 +294,13 @@ int kfork(void) {
     #ifdef DEBUG_FORK
     FORK_TRACE("END uvmcopy: success. child sz=0x%llx\n", np->sz);
     #endif
+    
     // Copy saved user registers.
     *(np->trapframe) = *(p->trapframe);
-    // Cause fork to return 0 in the child.
+    // NOTE: Duplicate all user stacks and registers, modifying only the a0 register
+    // as the fork return value,so we can tell child and parent from return value.
     np->trapframe->a0 = 0;
+
     // Increment reference counts on open file descriptors.
     for (i = 0; i < NOFILE; i++)
         if (p->ofile[i]) np->ofile[i] = filedup(p->ofile[i]);
@@ -345,7 +349,7 @@ void reparent(struct proc *p) {
 
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state
-// until its parent calls wait().NOTE:
+// until its parent calls wait() and reclaim its resources.NOTE:
 void kexit(int status) {
     struct proc *p = myproc();
 
@@ -433,12 +437,12 @@ int kwait(uint64 addr) {
 }
 
 // Per-CPU process scheduler.
+// (NOTE:  Not residing in any process,on the cpu's dedicated stack)
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
 //  - choose a process to run.
 //  - swtch to start running that process.
-//  - eventually that process transfers control
-//    via swtch back to the scheduler.
+//  - eventually that process transfers control via swtch back to the scheduler.
 void scheduler(void) {
     struct proc *p;
     struct cpu *c = mycpu();
@@ -455,13 +459,17 @@ void scheduler(void) {
 
         int found = 0;
         for (p = proc; p < &proc[NPROC]; p++) {
-            acquire(&p->lock);
+            acquire(&p->lock);  //Only holding process's lock,cpu can take control it.
             if (p->state == RUNNABLE) {
                 // Switch to chosen process.  It is the process's job
                 // to release its lock and then reacquire it
                 // before jumping back to us.
                 p->state = RUNNING;
                 c->proc = p;
+                // Save my context(include ra,sp and all callee-save register:s0-s11)to c->context,
+                // and then load the registers from p->context(where we going to)
+                // While finishing switching, we will execute p->context(a new process)
+                // While finishing this new process, we will resuming execution at this point(using ra and ret).
                 swtch(&c->context, &p->context);
 
                 // Process is done running for now.
@@ -473,20 +481,18 @@ void scheduler(void) {
         }
         if (found == 0) {
             // nothing to run; stop running on this core until an interrupt.
-            asm volatile("wfi");
+            asm volatile("wfi");    //Full expansion:Wait for interrupt
         }
     }
 }
 
-// Switch to scheduler.  Must hold only p->lock
-// and have changed proc->state. Saves and restores
-// intena because intena is a property of this
-// kernel thread, not this CPU. It should
-// be proc->intena and proc->noff, but that would
-// break in the few places where a lock is held but
-// there's no process.
+// Switch to scheduler.  Must hold only p->lock and have changed proc->state. 
+// Saves and restores intena because intena is a property of this kernel thread, 
+// not this CPU. It should be proc->intena and proc->noff, but that would
+// break in the few places where a lock is held but there's no process.
+//NOTE: It is called by process itself, run on the kernel stack of process. 
 void scheduleProcess(void) {
-    int intena;
+    int intena;         //INTerrupt ENAble.
     struct proc *p = myproc();
 
     if (!holding(&p->lock)) panic("scheduleProcess p->lock");
@@ -495,10 +501,20 @@ void scheduleProcess(void) {
     if (intr_get()) panic("scheduleProcess interruptible");
 
     intena = mycpu()->intena;
+
+    //Save my(current process) registers to p->context
+    // NOTE: (ra indicate where to continue,sp, all callee-save registers),
+    //and then load the registers from mycpu->context(already prepared in scheduler())
+    //to restore the scheduler loop state and back to the scheduler.
     swtch(&p->context, &mycpu()->context);
-    mycpu()->intena = intena;
+
+    //--------Resumption Point-------------------
+    //At this stage, the cpu has returned from the scheduler)
+    mycpu()->intena = intena;   //Restore the 'intena' state to the value saved before switching.
 }
 
+// Different from the Spinlock, while acquiring mutex fail,process will sleep, yield 
+// cpu for other mission, involve context switch.
 // Give up the CPU for one scheduling round.
 void yield(void) {
     struct proc *p = myproc();
@@ -531,6 +547,8 @@ void forkret(void) {
         // We can invoke kexec() now that file system is initialized.
         // Put the return value (argc) of kexec into a0.
         p->trapframe->a0 = kexec("/init", (char *[]){"/init", 0});
+        //And exec can replace current process,prepares the system so thata a new program can 
+        //be executed upon returning to user space(involves epc, sp, new pagetable, loading elf e.t.c)
         if (p->trapframe->a0 == -1) {
             panic("exec");
         }
@@ -538,13 +556,15 @@ void forkret(void) {
 
     // return to user space, mimicing usertrap()'s return.
     prepare_return();   //change the stvec from kerneltrap to usertrap
-    uint64 satp = MAKE_SATP(p->pagetable);
-    uint64 trampoline_userret = TRAMPOLINE + (userret - trampoline);
+    uint64 satp = MAKE_SATP(p->pagetable);  //function parameter.
+    uint64 trampoline_userret = TRAMPOLINE + (userret - trampoline);//fnction pointer
     ((void (*)(uint64))trampoline_userret)(satp);
 }
 
-// Sleep on channel waitChannel, releasing condition lock lk.
-// Re-acquires lk when awakened.
+// waitchannel is a address.When process A call sleep(&x, &lock), it informs the kernel:
+// "If someone sends messages to address &x(By calling wakeup(&x)), please wake up me!"
+// For second paramter, make sure release it before I sleep(for )
+// and make sure you re-acquire this lock for me when I wake up.
 void sleep(void *waitChannel, struct spinlock *lk) {
     struct proc *p = myproc();
 
@@ -552,10 +572,12 @@ void sleep(void *waitChannel, struct spinlock *lk) {
     // change p->state and then call scheduleProcess.
     // Once we hold p->lock, we can be
     // guaranteed that we won't miss any wakeup
-    // (wakeup locks p->lock),
+    // (wakeup locks p->lock, otherwise we will sleep forever)
     // so it's okay to release lk.
 
     acquire(&p->lock);  // DOC: sleeplock1
+
+    //Internal release for concurrency
     release(lk);
 
     // Go to sleep.
@@ -564,10 +586,12 @@ void sleep(void *waitChannel, struct spinlock *lk) {
 
     scheduleProcess();
 
-    // Tidy up.
+    // Tidy up, waiting anymore.
     p->waitChannel = 0;
 
-    // Reacquire original lock.
+    // Reacquire original lock.The caller of sleep assumes the lock is held
+    // throughout the logical blocks,therefore, sleep must be reacquire it before
+    // returning to maintain the atomicity invariant.
     release(&p->lock);
     acquire(lk);
 }
@@ -669,4 +693,29 @@ void procdump(void) {
         printf("%d %s %s", p->pid, state, p->name);
         printf("\n");
     }
+}
+
+struct proc *kthread_create(const char *name, void (*func)(void)){
+    //create a new lightweight kernel thread
+    struct proc *new_kthread;
+    for(new_kthread=proc;new_kthread< &proc[NPROC];new_kthread++){
+        acquire(&new_kthread->lock);
+        if(new_kthread->state==UNUSED)
+            goto found;
+        else    release(&new_kthread->lock);
+    }
+    panic("Out-of-pcb.Unable to create kernel thread!");
+    return NULL;
+found:
+    new_kthread->pid=allocpid();
+    new_kthread->state=RUNNABLE;
+    //Able to be scheduled by the cpu and enter the entry function for execution.
+    safestrcpy(new_kthread->name, name, strlen(name));  //null-terminated
+    memset(&new_kthread->context, 0, sizeof(new_kthread->context));
+    new_kthread->context.ra=(uint64)func;
+    new_kthread->context.sp=new_kthread->kstack+PGSIZE;
+    release(&new_kthread->lock);
+    //Must release process's lock immideately,other scheduler can acquire and 
+    //execute it on a corresponding CPU once it is detected as runnable.
+    return (void *)new_kthread;
 }

@@ -34,6 +34,7 @@ struct rwspinlock;
 #define POISON_BYTE 0X5A
 #define POISON_64 0x5a5a5a5a5a5a5a5aull
 
+
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
@@ -110,7 +111,10 @@ int             pipewrite(struct pipe*, uint64, int);
 
 // printf.c
 int             printf(char*, ...) __attribute__ ((format (printf, 1, 2)));
-void            panic(char*) __attribute__((noreturn));
+void __panic(const char *, int, const char *, char *s)  __attribute__((noreturn));
+//A Useful macro, get more necessary info without DEBUG-mode
+#define panic(msg)    __panic(__FILE__, __LINE__, __func__, (msg))
+
 void            printfinit(void);
 void            backtrace(void);
 
@@ -138,9 +142,10 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+struct proc *   kthread_create(const char *name, void *func(void));
 
 // swtch.S
-void            swtch(struct context*, struct context*);
+void            swtch(struct context *store_to, struct context *load_from);
 
 // spinlock.c
 void            acquire(struct spinlock*);
@@ -247,6 +252,8 @@ rb_node_t*      rb_search(rb_node_t *node, vm_area_struct_t **predecessor,
                         vm_area_struct_t ** successor, const rb_root_t *root);
 void*           kvmalloc(pagetable_t, uint64, int);
 uint64          kvmdealloc(pagetable_t, uint64, uint64);
+void            test_kvm_stress_parallel(int , int , int , int );
+
 
 // plic.c
 void            plicinit(void);

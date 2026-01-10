@@ -88,33 +88,6 @@ OBJS += \
 endif
 
 
-OBJS_KCSAN = \
-  $K/start.o \
-  $K/console.o \
-  $K/printf.o \
-  $K/uart.o \
-  $K/spinlock.o
-
-ifdef KCSAN
-OBJS_KCSAN += \
-	$K/kcsan.o
-endif
-
-ifeq ($(LAB),lock)
-OBJS += \
-	$K/stats.o\
-	$K/sprintf.o
-endif
-
-
-ifeq ($(LAB),net)
-OBJS += \
-	$K/e1000.o \
-	$K/net.o \
-	$K/pci.o
-endif
-
-
 # riscv64-unknown-elf- or riscv64-linux-gnu-
 # perhaps in /opt/riscv/bin
 #TOOLPREFIX = 
@@ -193,12 +166,14 @@ endif
 
 BUILD_ROOT_DIR := build
 
+DEBUG := 0
 ifeq ($(DEBUG), 1)
   CFLAGS += -DDEBUG_FORK -DDEBUG_VM -DDEBUG_KALLOC -DDEBUG_EXEC -O0 -ggdb3 -gdwarf-4
   CFLAGS += -fno-omit-frame-pointer
-  CFLAGS += -fno-inline
+  CFLAGS += -fno-partial-inlining -fno-ipa-cp -fno-ipa-sra
   CFLAGS += -fno-optimize-sibling-calls
   CFLAGS += -finstrument-functions
+  CFLAGS := $(filter-out -O%, $(CFLAGS)) -O0
   # This flags instructs the compiler to enable profilling by inserting a call
   # to the mcount routine at the prologue of every function.
   OBJ_DIR := $(BUILD_ROOT_DIR)/debug

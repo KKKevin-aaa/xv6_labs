@@ -1506,16 +1506,13 @@ void test_kvm_stress_worker(int iters, int max_live, int max_pages){
     if(max_pages <= 0) max_pages = 64;
     if(max_pages > 1024) max_pages = 1024;
 
-    int cpu = cpuid();
-    if(cpu < 0 || cpu >= NCPU)
-        panic("test_kvm_stress_worker: bad cpu id");
-
     // The test does:
     //  - random kvmalloc/kvmdealloc
     //  - touch one byte per page (forces mapping)
     //  - periodically check VMA list/RB-tree invariants under global_mm.mm_lock
+    int pid=myproc()->pid;
     printf("[kvm_test] stress_worker enter: cpu=%d iters=%d max_live=%d max_pages=%d\n",
-        cpu, iters, max_live, max_pages);
+        myproc()->pid, iters, max_live, max_pages);
 
     if(holding(&kvm_lock) || holding(&global_mm.mm_lock))
         panic("test_kvm_stress_worker: lock already held");
@@ -1523,14 +1520,15 @@ void test_kvm_stress_worker(int iters, int max_live, int max_pages){
     // Fixed-size tracking; avoid allocator recursion in the test itself.
     // Must be per-CPU, otherwise parallel stress will race on bookkeeping.
     enum { KVM_TEST_MAX_LIVE = 1024 };
-    static kvm_alloc_rec_t recs[NCPU][KVM_TEST_MAX_LIVE];
+    kvm_alloc_rec_t *recs=(kvm_alloc_rec_t *)alloc_memory(sizeof(kvm_alloc_rec_t)*KVM_TEST_MAX_LIVE);
     int live = 0;
 
     if(max_live > KVM_TEST_MAX_LIVE)
         max_live = KVM_TEST_MAX_LIVE;
 
     // Per-cpu seed so multi-CPU runs are less correlated.
-    uint64 seed = (uint64)r_time() ^ ((uint64)cpu << 32) ^ (uint64)(cpu * 0x9e3779b97f4a7c15ULL);
+    uint64 seed = (uint64)r_time() ^ ((uint64)pid << 32) 
+        ^ (uint64)(pid * 0x9e3779b97f4a7c15ULL);
 
     int alloc_fail = 0;
 
@@ -1558,22 +1556,22 @@ void test_kvm_stress_worker(int iters, int max_live, int max_pages){
                 if(!in_kernel_heap(va) || !in_kernel_heap(va + sz - 1))
                     panic("kvm_test: allocation out of kernel heap");
 
-                kvm_test_touch_pages((char*)p, sz, (uint8)(cpu ^ i));
+                kvm_test_touch_pages((char*)p, sz, (uint8)(pid ^ i));
 
-                recs[cpu][live].va = va;
-                recs[cpu][live].sz = sz;
+                recs[live].va = va;
+                recs[live].sz = sz;
                 live++;
             }
         } else {
             int idx = (int)(kvm_test_rng_next(&seed) % (uint64)live);
-            uint64 va = recs[cpu][idx].va;
-            uint64 sz = recs[cpu][idx].sz;
+            uint64 va = recs[idx].va;
+            uint64 sz = recs[idx].sz;
             uint64 ret = kvmdealloc(kernel_pagetable, va, sz);
             if(ret == (uint64)-1)
                 panic("kvm_test: kvmdealloc failed");
             // swap-remove
             live--;
-            recs[cpu][idx] = recs[cpu][live];
+            recs[idx] = recs[live];
         }
 
         // Periodic invariant checks. Keep it infrequent to allow contention.
@@ -1590,7 +1588,7 @@ void test_kvm_stress_worker(int iters, int max_live, int max_pages){
     // Drain.
     while(live > 0){
         live--;
-        uint64 ret = kvmdealloc(kernel_pagetable, recs[cpu][live].va, recs[cpu][live].sz);
+        uint64 ret = kvmdealloc(kernel_pagetable, recs[live].va, recs[live].sz);
         if(ret == (uint64)-1)
             panic("kvm_test: drain kvmdealloc failed");
     }
@@ -1599,13 +1597,18 @@ void test_kvm_stress_worker(int iters, int max_live, int max_pages){
     kvm_test_assert_mm_invariants_locked(&global_mm);
     release(&global_mm.mm_lock);
 
-    printf("[kvm_test] stress_worker exit: cpu=%d iters=%d max_live=%d max_pages=%d alloc_fail=%d\n",
-        cpu, iters, max_live, max_pages, alloc_fail);
+    //free the resource allocated by alloc_memory without mapping.
+    free_pages((void *)recs, sizeof(kvm_alloc_rec_t)*KVM_TEST_MAX_LIVE);
+    printf("[kvm_test] stress_worker exit: pid=%d iters=%d max_live=%d max_pages=%d alloc_fail=%d\n",
+        pid, iters, max_live, max_pages, alloc_fail);
 }
 
 void test_kvm_stress_parallel(int participants, int iters, int max_live, int max_pages){
-    // Barrier-based parallel runner.
+    // Barrier-based parallel runner.(multiprocess-Concurrency)
     // Usage: invoke this function on N different CPUs with the same participants=N.
+    // The barrier serves as a synchronization point to ensure all 
+    // processes begin execution simulateously.To trigger extreme lock contention via
+    // instantaneous high pressure for detecting race conditions.
     // If called fewer than participants times, it will spin forever (by design).
     if(participants <= 0 || participants > NCPU){
         printf("[kvm_test] stress_parallel: invalid participants=%d (NCPU=%d)\n", participants, NCPU);

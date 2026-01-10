@@ -3,7 +3,10 @@
 #   void swtch(struct context *old, struct context *new);
 # 
 # Save current registers in old. Load from new.	
-
+# Callee-Saved:s0-s11,sp,ra.These registers are "persistent" across
+# functions calls, if current function want to change these value, it 
+# must build a temporary buffer(always stack) to store these.
+# (Complier will generate this prologue automatically but exclude .S function)
 
 .globl swtch
 swtch:

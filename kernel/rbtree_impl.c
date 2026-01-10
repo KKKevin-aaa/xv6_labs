@@ -13,9 +13,19 @@
 * 3. red node's child node should be black(Red-red)
 * 4. start by arbitry node to all leaf_node, these path should contain the same black node.(black-Height)
 */
-#define MAX_TEST_NODE 100
+#ifdef DEBUG_RBTREE
+#define RBTREE_TRACE(fmt, ...) \
+    do { \
+        printf("[RBTREE:%s] " fmt, __func__, ##__VA_ARGS__); \
+    } while (0)
+#else
+#define RBTREE_TRACE(fmt, ...) \
+    do { \
+    } while (0)
+#endif
+#define MAX_TEST_NODE 800
 #define PER_MAX_DEPTH   64  //limit the depth of tree as 64
-#define NR_BITMAP   16
+#define NR_BITMAP   4
 static vm_area_struct_t *check_bts_prop[MAX_TEST_NODE];
 static rb_node_t *path_stack[PER_MAX_DEPTH*NR_BITMAP];
 static uint64 filter_array[NR_BITMAP];
@@ -67,7 +77,10 @@ void Cycle_detection(rb_root_t *root){
 
 static int mid_order_trav(rb_node_t *node, int *index, vm_area_struct_t **array){
     //also check double property and compare the height of two children(if exist.)
-    if(*index>=MAX_TEST_NODE)  panic("plz relarge this array.\n");
+    if(*index>=MAX_TEST_NODE){
+        RBTREE_TRACE("plz relarge this array!\n");
+        panic("Beyond the predefined maixmum capacity.\n");
+    }
     if(node==0) return 0;
     if(node->rb_left==NULL && node->rb_right==NULL){
         array[(*index)++]=rb_entry(node, vm_area_struct_t, vm_rb_node);
@@ -403,8 +416,6 @@ start_fixup:
 
 void rb_link_node(rb_node_t *node, rb_node_t *parent, rb_node_t **rb_link){
     if(node==NULL || rb_link==NULL)   return;
-    if((uint64)node==0x87d931e8 && (uint64)parent!=0x87d930f8)
-        panic("rb_link_node:link to root.\n");
     rb_set_parent(node, parent);
     node->rb_left=NULL;
     node->rb_right=NULL;

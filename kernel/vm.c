@@ -210,12 +210,16 @@ void split_into_blocks(res_block * rblocks, pagetable_t pagetable, uint64 va, ui
     memset((void *)new_pagetable, 0, PGSIZE);
     uint64 cur_pa=PTE2PA(*old_pte), basic_stride=get_step_size(cur_level-1), delete_pa=cur_pa;
     void *new_block_pa;
-    if(new_pagetable==NULL) panic("Out-of-memory!");
+    if(new_pagetable==NULL){
+        panic("Out-of-memory!");
+    }
     for(int i=0;i<512;i++){
         if(rblocks[idx].bitmap[i]!=0){
             //Inherits RXW permissions from the original huge page, becoming a new small leaf.
             new_block_pa=alloc_memory(basic_stride);
-            if(new_block_pa==NULL)  panic("out-of-memory!");
+            if(new_block_pa==NULL){
+                panic("out-of-memory!");
+            }
             //Insufficient intermediate space.Update failed.
             memmove(new_block_pa, (void *)cur_pa, basic_stride);
             new_pagetable[i]=PA2PTE((uint64)new_block_pa) | PTE_FLAGS(*old_pte);
@@ -238,7 +242,9 @@ pagetable_t split_and_prune(pte_t pte, uint64 start_vpn, uint64 end_vpn, uint64 
         VM_TRACE("alloc new pagetable to replace leaf-pte\n");
     #endif
     pagetable_t new_pagetable=(pagetable_t)alloc_memory(PGSIZE);
-    if(new_pagetable==0)    panic("out-of-memory");
+    if(new_pagetable==0){
+        panic("out-of-memory");
+    }
     memset((void *)new_pagetable, 0, PGSIZE);
     for(int i=0;i<start_vpn;i++){
         new_pagetable[i]=PA2PTE(cur_pa) | PTE_FLAGS(pte);
@@ -465,7 +471,10 @@ int recursive_copy_map(pte_t *dst_pg, pte_t *src_pg, uint64 size, int level){
             uint64 num_4k_page=src_phy_size/PGSIZE, page_per_slot=1ull<<(9*level);
             uint64 step=num_4k_page/page_per_slot;
             void *mem=alloc_memory(src_phy_size);
-            if(mem==NULL)   return -1;
+            if(mem==NULL){
+                VM_TRACE("");
+                return -1;
+            }
             memmove(mem, (void *)src_pa, src_phy_size);
             if(step <= 0) step = 1;
             for(int j = 0; j < step; j++){
@@ -479,7 +488,10 @@ int recursive_copy_map(pte_t *dst_pg, pte_t *src_pg, uint64 size, int level){
         else{   //Partial/Split(size < basic_stride)
             if(level!=0){
                 pte_t *new_dst_pg=(pte_t *)alloc_memory(PGSIZE);
-                if(new_dst_pg==NULL)    return -1;
+                if(new_dst_pg==NULL){
+                    VM_TRACE("");
+                    return -1;
+                }
                 dst_pg[i]=PA2PTE((uint64)new_dst_pg) | PTE_V;
                 pte_t *next_src_table=(pte_t *)PTE2PA(src_entry);
                 return recursive_copy_map(new_dst_pg, next_src_table, size, level-1);
@@ -510,7 +522,10 @@ int copy_partial_block(struct vm_partial_copy_ctx p1){   //Reuse ret_va as src
                 chunk_size=p1.size; //fixed as superpgsize(for reservation mechanism)
                 uint64 rb_idx=(p1.base_va - p1.rblocks[0].va)/SUPERPGSIZE;
                 void *mem=alloc_memory(SUPERPGSIZE);
-                if(mem==NULL)   return -1;
+                if(mem==NULL){
+                    VM_TRACE("");
+                    return -1;
+                }
                 memset(mem, 0, SUPERPGSIZE);
                 //partial copy,should initialize first
                 memmove(mem, (void *)p1.src_pa, chunk_size);
@@ -540,7 +555,10 @@ int copy_partial_block(struct vm_partial_copy_ctx p1){   //Reuse ret_va as src
                 uint64 num_4k_page=chunk_size/PGSIZE, page_per_slot=1ull<<(9*p1.level);
                 uint64 step=num_4k_page/page_per_slot;
                 void *mem=alloc_memory(chunk_size);
-                if(mem==NULL)   return -1;
+                if(mem==NULL){
+                    VM_TRACE("");
+                    return -1;
+                }
                 memmove(mem, (void *)p1.src_pa, chunk_size);
                 if(step <= 0) step = 1;
                 for(int j = 0; j < step; j++){
@@ -558,7 +576,10 @@ int copy_partial_block(struct vm_partial_copy_ctx p1){   //Reuse ret_va as src
             if(p1.level!=0){    //The current copy is insuffient for filling current level stride
                 //Or it is an intermidate node.(alloc one pagetable and enter sub-level recursively.)
                 pte_t *new_dst_pt=(pte_t *)alloc_memory(PGSIZE);
-                if(new_dst_pt==NULL)    return -1;
+                if(new_dst_pt==NULL){
+                    VM_TRACE("");
+                    return -1;
+                }
                 memset((void *)new_dst_pt, 0, PGSIZE);
                 p1.dst_pt[i]=PA2PTE((uint64)new_dst_pt) | PTE_V;
                 p1.level--;

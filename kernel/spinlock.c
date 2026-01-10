@@ -18,6 +18,12 @@ void initlock(struct spinlock *lk, char *name) {
 // Loops (spins) until the lock is acquired.
 void acquire(struct spinlock *lk) {
     push_off();  // disable interrupts to avoid deadlock.
+    //potential deadlock without push_off, process A acquired this lock, and now 
+    //an interrupt occurs and try to acquire this lock.Because process A is suppressed
+    //by the interrupt and cannot release the lock,the ISR will spin indefinitely on the same
+    //CPU, leading th a system deadlock.
+
+
     if (holding(lk)) panic("acquire");
 
     // On RISC-V, sync_lock_test_and_set turns into an atomic swap:

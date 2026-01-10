@@ -20,6 +20,12 @@
     do { \
     } while (0)
 #endif
+void dump_memory_map();     //Called with OOM error panic.
+void swap_out(void);
+void swap_in(void);
+struct spinlock swap_lock;
+static struct proc *swap_kthread=NULL;
+
 // Maximun size is 2^max_order*4KB, and PHYsize=128MB
 // here we choose maximun size is 16MB, 
 // and larger memory requirements can fulfilled by combining smaller components
@@ -183,6 +189,7 @@ static void add_to_list_nolock(struct page *p, uint64 order){  //free
         panic("add_to_list");
     }
 }
+
 uint64 get_order(uint64 pa){
     if(pa%PGSIZE!=0)
         panic("get order: Lookup unaligned address!");
@@ -197,6 +204,7 @@ uint64 get_order(uint64 pa){
     release(&kmem.lock);
     return tmp;
 }
+
 uint8 is_head(uint64 pa){
     if(pa%PGSIZE!=0)
     panic("get order: Lookup unaligned address!");
@@ -206,16 +214,19 @@ uint8 is_head(uint64 pa){
     release(&kmem.lock);
     return ret;
 }
+
 void print_memorytable(){   //with lock
     acquire(&kmem.lock);
     release(&kmem.lock);
 }
+
 void *alloc_memory(uint64 size){
     //check first, should be 4kB-aligned
     //And it must be ensured that only a single page is allocated within alloc_memory.
     if(i_log2(size & -size)<12){
+        dump_memory_map();
         panic("alloc memory: should aligned with 4kB");
-        return 0;
+        return NULL;
     }
     uint8 order=i_log2(size-1)-11;
     if(size != (1ull<<(order+ORDER_BASE))){   //size must be a valid set member.No internal splitting performed.
@@ -226,8 +237,9 @@ void *alloc_memory(uint64 size){
     uint64 step;
     acquire(&kmem.lock);
     if(order>MAX_ORDER){
-        panic("out-of-memory!");
-        return 0;
+        wakeup((void *)&swap_kthread);
+        sleep((void *)&kmem, &swap_lock);
+        return NULL;
     }
     //In general cases, allocating a single is sufficient.
     uint8 split_order=order;uint64 offset;
@@ -236,7 +248,9 @@ void *alloc_memory(uint64 size){
     }
     if(split_order>MAX_ORDER){
         release(&kmem.lock);
-        panic("alloc_memory: out-of-memory!");
+        dump_memory_map();
+        wakeup((void *)&kmem);
+        // panic("alloc_memory: out-of-memory!");
     }
     tmp=kmem.free_area[split_order].head;   //lower page
     high_tmp=tmp;  //higher page
@@ -265,6 +279,7 @@ void *alloc_memory(uint64 size){
 #endif
     return (void *)(offset+KERNBASE);
 }
+
 void reclaim_and_merge(uint64 head_pfn, uint64 init_order){
     //Exclusively reclaim blocks of a given order.
     //Also attempt to merge current block with its adjacent block to redur fragmentation.
@@ -287,6 +302,7 @@ void reclaim_and_merge(uint64 head_pfn, uint64 init_order){
     blocks_flags_reset(&kmem.mem_bitmaps[head_pfn], init_order, 1);
     add_to_list_nolock(&kmem.mem_bitmaps[head_pfn], init_order);
 }
+
 void free_pages_nolock(void *pa, uint64 size){
     //When releasing an incomplete page, decompage it and splice the 
     //seperated fragments back into their respective slop.
@@ -303,7 +319,7 @@ void free_pages_nolock(void *pa, uint64 size){
     if(size != (1ull<<(req_order+ORDER_BASE))){   
         //size must be a valid set member.No internal splitting performed.
         KALLOC_TRACE("free_pages: free size is not basic unit supported!");
-        panic("alloc_memory");
+        panic("free_pages_nolock!");
     }
     b_tail_pfn=b_head_pfn+(1ull<<req_order);
     ensure_pfn_valid(b_tail_pfn-1);
@@ -454,7 +470,9 @@ void kinit() {
     KALLOC_TRACE("initializing memory allocator\n");
 #endif
     initlock(&kmem.lock, "kmem");
+    initlock(&swap_lock, "kmem_swap");
     init_whole_area((uint64)end, PHYSTOP);
+    swap_kthread=kthread_create("swap_worker", swap_out);
 #ifdef DEBUG_KALLOC
     KALLOC_TRACE("initialization complete\n");
 #endif
@@ -495,12 +513,18 @@ void *kalloc(void) {
 #endif
     return alloc_memory(PGSIZE);
 }
+
+//check the physical memory usage!
 void dump_memory_map(){ //holding the lock
     printf("Address Range           Size      State    Order\n");
     printf("------------------------------------------------\n");
     uint64 cur_pfn=start_pfn, end_pfn, size, cur_order;
     struct page *p;
-    acquire(&kmem.lock);
+    uint8 lock_here=0;
+    if(!holding(&kmem.lock)){
+        lock_here=1;
+        acquire(&kmem.lock);
+    }
     printf("0x0 - 0x%llx  0x%llx pages  [Program]   -1\n", 
         (uint64)(kmem.mem_bitmaps), (uint64)(kmem.mem_bitmaps)/PGSIZE);
     printf("0x%llx - 0x%llx  0x%llx pages  [Membitmaps]   -1\n", 
@@ -523,8 +547,9 @@ void dump_memory_map(){ //holding the lock
         }
         else    panic("Unorganized memory!");
     }
-    release(&kmem.lock);
+    if(lock_here==1)    release(&kmem.lock);
 }
+
 //Use a single-byte repetitive pattern to verify and set poison.
 int check_poison(void *ptr, uint64 size){
     //return 0 while all poison(clean), return -1 means dirty
@@ -560,4 +585,19 @@ int set_poison(void *ptr, uint64 size){
     //for SIMD optimization and Code simplicity,use memset directly
     memset(ptr, POISON_BYTE, size);
     return 0;
+}
+
+
+void swap_out(void){
+    release(&swap_kthread->lock);
+    printf("Swap out started on pid %d\n", myproc()->pid);
+    for(;;){
+        acquire(&swap_lock);
+        sleep((void *)&swap_kthread, &swap_lock);   //
+        printf("Now waking up to reclaim pages...\n");
+
+        //done, now wakeup to inform all waiting process.
+        wakeup((void *)&kmem);
+    }
+
 }

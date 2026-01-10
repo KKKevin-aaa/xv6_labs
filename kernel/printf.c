@@ -332,12 +332,13 @@ cleanup:
     iunlock(data_ip);
     return ret;
 }
+
 uint64 sys_load_debug_sym(void){
     // test_vma_slab_allocator();
     // test_vma_rbtree_and_list();
     // test_kvmalloc_integrity();
     // test_unmapped_area_search();
-    test_kvm_stress_worker(20000, 256, 64);
+    test_kvm_stress_worker(40000, 4096, 256);
     return load_debug_sym_vm();
 }
 
@@ -425,9 +426,13 @@ void backtrace(){
     }
 }
 
-void panic(char *s) {
+//The underlying object that performs the actual work.
+void __panic(const char *file_name, int line_no, const char * func_name, char *s) {
     //Enter panic, system are in highly unstable state,
     //no interrupts, no locks, no allocations!Lazy Loading are strictly forbidden
+    void *caller_addr=__builtin_return_address(0);
+    //get the return address of current function stack.(0 represents the current level)
+    //(1 represents the caller), and panic have not return yet, so use 0.
     intr_off();
     if(__sync_lock_test_and_set(&panic_cpu_lock, 1)){
         //Used to 0, set 1 , return 0. continue execute
@@ -436,7 +441,8 @@ void panic(char *s) {
     }
     //Winner logic
     panicking = 1;
-    printf("panic: ");
+    printf("PANIC at address %p in %s at %s:%d\n", 
+        caller_addr, func_name, file_name, line_no);
     printf("%s\n", s);
     backtrace();
     panicked = 1;  // freeze uart output from other CPUs
