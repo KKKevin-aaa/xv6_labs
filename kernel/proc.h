@@ -114,6 +114,7 @@ struct proc {              // Process control block(PCB)
     struct inode *cwd;           // Current directory
     char name[16];               // Process name (debugging)
     res_block rb_array[MAX_RES_BLOCK];// Track the init heap start to support reserved heap area.
+    struct mm_struct *mm;
 };
 
 struct vm_dupl_ctx {

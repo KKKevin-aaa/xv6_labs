@@ -113,6 +113,9 @@ static struct proc *allocproc(void) {
     for (p = proc; p < &proc[NPROC]; p++) {
         acquire(&p->lock);
         if (p->state == UNUSED) {
+            if(p->mm==NULL){
+                
+            }
             goto found;
         } else {
             release(&p->lock);
@@ -568,10 +571,8 @@ void forkret(void) {
 void sleep(void *waitChannel, struct spinlock *lk) {
     struct proc *p = myproc();
 
-    // Must acquire p->lock in order to
-    // change p->state and then call scheduleProcess.
-    // Once we hold p->lock, we can be
-    // guaranteed that we won't miss any wakeup
+    // Must acquire p->lock in order to change p->state and then call scheduleProcess.
+    // Once we hold p->lock, we can be guaranteed that we won't miss any wakeup
     // (wakeup locks p->lock, otherwise we will sleep forever)
     // so it's okay to release lk.
 
@@ -600,7 +601,8 @@ void sleep(void *waitChannel, struct spinlock *lk) {
 // Caller should hold the condition lock.
 void wakeup(void *waitChannel) {
     struct proc *p;
-
+    //Sequentially acquires process lock to check conditions, updating the state
+    // make it runnable.
     for (p = proc; p < &proc[NPROC]; p++) {
         if (p != myproc()) {
             acquire(&p->lock);

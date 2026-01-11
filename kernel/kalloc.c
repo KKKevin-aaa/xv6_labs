@@ -23,7 +23,9 @@
 void dump_memory_map();     //Called with OOM error panic.
 void swap_out(void);
 void swap_in(void);
-struct spinlock swap_lock;
+struct spinlock swap_lock;  //A logic lock protecting the "need_swap" signal 
+// and sleep/wake automicity for brief duration.Seperate from "kmem.lock" to avoid scheduling latency.
+extern struct spinlock rmap_lock;
 static struct proc *swap_kthread=NULL;
 
 // Maximun size is 2^max_order*4KB, and PHYsize=128MB
@@ -44,15 +46,21 @@ static struct proc *swap_kthread=NULL;
 #define PA2PAGE_ASSERT(pa)    get_page_desc_assert(paddr_to_pfn((uint64)(pa)))
 uint64 total_pages;
 uint64 free_start_addr;
-uint64 start_pfn;   //NOTE:start from start_pfn instead of 0
+uint64 start_pfn;   //NOTE:start from "start_pfn" instead of 0
 extern char end[];  // first address after kernel.
                     // defined by kernel.ld.
+
 extern res_block rb_array[MAX_RES_BLOCK];
-//NOTE: ----------SELF-DESCRIBING PGYSICAL PAGES---------------------------------
+//NOTE: ----------SELF-DESCRIBING PHYSICAL PAGES---------------------------------
 struct page{
     uint64 flags;   //If bit 63 is 1:record order, size is 2^(order + ORDER_BASE)
     //To support partial deallocation, embed the head offset within order metadata.(bit 63 is 0)
     //which means the maximum num is 1ull<<62(>MAX_Order), and last bit 0 indicate free or occuiped?
+
+    void *rmapping; //Reverse mapping to virtual address.
+    //bit 0==0:point to struct address_sapce, bit 0==1:point to struct anon_vma.
+    uint64 index;
+
     struct page *next;
     struct page *prev;  //for delete node form list quickly
 };
@@ -60,39 +68,52 @@ struct listhead{
     struct page *head;
 };
 struct {    //Anonymous structure(Single Pattern)
-    struct spinlock lock;
+    struct spinlock lock;   //NOTE: Principle--acquire, get next free frame, release
     //Buddy system, minimum page size is 4096 bytes(4kB)
     struct page *mem_bitmaps;    //Embedded Array
     struct listhead free_area[MAX_ORDER+1];
 } kmem;
 static void free_pages_nolock(void *pa, uint64 size);
+
+inline void sync_rmap(void *p, uint64 size, pte_t *pte){
+    if(!holding(&rmap_lock))
+        panic("sync_ramp without lock.\n");
+    
+}
+
 static inline void w_head_order(struct page *p, uint64 order){
     uint64 existing_flag= p->flags & ~(P_DATA_MASK | P_TYPE_MASK);
     uint64 new_val = P_TYPE_HEAD | ((order<<1) & P_DATA_MASK);
     p->flags = existing_flag | new_val;
 }
+
 static inline void w_tail_offset(struct page *p, uint64 offset){
     uint64 existing_flag= p->flags & ~(P_DATA_MASK | P_TYPE_MASK);
     uint64 new_val = P_TYPE_TAIL| ((offset<<1) & P_DATA_MASK);
     p->flags = existing_flag | new_val;
 }
+
 static inline void set_free(struct page * p){
     p->flags |= P_FREE_MASK;
 }
+
 static inline void set_alloc(struct page *p){
     //Syntax Error: function body must be a compound statement
     p->flags &= ~P_FREE_MASK;
 }
+
 static inline uint64 paddr_to_pfn(uint64 pa){    //paddr convert to Page Frame Number
     if(pa%PGSIZE!=0)    panic("paddr_to_pfn: unaligned!");
     if(pa<KERNBASE || pa>=PHYSTOP)  panic("paddr_to_pfn, out of range");
     return (pa-KERNBASE)/PGSIZE;
 }
+
 //Defensive Programming, provide two interface(must exist and try get)
 static inline uint64 pfn_to_paddr(uint64 pfn){
     if(pfn>total_pages)    panic("pfn_to_paddr: Segment fault");
     return (pfn*PGSIZE + KERNBASE);
 }
+
 static inline void ensure_pfn_valid(uint64 pfn){
     if(pfn < start_pfn || pfn >= total_pages){
         KALLOC_TRACE("PMM error:Access pfn 0x%llx out-of-range[0x%llx, 0x%llx)",
@@ -100,15 +121,18 @@ static inline void ensure_pfn_valid(uint64 pfn){
         panic("pfn invalid!");
     }
 }
+
 static inline struct page *get_page_desc_safe(uint64 pfn){
     if(pfn < start_pfn || pfn >= total_pages)
         return NULL;
     return &kmem.mem_bitmaps[pfn];
 }
+
 static inline struct page *get_page_desc_assert(uint64 pfn){
     ensure_pfn_valid(pfn);
     return &kmem.mem_bitmaps[pfn];
 }
+
 //NOTE: all recorded order is relative to ORDER_BASE
 static void blocks_flags_reset(struct page *p, uint64 new_order, uint8 free){
     // Caller ensures p validity!
@@ -126,6 +150,7 @@ static void blocks_flags_reset(struct page *p, uint64 new_order, uint8 free){
         pfn++;
     }
 }
+
 static void init_whole_area(uint64 end_addr, uint64 maximum_addr){
     acquire(&kmem.lock);
     end_addr = PGROUNDUP(end_addr);
@@ -153,6 +178,7 @@ static void init_whole_area(uint64 end_addr, uint64 maximum_addr){
     release(&kmem.lock);
 }
 //Ensure the element in the list are valid(in the range[start_pfn ,total_size))
+
 static void del_from_list_nolock(struct page *p, uint64 order){    //Occupied
     struct page *prev=p->prev, *next=p->next;
     //check first!
@@ -173,6 +199,7 @@ static void del_from_list_nolock(struct page *p, uint64 order){    //Occupied
         panic("del_form_list");
     }
 }
+
 static void add_to_list_nolock(struct page *p, uint64 order){  //free
     uint64 p_pfn=p-kmem.mem_bitmaps;
     ensure_pfn_valid(p_pfn+(1ull<<order)-1);
@@ -215,6 +242,8 @@ uint8 is_head(uint64 pa){
     return ret;
 }
 
+
+
 void print_memorytable(){   //with lock
     acquire(&kmem.lock);
     release(&kmem.lock);
@@ -237,8 +266,12 @@ void *alloc_memory(uint64 size){
     uint64 step;
     acquire(&kmem.lock);
     if(order>MAX_ORDER){
+        acquire(&swap_lock);
         wakeup((void *)&swap_kthread);
+        release(&kmem.lock);
         sleep((void *)&kmem, &swap_lock);
+        acquire(&kmem.lock);
+        release(&swap_lock);
         return NULL;
     }
     //In general cases, allocating a single is sufficient.
@@ -318,7 +351,6 @@ void free_pages_nolock(void *pa, uint64 size){
     req_order=i_log2(size-1)-11;
     if(size != (1ull<<(req_order+ORDER_BASE))){   
         //size must be a valid set member.No internal splitting performed.
-        KALLOC_TRACE("free_pages: free size is not basic unit supported!");
         panic("free_pages_nolock!");
     }
     b_tail_pfn=b_head_pfn+(1ull<<req_order);
@@ -353,6 +385,7 @@ void free_pages_nolock(void *pa, uint64 size){
         panic("free_page: (non-header page)fail!");
     reclaim_and_merge(b_head_pfn, req_order);
 }
+
 void free_pages(void *pa, uint64 size){
     acquire(&kmem.lock);
     free_pages_nolock(pa, size);
@@ -424,6 +457,7 @@ int reclaim_orphan_pages(void *pa, uint64 size){
     }
     return 0;
 }
+
 int is_all_same_swar(const uint8 *data, uint64 len){    //SIMD Within A Register
     if(len==0)  return 1;
     uint8 ref=data[0];
@@ -580,6 +614,7 @@ int check_poison(void *ptr, uint64 size){
     }
     return 0;
 }
+
 int set_poison(void *ptr, uint64 size){
     if(ptr==NULL || size==0)   return -1;
     //for SIMD optimization and Code simplicity,use memset directly
@@ -588,16 +623,29 @@ int set_poison(void *ptr, uint64 size){
 }
 
 
+
+
+
 void swap_out(void){
     release(&swap_kthread->lock);
+    extern struct proc proc[NPROC];
     printf("Swap out started on pid %d\n", myproc()->pid);
     for(;;){
         acquire(&swap_lock);
-        sleep((void *)&swap_kthread, &swap_lock);   //
+        while(0);
+        sleep((void *)&swap_kthread, &swap_lock);   //Wake up 
+        release(&swap_lock);    //Allow other processes to signal swap_kthread and enter sleep.
         printf("Now waking up to reclaim pages...\n");
+        //Locate infrequently used physical pages to swap them to the disk(without kmem_lock)
+        for(struct proc *tmp=proc;tmp<&proc[NPROC];tmp++){
+
+        }
+        //Now found it, acquire the lock to update kmem
+        acquire(&kmem.lock);
 
         //done, now wakeup to inform all waiting process.
         wakeup((void *)&kmem);
+        release(&kmem.lock);
     }
 
 }

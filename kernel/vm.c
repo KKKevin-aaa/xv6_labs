@@ -20,9 +20,9 @@
     } while (0)
 #endif
 #define INDENT_STR(lvl) ((lvl)==2 ? "" : ((lvl)==1 ? "  |-- " : "  |    |-- "))
-/*
- * the kernel's page table.
- */
+
+struct spinlock rmap_lock;  //All operations(reading, writing ...) of the pte.
+
 // res_block rblocks[MAX_RES_BLOCK] __attribute__((unused)) ={0};  //static Global variable
 void walk_all_page(uint64 start_va, pagetable_t pagetable, int level);
 
@@ -40,26 +40,26 @@ void walk_all_page(uint64 start_va, pagetable_t pagetable, int level);
 //    0..11 -- 12 bits of byte offset within the page.
 // To support superpage, we introduce new paras: target_level
 // and stop while level equals to target_level(0 for 4kB, 1 for 2MB, 2 for 1GB)
+
 pte_t *walk_internal(pagetable_t pagetable, uint64 va, int alloc, int target_level, int *found_level) {
-// #ifdef DEBUG_VM
-//     VM_TRACE("pagetable=%p va=%p alloc=%d target_level=%d\n", pagetable, (void *)va, alloc, target_level);
-// #endif
     if (va >= MAXVA) panic("walk");
     for (int level = 2; level > target_level; level--) {    //Tips: start level can be changed!
         pte_t *pte = &pagetable[PX(level, va)]; //math
-        if (*pte & PTE_V) { //Locate the next level page table using pte(create and init if necessary)
+        if (*pte & PTE_V) { //Locate the next level pagetable using pte(create and init if necessary)
         //Superpage support
-        // #ifdef LAB_PGTBL
             if (PTE_LEAF(*pte)){    //early stop(record the current-level)
                 if(found_level!=NULL)   *found_level=level;
                 return pte;
             }
             pagetable = (pagetable_t)PTE2PA(*pte);
-        // #endif
         } else {
             if (!alloc || (pagetable = (pde_t *)kalloc()) == 0) return 0;
+            //create a new mappaing.
             memset(pagetable, 0, PGSIZE);
-            *pte = PA2PTE(pagetable) | PTE_V;   
+            acquire(&rmap_lock);
+            *pte = PA2PTE(pagetable) | PTE_V;
+            sync_rmap(pagetable, PGSIZE, pte);
+            release(&rmap_lock);
             //Don't set R/W/X, so this is directory entry,not a superpage
         }
     }

@@ -56,6 +56,7 @@ struct debug_header_t{
     uint32 fileid_cnt;
     uint32 line_cnt;
 };
+
 static char digits[] = "0123456789abcdef";
 
 static void printint(long long xx, int base, int sign) {
@@ -86,14 +87,10 @@ static void printptr(uint64 x) {
 }
 
 // Print to the console.
-int printf(char *fmt, ...) {
-    va_list ap;
+int vprintf(char *fmt, va_list ap) {
     int i, cx, c0, c1, c2;
     char *s;
-
-    if (panicking == 0) acquire(&pr.lock);
     //for panicking, bypass lock verification to ensure emergency diagnostics are printed.
-    va_start(ap, fmt);
     for (i = 0; (cx = fmt[i] & 0xff) != 0; i++) {
         if (cx != '%') {
             consputc(cx);
@@ -145,12 +142,20 @@ int printf(char *fmt, ...) {
             consputc(c0);
         }
     }
-    va_end(ap);
-
-    if (panicking == 0) release(&pr.lock);
 
     return 0;
 }
+
+int printf(char *fmt, ...){
+    va_list ap;
+    if(panicking==0)    acquire(&pr.lock);
+    va_start(ap, fmt);
+    int ret=vprintf(fmt, ap);
+    va_end(ap);
+    if(panicking==0)    release(&pr.lock);
+    return ret;
+}
+
 //Another method: vmalloc(virtual Contiguous Mapping)
 //Allocates multiple non-contiguous physical pages and modifies the
 //kernel page tables to map them into a contiguous virtual address range.
@@ -233,15 +238,7 @@ cleanup:
 // void find_debug_info_vm(uint64 pa){
 //     find_debug_info(pa);
 // }
-//Another method: The Segmented Indexing Approach
-//Manages a collection of discrete physical pages using a software directory
-//Using the helper function to calculate the correct page index.
-// int load_debug_sym_si(){
 
-// }
-// void find_debug_info_si(uint64){
-
-// }
 
 //The Eariest way, align the required page to 4KB^n.(Buddy system)
 int load_debug_sym(){
@@ -427,7 +424,7 @@ void backtrace(){
 }
 
 //The underlying object that performs the actual work.
-void __panic(const char *file_name, int line_no, const char * func_name, char *s) {
+void __panic(const char *file_name, int line_no, const char * func_name, char *s, ...) {
     //Enter panic, system are in highly unstable state,
     //no interrupts, no locks, no allocations!Lazy Loading are strictly forbidden
     void *caller_addr=__builtin_return_address(0);
@@ -441,9 +438,11 @@ void __panic(const char *file_name, int line_no, const char * func_name, char *s
     }
     //Winner logic
     panicking = 1;
-    printf("PANIC at address %p in %s at %s:%d\n", 
-        caller_addr, func_name, file_name, line_no);
-    printf("%s\n", s);
+    printf("PANIC at address %p in %s at %s:%d\n", caller_addr, func_name, file_name, line_no);
+    va_list ap;
+    va_start(ap, s);
+    vprintf(s, ap);
+    va_end(ap);
     backtrace();
     panicked = 1;  // freeze uart output from other CPUs
     for (;;);

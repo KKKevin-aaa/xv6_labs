@@ -20,7 +20,10 @@ typedef struct vm_area_struct vm_area_struct_t;
 typedef struct vma_context  vma_context_t;
 typedef struct mm_struct mm_struct_t;
 typedef struct vm_operation_struct vm_operation_struct_t;
+
 typedef struct page_slab_header page_slab_header_t;
+typedef struct slab_cache slab_cache_t;
+
 typedef struct vma_pool cpu_vma_pool_t;
 typedef struct mem_trans_stash mem_trans_stash_t;
 #ifndef offsetof
@@ -82,6 +85,13 @@ int             writei(struct inode*, int, uint64, uint, uint);
 void            itrunc(struct inode*);
 void            ireclaim(int);
 
+// slab.c
+void            init_slab_system(void);
+void*           slab_refill(slab_cache_t *cache);
+void*           slab_alloc(slab_cache_t *cache);
+
+
+
 // kalloc.c
 void*           kalloc(void);
 void            kfree(void *);
@@ -97,6 +107,8 @@ int             is_directory_empty(pagetable_t pagetable);
 void            dump_memory_map();
 int             check_poison(void *ptr, uint64 size);
 int             set_poison(void *ptr, uint64 size);
+inline          void sync_rmap(void *p, uint64 size, pte_t *pte);
+
 // log.c
 void            initlog(int, struct superblock*);
 void            log_write(struct buf*);
@@ -113,7 +125,7 @@ int             pipewrite(struct pipe*, uint64, int);
 int             printf(char*, ...) __attribute__ ((format (printf, 1, 2)));
 void __panic(const char *, int, const char *, char *s)  __attribute__((noreturn));
 //A Useful macro, get more necessary info without DEBUG-mode
-#define panic(msg)    __panic(__FILE__, __LINE__, __func__, (msg))
+#define panic(msg, ...)    __panic(__FILE__, __LINE__, __func__, (msg), ##__VA_ARGS__)
 
 void            printfinit(void);
 void            backtrace(void);
@@ -236,13 +248,8 @@ void            rb_link_node(rb_node_t *node, rb_node_t *rb_parent, rb_node_t **
 void            rb_insert_color(rb_node_t *node, rb_root_t*root);
 void            rb_erase(rb_node_t *node, rb_root_t*root);
 
-
-//kvm.c
-void            kvminit(void);
-int             kvmmap_safe(pagetable_t, uint64, uint64, uint64, int);
-void            kvminithart(void);
+//mm.c
 vm_area_struct_t *alloc_vma_node(void);
-vm_area_struct_t *alloc_kernel_vma(void);
 int             reclaim_vma_node(vm_area_struct_t *);
 vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr);
 int             insert_vma(mm_struct_t *mm, vm_area_struct_t *vma);
@@ -250,6 +257,13 @@ int             remove_vma(mm_struct_t *mm, vm_area_struct_t *vma);
 //Detailed implemation of rb_node,should defined and finined in here, not in rbtree.h
 rb_node_t*      rb_search(rb_node_t *node, vm_area_struct_t **predecessor, 
                         vm_area_struct_t ** successor, const rb_root_t *root);
+
+
+//kvm.c
+void            kvminit(void);
+int             kvmmap_safe(pagetable_t, uint64, uint64, uint64, int);
+void            kvminithart(void);
+vm_area_struct_t *alloc_kernel_vma(void);
 void*           kvmalloc(pagetable_t, uint64, int);
 uint64          kvmdealloc(pagetable_t, uint64, uint64);
 void            test_kvm_stress_parallel(int , int , int , int );
