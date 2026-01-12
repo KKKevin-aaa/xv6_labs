@@ -12,7 +12,10 @@
 #include "slab.h"
 #include "mm.h"
 
-slab_cache_t cpu_vma_pool[NCPU];
+//Compresssing pre-CPU data within caches eliminates the need of 
+// create a seperate cache object for each CPU entry.
+slab_cache_t *vma_cache=NULL;
+slab_cache_t *mm_cache=NULL;
 
 uint64 gene_page_prot(uint64 vm_flags){
     //As a hardware-agnostic kernel structure, it implements the translation
@@ -32,6 +35,44 @@ uint64 gene_flags(uint64 vm_page_prot){
     if(vm_page_prot & PTE_W)    vm_flags |= PROT_WRITE;
     if(vm_page_prot & PTE_U)    vm_flags |= PROT_USER;
     return vm_flags;
+}
+
+void vma_get(vm_area_struct_t *vma){    //Acquire one reference
+    if(vma==NULL)   return;
+    __sync_fetch_and_add(&vma->ref_count, 1);
+    #ifdef DEBUG_REF
+        printf("VMA %p get:ref=%d\n", vma, vma.ref_count);
+    #endif
+}
+
+int vma_put(vm_area_struct_t *vma){    //Drop one reference
+    if(vma==NULL)   return 0;
+    int new_ref=__sync_sub_and_fetch(&vma->ref_count, 1);
+    #ifdef DEBUG_REF
+        printf("VMA %p put:ref=%d\n", vma, new_ref);
+    #endif
+    if(new_ref==0){
+        if(vma->vm_ops && vma->vm_ops->close)
+            vma->vm_ops->close(vma);
+        return reclaim_vma_node(vma);
+    }
+    else if(new_ref<0){
+        panic("VMA Ref-count underflow!Double free deteched!");
+    }
+    return 0;
+}
+
+void init_mm(void){ //Init the system(alloc prepare, )
+    vma_cache=create_slab_cache("vma_pool", sizeof(vm_area_struct_t), 8);
+    if(vma_cache==NULL){
+        panic("init vma_cache pool fail.\n");
+        return;
+    }
+    mm_cache=create_slab_cache("mm_pool", sizeof(mm_struct_t), 8);
+    if(vma_cache==NULL){
+        panic("init mm_cache pool fail.\n");
+        return;
+    }
 }
 
 vm_area_struct_t *insert_vma_helper(mm_struct_t *mm, uint64 va, uint64 sz, int perm){
@@ -64,31 +105,28 @@ vm_area_struct_t *insert_vma_helper(mm_struct_t *mm, uint64 va, uint64 sz, int p
 }
 
 //-----------------------VMA_OPERATIONS--------------------------------
-__attribute__((warn_unused_result)) vm_area_struct_t *alloc_vma_node(){
-    push_off();
-    int id=cpuid();
-    slab_cache_t *cache;
-    acquire(&cpu_vma_pool[id].pool_lock);
-    vm_area_struct_t *ret_vma=slab_alloc(cache);
-    if(ret_vma==NULL){
-        release(&cpu_vma_pool[id].pool_lock);
-        pop_off();
-        return NULL;
-    }
+
+static int vma_ctor(void *ptr){
+    //treat as vma,initialize ref_count
+    vm_area_struct_t *vma=(vm_area_struct_t *)ptr;
+    if(vma==NULL)
+        return -1;
     else{   //do some additional initialization.
-        ret_vma->ref_count=1;
-        release(&cpu_vma_pool[id].pool_lock);
-        pop_off();
-        return ret_vma;
+        vma->ref_count=1;
+        return 0;
     }
+}
+
+__attribute__((warn_unused_result)) vm_area_struct_t *alloc_vma_node(){
+    return (vm_area_struct_t *)slab_alloc(vma_cache, vma_ctor);
 }
 
 __attribute__((warn_unused_result)) mm_struct_t *mm_create() {
-    return NULL;
+    return (mm_struct_t *)slab_alloc(mm_cache, NULL);
 }
 
 int reclaim_vma_node(vm_area_struct_t *node){
-    return slab_dealloc((void *)node);
+    return slab_free((void *)node, NULL);
 }
 
 vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr){

@@ -135,33 +135,6 @@ void free_initmem(){
 }
 
 
-
-void vma_get(vm_area_struct_t *vma){    //Acquire one reference
-    if(vma==NULL)   return;
-    __sync_fetch_and_add(&vma->ref_count, 1);
-    #ifdef DEBUG_REF
-        printf("VMA %p get:ref=%d\n", vma, vma.ref_count);
-    #endif
-}
-
-int vma_put(vm_area_struct_t *vma){    //Drop one reference
-    if(vma==NULL)   return 0;
-    int new_ref=__sync_sub_and_fetch(&vma->ref_count, 1);
-    #ifdef DEBUG_REF
-        printf("VMA %p put:ref=%d\n", vma, new_ref);
-    #endif
-    if(new_ref==0){
-        if(vma->vm_ops && vma->vm_ops->close)
-            vma->vm_ops->close(vma);
-        return reclaim_vma_node(vma);
-    }
-    else if(new_ref<0){
-        panic("VMA Ref-count underflow!Double free deteched!");
-    }
-    return 0;
-}
-
-
 // Make a direct-map page table for the kernel.
 // Record the relavant info into global_mm
 pagetable_t kvmmake(void) {
@@ -231,6 +204,7 @@ void __init_code kvminit(void) {
     initlock(&kvm_lock, "kvm_pagetable lock");
     memset(&global_mm, 0, sizeof(global_mm));
     initlock(&global_mm.mm_lock, "mm_lock");
+    initlock(&rmap_lock, )
     acquire(&global_mm.mm_lock);
     kernel_pagetable = kvmmake();
     //Init lock
@@ -759,45 +733,6 @@ error:
 }
 
 //test-only code co-located to access status functions.
-
-//--------------------------------DEBUG_only functions----------------------------
-void identify_list_nolock(page_slab_header_t *page){
-    if(page==NULL || page->magic!=PAGE_SLAB_HEADER_MAGIC) 
-        panic("identify_list_nolock!\n");
-    page_slab_header_t *partial=page->cache->partial_list;
-    while(partial!=NULL){
-        if(page==partial){
-            printf("In partial list!\n");
-            return;
-        }
-        partial=partial->next_page;
-    }
-    page_slab_header_t *empty=page->cache->empty_list;
-    while(empty!=NULL){
-        if(page==empty){
-            printf("In empty list!\n");
-            return;
-        }
-        empty=empty->next_page;
-    }
-    page_slab_header_t *full=page->cache->full_list;
-    while(full!=NULL){
-        if(page==full){
-            printf("In full list!\n");
-            return;
-        }
-        full=full->next_page;
-    }
-    printf("Detached node\n");
-}
-
-void identify_list(page_slab_header_t *page){
-    if(!holding(&page->cache->pool_lock))
-        acquire(&page->cache->pool_lock);
-    identify_list_nolock(page);
-    if(holding(&page->cache->pool_lock))
-        release(&page->cache->pool_lock);
-}
 
 // ----------------------------
 // Stress tests (kernel-only)

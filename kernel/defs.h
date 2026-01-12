@@ -26,6 +26,9 @@ typedef struct slab_cache slab_cache_t;
 
 typedef struct vma_pool cpu_vma_pool_t;
 typedef struct mem_trans_stash mem_trans_stash_t;
+
+typedef struct page page_t;
+
 #ifndef offsetof
 #define offsetof(TYPE, MEMBER)  ((uint64)&((TYPE *)0)->MEMBER)
 #endif
@@ -88,8 +91,10 @@ void            ireclaim(int);
 // slab.c
 void            init_slab_system(void);
 void*           slab_refill(slab_cache_t *cache);
-void*           slab_alloc(slab_cache_t *cache);
-
+void*           slab_alloc(slab_cache_t *cache, int (*ctor)(void *));
+int             slab_dealloc(void *node);
+int             slab_free(void *obj, int (*dtor)(void *));
+slab_cache_t    *create_slab_cache(char *name, uint16 size, uint16 align);
 
 
 // kalloc.c
@@ -107,7 +112,7 @@ int             is_directory_empty(pagetable_t pagetable);
 void            dump_memory_map();
 int             check_poison(void *ptr, uint64 size);
 int             set_poison(void *ptr, uint64 size);
-inline          void sync_rmap(void *p, uint64 size, pte_t *pte);
+// inline          void sync_rmap(void *p, uint64 size, pte_t *pte);
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -154,7 +159,7 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
-struct proc *   kthread_create(const char *name, void *func(void));
+struct proc *   kthread_create(const char *name, void (*func)(void));
 
 // swtch.S
 void            swtch(struct context *store_to, struct context *load_from);
@@ -249,10 +254,19 @@ void            rb_insert_color(rb_node_t *node, rb_root_t*root);
 void            rb_erase(rb_node_t *node, rb_root_t*root);
 
 //mm.c
+void            vma_get(vm_area_struct_t *vma);
+int             vma_put(vm_area_struct_t *vma);
+void            init_mm(void);
+vm_area_struct_t *insert_vma_helper(mm_struct_t *mm, uint64 va, uint64 sz, int perm);
+vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr);
+vm_area_struct_t *find_vma_and_get(mm_struct_t *mm, uint64 vaddr);
+vm_area_struct_t *find_upper_vma_and_get(mm_struct_t *mm, uint64 vaddr);
+mm_struct_t     *mm_create();
 vm_area_struct_t *alloc_vma_node(void);
 int             reclaim_vma_node(vm_area_struct_t *);
 vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr);
 int             insert_vma(mm_struct_t *mm, vm_area_struct_t *vma);
+int             insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont);
 int             remove_vma(mm_struct_t *mm, vm_area_struct_t *vma);
 //Detailed implemation of rb_node,should defined and finined in here, not in rbtree.h
 rb_node_t*      rb_search(rb_node_t *node, vm_area_struct_t **predecessor, 

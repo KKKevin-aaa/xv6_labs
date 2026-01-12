@@ -235,9 +235,6 @@ cleanup:
     iunlock(data_ip);
     return ret;
 }
-// void find_debug_info_vm(uint64 pa){
-//     find_debug_info(pa);
-// }
 
 
 //The Eariest way, align the required page to 4KB^n.(Buddy system)
@@ -331,11 +328,11 @@ cleanup:
 }
 
 uint64 sys_load_debug_sym(void){
-    // test_vma_slab_allocator();
-    // test_vma_rbtree_and_list();
-    // test_kvmalloc_integrity();
-    // test_unmapped_area_search();
-    test_kvm_stress_worker(40000, 4096, 256);
+    test_vma_slab_allocator();
+    test_vma_rbtree_and_list();
+    test_kvmalloc_integrity();
+    test_unmapped_area_search();
+    // test_kvm_stress_worker(40000, 4096, 256);
     return load_debug_sym_vm();
 }
 

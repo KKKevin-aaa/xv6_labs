@@ -58,7 +58,7 @@ pte_t *walk_internal(pagetable_t pagetable, uint64 va, int alloc, int target_lev
             memset(pagetable, 0, PGSIZE);
             acquire(&rmap_lock);
             *pte = PA2PTE(pagetable) | PTE_V;
-            sync_rmap(pagetable, PGSIZE, pte);
+            //sync_rmap(pagetable, PGSIZE, pte);
             release(&rmap_lock);
             //Don't set R/W/X, so this is directory entry,not a superpage
         }
@@ -200,7 +200,6 @@ int mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
     }
     return 0;
 }
-
 
 void split_into_blocks(res_block * rblocks, pagetable_t pagetable, uint64 va, uint64 cur_level){
     uint16 idx=(va-rblocks[0].va)/SUPERPGSIZE;
@@ -406,7 +405,6 @@ uint64 Simp_uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int cur_leve
     return del_size;
 }
 
-//
 void uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int do_free){
 #ifdef DEBUG_VM
     VM_TRACE("va=%p size=0x%llx do_free=%d\n", (void *)va, size, do_free);
@@ -636,7 +634,6 @@ uint64 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm) {
     VM_TRACE("uvmalloc exiting success newsz=0x%llx\n", newsz);
     return newsz;
 }
-
 
 //-------------------DEALLOC------------------------------
 //Keep the same logic as uvmalloc(Binary Buddy Decomposition!)
@@ -1360,6 +1357,7 @@ uint64 free_res_memory(res_block *rblocks, pagetable_t pagetable, uint64 init_he
     }
     return newsz;
 }
+
 void reclaim_res_memory_range(res_block *rblocks, pagetable_t pagetable, uint64 start_va, uint64 end_va){
     //check if current rblocks is valid and initialize success
     uint64 block_start, block_end, intersect_start, intersect_end;
