@@ -2,6 +2,9 @@
 // kernel stacks, page-table pages,
 // and pipe buffers. Allocates whole 4096-byte pages.
 
+//A cirtical macro supports restrictive access to current private variables,
+//enabling inline characteristcic to reduce call overhead.
+
 #include "types.h"
 #include "param.h"
 #include "memlayout.h"
@@ -11,17 +14,7 @@
 #include "defs.h"
 #include "slab.h"
 #include "kalloc.h"
-// #define DEBUG_KALLOC
-#ifdef DEBUG_KALLOC
-#define KALLOC_TRACE(fmt, ...) \
-    do { \
-        printf("[KALLOC:%s] " fmt, __func__, ##__VA_ARGS__); \
-    } while (0)
-#else
-#define KALLOC_TRACE(fmt, ...) \
-    do { \
-    } while (0)
-#endif
+
 void dump_memory_map();     //Called with OOM error panic.
 void swap_out(void);
 void *swap_in(void);
@@ -30,9 +23,9 @@ struct spinlock swap_lock;  //A logic lock protecting the "need_swap" signal
 extern struct spinlock rmap_lock;
 static struct proc *swap_kthread=NULL;
 
-uint64 total_pages;
-uint64 free_start_addr;
-uint64 start_pfn;   //NOTE:start from "start_pfn" instead of 0
+static uint64 _hidden_total_pages;
+static uint64 free_start_addr;
+static uint64 _hidden_start_pfn;   //NOTE:start from "_hidden_start_pfn" instead of 0
 extern char end[];  // first address after kernel.
                     // defined by kernel.ld.
 
@@ -43,6 +36,12 @@ struct {    //Anonymous structure(Single Pattern)
     page_t *mem_bitmaps;    //Embedded Array
     struct listhead free_area[MAX_ORDER+1];
 } kmem;
+
+//Some Symbol Aliaing
+extern const uint64 total_pages __attribute__((alias("_hidden_total_pages")));
+extern const uint64 start_pfn __attribute__((alias("_hidden_start_pfn")));
+
+//Provide a const extern interface to achieve optimization without modifying the content.
 
 static void free_pages_nolock(void *pa, uint64 size);
 
@@ -84,40 +83,22 @@ static inline void set_alloc(page_t *p){
     // p->flags &= ~P_FREE_MASK;
 }
 
-static inline uint64 paddr_to_pfn(uint64 pa){    //paddr convert to Page Frame Number
-    if(pa%PGSIZE!=0)    panic("paddr_to_pfn: unaligned!");
-    if(pa<KERNBASE || pa>=PHYSTOP)  panic("paddr_to_pfn, out of range");
-    return (pa-KERNBASE)/PGSIZE;
+uint64 page2pfn(struct page *pg){
+    if(pg==NULL)  return 0;
+    return (uint64)(pg-kmem.mem_bitmaps);
 }
 
-//Defensive Programming, provide two interface(must exist and try get)
-static inline uint64 pfn_to_paddr(uint64 pfn){
-    if(pfn>total_pages)    panic("pfn_to_paddr: Segment fault");
-    return (pfn*PGSIZE + KERNBASE);
-}
-
-static inline void ensure_pfn_valid(uint64 pfn){
-    if(pfn < start_pfn || pfn >= total_pages){
-        KALLOC_TRACE("PMM error:Access pfn 0x%llx out-of-range[0x%llx, 0x%llx)",
-            pfn, start_pfn, total_pages);
-        panic("pfn invalid!");
-    }
-}
-
-static inline page_t *get_page_desc_safe(uint64 pfn){
-    if(pfn < start_pfn || pfn >= total_pages)
+page_t *get_page_desc_safe(uint64 pfn){
+    if(pfn < _hidden_start_pfn || pfn >= _hidden_total_pages)
         return NULL;
     return &kmem.mem_bitmaps[pfn];
 }
 
-static inline page_t *get_page_desc_assert(uint64 pfn){
+page_t *get_page_desc_assert(uint64 pfn){
     ensure_pfn_valid(pfn);
     return &kmem.mem_bitmaps[pfn];
 }
 
-static inline uint64 page_to_pfn(page_t *page){
-    return (uint64)(page-kmem.mem_bitmaps);
-}
 
 //NOTE: all recorded order is relative to ORDER_BASE
 static void blocks_flags_reset(page_t *p, uint64 new_order, uint8 free){
@@ -141,25 +122,25 @@ static void init_whole_area(uint64 end_addr, uint64 maximum_addr){
     acquire(&kmem.lock);
     end_addr = PGROUNDUP(end_addr);
     maximum_addr=PGROUNDDOWN(maximum_addr);
-    total_pages = (maximum_addr - KERNBASE) / PGSIZE;
+    _hidden_total_pages = (maximum_addr - KERNBASE) / PGSIZE;
     //fpn0 should always corresponds to the absolute physical base address
     kmem.mem_bitmaps=(page_t *)end_addr;
-    free_start_addr = end_addr + sizeof(page_t)*total_pages;
+    free_start_addr = end_addr + sizeof(page_t)*_hidden_total_pages;
     free_start_addr=PGROUNDUP(free_start_addr);
     //Important!Bootstrapping, solve by the cost of wasting some array element
-    total_pages= (maximum_addr - free_start_addr)/PGSIZE;
+    _hidden_total_pages= (maximum_addr - free_start_addr)/PGSIZE;
     //Skip the text,rodata segment of the program, start from the free_start_addr
-    start_pfn=paddr_to_pfn(free_start_addr);
-    memset(kmem.mem_bitmaps, 0, total_pages*sizeof(page_t));
-    for(int i=0;i<total_pages;i++){ //Set the reversed area(red zone)
+    _hidden_start_pfn=paddr2pfn(free_start_addr);
+    memset(kmem.mem_bitmaps, 0, _hidden_total_pages*sizeof(page_t));
+    for(int i=0;i<_hidden_total_pages;i++){ //Set the reversed area(red zone)
         w_head_order(&kmem.mem_bitmaps[i], 0);
         set_alloc(&kmem.mem_bitmaps[i]);
     }
     for(int i=0;i<MAX_ORDER+1;i++){
         kmem.free_area[i].head=NULL;
     }
-    for(int i=start_pfn;i<total_pages;i++){
-        free_pages_nolock((void *)pfn_to_paddr(i), PGSIZE);
+    for(int i=_hidden_start_pfn;i<_hidden_total_pages;i++){
+        free_pages_nolock((void *)pfn2paddr(i), PGSIZE);
     }
     release(&kmem.lock);
 }
@@ -209,7 +190,7 @@ uint64 get_order(uint64 pa){
     if(pa%PGSIZE!=0)
         panic("get order: Lookup unaligned address!");
     acquire(&kmem.lock);
-    page_t *p=PA2PAGE_ASSERT(pa);
+    page_t *p=get_page_desc_assert(paddr2pfn(pa));
     uint64 ret;
     if(p->flags.common.is_head==0)      ret=0;
     else    ret=p->flags.buddy_head.order;
@@ -221,7 +202,7 @@ uint8 is_head(uint64 pa){
     if(pa%PGSIZE!=0)
     panic("get order: Lookup unaligned address!");
     acquire(&kmem.lock);
-    page_t *p=PA2PAGE_ASSERT(pa);
+    page_t *p=get_page_desc_assert(paddr2pfn(pa));
     uint8 ret=p->flags.buddy_head.is_head;
     release(&kmem.lock);
     return ret;
@@ -298,7 +279,7 @@ void reclaim_and_merge(uint64 head_pfn, uint64 init_order){
     uint64 buddy_pfn;
     while(init_order<MAX_ORDER){
         buddy_pfn= head_pfn ^ (1ull<<init_order);
-        if(buddy_pfn>=total_pages || buddy_pfn<start_pfn) break;
+        if(buddy_pfn>=_hidden_total_pages || buddy_pfn<_hidden_start_pfn) break;
         buddy=get_page_desc_safe(buddy_pfn);
         if(!buddy || buddy->flags.common.type!=PG_TYPE_FREE 
                 || buddy->flags.buddy_head.order!=init_order)
@@ -323,7 +304,7 @@ void free_pages_nolock(void *pa, uint64 size){
     uint64 b_head_pfn, b_tail_pfn;
     uint64 head_pfn, mid_pfn, tail_pfn;
     page_t *b_head, *head;
-    b_head_pfn=paddr_to_pfn((uint64)pa);
+    b_head_pfn=paddr2pfn((uint64)pa);
     b_head=get_page_desc_assert(b_head_pfn);
     req_order=i_log2(size-1)-11;
     if(size != (1ull<<(req_order+ORDER_BASE))){   
@@ -387,7 +368,7 @@ int reclaim_orphan_pages(void *pa, uint64 size){
     uint64 b_head_pfn, b_tail_pfn;
     uint64 head_pfn, mid_pfn, tail_pfn; //Involved blocks description
     page_t *b_head, *head;
-    b_head_pfn=paddr_to_pfn((uint64)pa);
+    b_head_pfn=paddr2pfn((uint64)pa);
     size_order=i_log2(size-1)-12;
     b_tail_pfn=b_head_pfn+(1ull<<size_order);
     ensure_pfn_valid(b_tail_pfn-1);
@@ -530,7 +511,7 @@ void *kalloc(void) {
 void dump_memory_map(){ //holding the lock
     printf("Address Range           Size      State    Order\n");
     printf("------------------------------------------------\n");
-    uint64 cur_pfn=start_pfn, end_pfn, size, cur_order;
+    uint64 cur_pfn=_hidden_start_pfn, end_pfn, size, cur_order;
     page_t *p;
     uint8 lock_here=0;
     if(!holding(&kmem.lock)){
@@ -541,7 +522,7 @@ void dump_memory_map(){ //holding the lock
         (uint64)(kmem.mem_bitmaps), (uint64)(kmem.mem_bitmaps)/PGSIZE);
     printf("0x%llx - 0x%llx  0x%llx pages  [Membitmaps]   -1\n", 
         (uint64)(kmem.mem_bitmaps), free_start_addr, (free_start_addr-(uint64)(kmem.mem_bitmaps))/PGSIZE);
-    while(cur_pfn<total_pages){
+    while(cur_pfn<_hidden_total_pages){
         p=get_page_desc_assert(cur_pfn);
         if(p->flags.common.is_head==1){
             cur_order=p->flags.buddy_head.order;
@@ -550,10 +531,10 @@ void dump_memory_map(){ //holding the lock
             ensure_pfn_valid(end_pfn-1);
             if(p->flags.common.type==PG_TYPE_FREE)
                 printf("0x%llx - 0x%llx  0x%llx pages  [FREE]   0x%llx\n", 
-                    pfn_to_paddr(cur_pfn), pfn_to_paddr(end_pfn), size/PGSIZE, cur_order);
+                    pfn2paddr(cur_pfn), pfn2paddr(end_pfn), size/PGSIZE, cur_order);
             else
             printf("0x%llx - 0x%llx  0x%llx pages  [USED]   0x%llx\n", 
-                pfn_to_paddr(cur_pfn), pfn_to_paddr(end_pfn), size/PGSIZE, cur_order);
+                pfn2paddr(cur_pfn), pfn2paddr(end_pfn), size/PGSIZE, cur_order);
             //Advance the pfn
             cur_pfn=end_pfn;
         }

@@ -57,6 +57,32 @@ static inline uint8 in_kernel_heap(uint64 va){
     else    return 0;
 }
 
+uint64 gene_page_prot(uint64 vm_flags){
+#ifdef DEBUG_KVM
+    KVM_TRACE("vm_flags=%llx\n", vm_flags);
+#endif
+    //As a hardware-agnostic kernel structure, it implements the translation
+    //from logical abstraction to physical hardware via the following functions.
+    uint64 page_prot=0;
+    if(vm_flags & PROT_READ)    page_prot |= PTE_R;
+    if(vm_flags & PROT_EXEC)    page_prot |= PTE_X;
+    if(vm_flags & PROT_WRITE)   page_prot |= PTE_W;
+    if(vm_flags & PROT_USER)    page_prot |= PTE_U;
+    return page_prot;
+}
+uint64 gene_flags(uint64 vm_page_prot){
+#ifdef DEBUG_KVM
+    KVM_TRACE("vm_page_prot=%llx\n", vm_page_prot);
+#endif
+    uint64 vm_flags=0;
+    if(vm_page_prot & PTE_R)    vm_flags |= PROT_READ;
+    if(vm_page_prot & PTE_X)    vm_flags |= PROT_EXEC;
+    if(vm_page_prot & PTE_W)    vm_flags |= PROT_WRITE;
+    if(vm_page_prot & PTE_U)    vm_flags |= PROT_USER;
+    return vm_flags;
+}
+    
+
 //return 1 while pass tests, and return 0 when fail.
 int is_mappable_kernel_range(uint64 start_kva, uint64 end_kva){
     //Adopt static kernel stack per process,instead of dynamic mapping model
@@ -204,7 +230,7 @@ void __init_code kvminit(void) {
     initlock(&kvm_lock, "kvm_pagetable lock");
     memset(&global_mm, 0, sizeof(global_mm));
     initlock(&global_mm.mm_lock, "mm_lock");
-    initlock(&rmap_lock, )
+    // initlock(&rmap_lock, )
     acquire(&global_mm.mm_lock);
     kernel_pagetable = kvmmake();
     //Init lock

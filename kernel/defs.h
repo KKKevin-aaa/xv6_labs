@@ -21,13 +21,14 @@ typedef struct vma_context  vma_context_t;
 typedef struct mm_struct mm_struct_t;
 typedef struct vm_operation_struct vm_operation_struct_t;
 
-typedef struct page_slab_header page_slab_header_t;
 typedef struct slab_cache slab_cache_t;
 
 typedef struct vma_pool cpu_vma_pool_t;
 typedef struct mem_trans_stash mem_trans_stash_t;
 
 typedef struct page page_t;
+typedef struct slab_page slab_page_t;
+typedef struct map_page map_page_t;
 
 #ifndef offsetof
 #define offsetof(TYPE, MEMBER)  ((uint64)&((TYPE *)0)->MEMBER)
@@ -90,7 +91,7 @@ void            ireclaim(int);
 
 // slab.c
 void            init_slab_system(void);
-void*           slab_refill(slab_cache_t *cache);
+struct slab_page* slab_refill(slab_cache_t *cache);
 void*           slab_alloc(slab_cache_t *cache, int (*ctor)(void *));
 int             slab_dealloc(void *node);
 int             slab_free(void *obj, int (*dtor)(void *));
@@ -98,9 +99,12 @@ slab_cache_t    *create_slab_cache(char *name, uint16 size, uint16 align);
 
 
 // kalloc.c
+page_t*         get_page_desc_safe(uint64 pfn);
+page_t*         get_page_desc_assert(uint64 pfn);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+uint64          page2pfn(struct page * pg);
 void            free_pages(void *pa, uint64 sz); //for huge page
 int             reclaim_orphan_pages(void *pa, uint64 size);
 void*           alloc_memory(uint64);
@@ -128,7 +132,7 @@ int             pipewrite(struct pipe*, uint64, int);
 
 // printf.c
 int             printf(char*, ...) __attribute__ ((format (printf, 1, 2)));
-void __panic(const char *, int, const char *, char *s)  __attribute__((noreturn));
+void __panic(const char *, int, const char *, char *s, ...)  __attribute__((noreturn));
 //A Useful macro, get more necessary info without DEBUG-mode
 #define panic(msg, ...)    __panic(__FILE__, __LINE__, __func__, (msg), ##__VA_ARGS__)
 
@@ -268,6 +272,9 @@ vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr);
 int             insert_vma(mm_struct_t *mm, vm_area_struct_t *vma);
 int             insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont);
 int             remove_vma(mm_struct_t *mm, vm_area_struct_t *vma);
+uint64 get_unmapped_area(mm_struct_t *mm, uint64 len, uint64 low_limit, uint64 high_limit, vma_context_t *cont);
+uint64          gene_page_prot(uint64 vm_flags);
+uint64          gene_flags(uint64 vm_page_prot);
 //Detailed implemation of rb_node,should defined and finined in here, not in rbtree.h
 rb_node_t*      rb_search(rb_node_t *node, vm_area_struct_t **predecessor, 
                         vm_area_struct_t ** successor, const rb_root_t *root);

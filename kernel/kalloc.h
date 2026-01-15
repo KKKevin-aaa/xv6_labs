@@ -1,35 +1,53 @@
 // Maximun size is 2^max_order*4KB, and PHYsize=128MB
 // here we choose maximun size is 16MB, 
 // and larger memory requirements can fulfilled by combining smaller components
-#define SPEC_MASK(bits) (~((1ull << (bits)) -1 ))
-#define SPEC_PAGESIZE(order) ( 1ull<<((order)+ORDER_BASE))
-#define P_TYPE_MASK 0X8000000000000000ULL
-#define P_TYPE_HEAD P_TYPE_MASK
-#define P_TYPE_TAIL 0
-#define P_DATA_MASK 0x7ffffffffffffffeULL
-#define P_FREE_MASK 0x0000000000000001ULL
-#define IS_HEAD(flags)      (((flags) & P_TYPE_MASK) != 0)
-#define GET_ORDER(flags)    (((flags) & P_DATA_MASK) >> 1)
-#define GET_OFFSET(flags)   (((flags) & P_DATA_MASK) >> 1)
-#define IS_FREE(flags)      (((flags) & P_FREE_MASK) != 0)
-#define PA2PAGE_SAFE(pa)    get_page_desc_safe(paddr_to_pfn((uint64)(pa)))
-#define PA2PAGE_ASSERT(pa)    get_page_desc_assert(paddr_to_pfn((uint64)(pa)))
-#define PAGE2PFN(pg)        page_to_pfn(pg)
-// struct page{
-//     uint64 flags;   //If bit 63 is 1:record order, size is 2^(order + ORDER_BASE)
-//     //To support partial deallocation, embed the head offset within order metadata.(bit 63 is 0)
-//     //which means the maximum num is 1ull<<62(>MAX_Order), and last bit 0 indicate free or occuiped?
+// #define DEBUG_KALLOC
+#ifdef DEBUG_KALLOC
+#define KALLOC_TRACE(fmt, ...) \
+    do { \
+        printf("[KALLOC:%s] " fmt, __func__, ##__VA_ARGS__); \
+    } while (0)
+#else
+#define KALLOC_TRACE(fmt, ...) \
+    do { \
+    } while (0)
+#endif
 
-//     void *rmapping; //Reverse mapping to virtual address.
-//     //bit 0==0:point to struct address_sapce, bit 0==1:point to struct anon_vma.
-//     uint64 index;
+extern const uint64 start_pfn;
+extern const uint64 total_pages;    //Privilege Demotion
 
-//     struct page *next;
-//     struct page *prev;  //for delete node form list quickly
-// };
-struct listhead{
-    struct page *head;
-};
+static inline uint64 paddr2pfn(uint64 pa){    //paddr convert to Page Frame Number
+    // if(pa%PGSIZE!=0)    panic("paddr_to_pfn: unaligned!");
+    if(pa%PGSIZE!=0)
+        pa=(pa & ~(PGSIZE-1));
+    if(pa<KERNBASE || pa>=PHYSTOP)  panic("paddr_to_pfn, out of range");
+    return (pa-KERNBASE)/PGSIZE;
+}
+
+//Defensive Programming, provide two interface(must exist and try get)
+static inline uint64 pfn2paddr(uint64 pfn){
+    if(pfn>total_pages)    panic("pfn_to_paddr: Segment fault");
+    return (pfn*PGSIZE + KERNBASE);
+}
+
+static inline void ensure_pfn_valid(uint64 pfn){
+    if(pfn < start_pfn || pfn >= total_pages){
+        KALLOC_TRACE("PMM error:Access pfn 0x%llx out-of-range[0x%llx, 0x%llx)",
+            pfn, start_pfn, total_pages);
+        panic("pfn invalid!");
+    }
+}
+
+
+#define PAGE2SLAB(pg)   \
+    ((uint64)(pg)!=0)?(struct slab_page *)(&(((struct page *)(pg))->u.slab)):(NULL)
+#define SLAB2PAGE(sl)   \
+    ((uint64)(sl)!=0)?((struct page *)((void *)(sl) - offsetof(struct page, u.slab))):(NULL)
+#define PADDR2SLAB(pa)  PAGE2SLAB(get_page_desc_safe(paddr2pfn((uint64)(pa))))
+#define PFN2SLAB(pfn)   PAGE2SLAB(get_page_desc_safe(pfn))
+#define SLAB2PFN(sl)    ((uint64)sl!=0)?page2pfn(SLAB2PAGE(sl)):0
+#define SLAB2PADDR(sl)  pfn2paddr(SLAB2PFN(sl))
+
 
 typedef enum{
     PG_TYPE_FREE=0,

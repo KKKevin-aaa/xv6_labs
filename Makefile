@@ -32,7 +32,9 @@ OBJS = \
   $(K)/$(OBJ_DIR)/plic.o \
   $(K)/$(OBJ_DIR)/virtio_disk.o \
   $(K)/$(OBJ_DIR)/kvm.o \
-  $(K)/$(OBJ_DIR)/rbtree_impl.o
+  $(K)/$(OBJ_DIR)/rbtree_impl.o \
+  $(K)/$(OBJ_DIR)/mm.o \
+  $(K)/$(OBJ_DIR)/slab.o 
 
 OBJS_KCSAN = \
   $(K)/$(OBJ_DIR)/start.o \

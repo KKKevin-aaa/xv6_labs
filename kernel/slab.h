@@ -19,13 +19,13 @@
     do { \
     } while (0)
 #endif
-struct page_slab_header{
-    uint64 magic;
-    void *freelist_head;
-    struct page_slab_header *prev_page, *next_page;
-    struct slab_cache *cache;   //reverse pointer:belong to what pool?
-    uint16 inuse_count;
-};
+// struct page_slab_header{
+//     uint64 magic;
+//     void *freelist_head;
+//     struct page_slab_header *prev_page, *next_page;
+//     struct slab_cache *cache;   //reverse pointer:belong to what pool?
+//     uint16 inuse_count;
+// };
 
 struct slab_page{       //Slab page metadata
     void *freelist;

@@ -10,5 +10,6 @@ struct mem_trans_stash{ //Rearrange the memory layout for check and set poison q
     uint8 is_occupied;  //zero means free, while 1 means occupied.
 };
 
+
 #define MEM_TRANS_STACH_MAGIC 0x21792352
 

@@ -7,6 +7,7 @@
 #include "proc.h"
 #include "rbtree.h"
 #include "kvm.h"
+#include "mm.h"
 /* basic rules for rbtree
 * 1. node color can only be red or black
 * 2. root should always be black, the same for leaf node(NULL)

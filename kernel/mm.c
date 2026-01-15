@@ -17,26 +17,6 @@
 slab_cache_t *vma_cache=NULL;
 slab_cache_t *mm_cache=NULL;
 
-uint64 gene_page_prot(uint64 vm_flags){
-    //As a hardware-agnostic kernel structure, it implements the translation
-    //from logical abstraction to physical hardware via the following functions.
-    uint64 page_prot=0;
-    if(vm_flags & PROT_READ)    page_prot |= PTE_R;
-    if(vm_flags & PROT_EXEC)    page_prot |= PTE_X;
-    if(vm_flags & PROT_WRITE)   page_prot |= PTE_W;
-    if(vm_flags & PROT_USER)    page_prot |= PTE_U;
-    return page_prot;
-}
-
-uint64 gene_flags(uint64 vm_page_prot){
-    uint64 vm_flags=0;
-    if(vm_page_prot & PTE_R)    vm_flags |= PROT_READ;
-    if(vm_page_prot & PTE_X)    vm_flags |= PROT_EXEC;
-    if(vm_page_prot & PTE_W)    vm_flags |= PROT_WRITE;
-    if(vm_page_prot & PTE_U)    vm_flags |= PROT_USER;
-    return vm_flags;
-}
-
 void vma_get(vm_area_struct_t *vma){    //Acquire one reference
     if(vma==NULL)   return;
     __sync_fetch_and_add(&vma->ref_count, 1);
@@ -393,7 +373,7 @@ int remove_vma(mm_struct_t *mm, vm_area_struct_t *vma){
     return vma_put(vma);
 }
 
-static uint64 get_unmapped_area(mm_struct_t *mm, uint64 len, 
+uint64 get_unmapped_area(mm_struct_t *mm, uint64 len, 
         uint64 low_limit, uint64 high_limit, vma_context_t *cont){
 #ifdef DEBUG_KVM
     KVM_TRACE("mm=%p len=%llx low_limit=%llx high_limit=%llx cont=%p\n", (void *)mm, len, low_limit, high_limit, (void *)cont);
