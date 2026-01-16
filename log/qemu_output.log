@@ -65,16 +65,88 @@ xv6 kernel is booting
 [proc_mapstacks] proc 61: kernel_stack located at 3ffff82000
 [proc_mapstacks] proc 62: kernel_stack located at 3ffff80000
 [proc_mapstacks] proc 63: kernel_stack located at 3ffff7e000
-hart 3 starting
-hart 2 starting
+Freeing unused kernel memory: 4 KB
 hart 1 starting
+hart 2 starting
+hart 3 starting
 Freeing unused kernel memory: 4 KB
 Freeing unused kernel memory: 4 KB
 Freeing unused kernel memory: 4 KB
-Freeing unused kernel memory: 4 KB
-[kvm_test] stress_worker enter: cpu=1 iters=40000 max_live=4096 max_pages=256
-[kvm_test] stress_worker exit: cpu=1 iters=40000 max_live=1024 max_pages=256 alloc_fail=0
+
+
+================================================
+=== TEST 1: VMA Slab Allocator Stress Test ===
+================================================
+[TEST step 1] Acquired global_mm->mm_lock
+[TEST step 2] Allocating 200 VMAs...
+    ... allocated 50/200 nodes
+    ... allocated 100/200 nodes
+    ... allocated 150/200 nodes
+    ... allocated 200/200 nodes
+[32m[PASS][0m Batch Allocation Completed.
+[TEST step 3] Freeing 50% of VMAs (Odd indices)...
+[32m[PASS][0m Half VMAs freed.
+[TEST step 4] Re-allocating freed slots...
+[32m[PASS][0m Re-allocation successful (Reuse mechanism OK).
+[TEST step 5] Cleaning up remaining nodes...
+[TEST step 6] Released lock.
+[32m[PASS][0m === VMA Slab Test Passed ===
+
+
+======================================================
+=== TEST 2: RB-Tree & List Consistency (Verbose) ===
+======================================================
+now the canary_top addr is 0x0000003fffffce60, test_mm is 0x0000003fffffce70, canary_hot is 0x0000003fffffce68
+[TEST step 1] Initialized local test_mm struct.
+[TEST step 2] Creating VMA Nodes A, B, C...
+[32m[PASS][0m Nodes created. Ref counts are default (1).
+[TEST step 3] Acquiring test_mm.mm_lock for insertion...
+[TEST step 4] Inserting VMA A [0x1000-0x2000)...
+[TEST step 5] Inserting VMA C [0x3000-0x4000) (Creating Gap)...
+[TEST step 6] Inserting VMA B [0x2000-0x3000) (Filling Gap)...
+[32m[PASS][0m All nodes inserted.
+[TEST step 7] Verifying RB-Tree Lookup...
+    -> Looking up 0x1050...
+    -> Found VMA A (Ref count now: 2, Expected 2)
+    -> Looking up 0x2050...
+[32m[PASS][0m RB-Tree Lookup OK.
+[TEST step 8] Verifying Linked List Order (A -> B -> C)...
+color: vma_a is 0 and vma_b is 1 vma_c is 0
+[32m[PASS][0m Linked List Order OK.
+[TEST step 9] Verifying find_upper_vma (Target 0x1500)...
+[32m[PASS][0m Upper Bound Check OK.
+[TEST step 10] Cleaning up (Removing nodes)...
+[TEST step 11] Released test_mm.mm_lock.
+[32m[PASS][0m === RB-Tree & List Test Passed ===
+
+
+================================================
+=== TEST 3: kvmalloc Integration Test ===
+================================================
+[TEST step 1] Requesting kvmalloc for 2800 bytes...
+    -> Got address: 0x0000000090000000
+[TEST step 2] Verifying Read/Write access...
+[32m[PASS][0m Memory Access OK.
+[TEST step 3] Inspecting VMA metadata (Manual Locking)...
+[32m[PASS][0m Metadata exists and is correct.
+[TEST step 4] Deallocating memory...
+[TEST step 5] Verifying removal...
+[32m[PASS][0m === kvmalloc Test Passed ===
+
+
+================================================
+=== TEST 4: Unmapped Area Search Test ===
+================================================
+=== Unmapped Area Test Passed ===
 now the allocated data is 0xf000, and str_len is 0x1000
 init: starting sh
+$ bttest
+backtrace: (Kernel stack range from 0x80015000 to 0x80016000)
+kernel/kvm.c:246(0x8001a3e0)
+[Corrupted Stack frame](0xfffffffffffffff9)
+$ bte tt est
+backtrace: (Kernel stack range from 0x80015000 to 0x80016000)
+kernel/kvm.c:246(0x8001a3e0)
+[Corrupted Stack frame](0xfffffffffffffff9)
 $ QEMU: Terminated
 

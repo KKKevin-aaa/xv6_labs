@@ -392,7 +392,7 @@ int safe_load_data(uint64 pa, uint64 *val, uint64 stack_start, uint64 stack_end)
 void backtrace(){
     //print the current frame information according s0 and ra
     if(is_debug_sym_loaded==0){
-        printf("Init process have not init symbol_table!\n");
+        printf("\nInit process have not init symbol_table!\n");
         return;
     }
     printf("backtrace: ");
@@ -435,7 +435,7 @@ void __panic(const char *file_name, int line_no, const char * func_name, char *s
     }
     //Winner logic
     panicking = 1;
-    printf("PANIC at address %p in %s at %s:%d\n", caller_addr, func_name, file_name, line_no);
+    printf("\nPANIC at address %p in %s at %s:%d\n", caller_addr, func_name, file_name, line_no);
     va_list ap;
     va_start(ap, s);
     vprintf(s, ap);

@@ -25,9 +25,10 @@ static struct proc *swap_kthread=NULL;
 
 static uint64 _hidden_total_pages;
 static uint64 free_start_addr;
-static uint64 _hidden_start_pfn;   //NOTE:start from "_hidden_start_pfn" instead of 0
+static uint64 _hidden_start_pfn;   //NOTE: start from "_hidden_start_pfn" instead of 0
 extern char end[];  // first address after kernel.
                     // defined by kernel.ld.
+slab_cache_t kmalloc_caches[NR_SLAB_CACHES];
 
 extern res_block rb_array[MAX_RES_BLOCK];
 struct {    //Anonymous structure(Single Pattern)
@@ -37,9 +38,9 @@ struct {    //Anonymous structure(Single Pattern)
     struct listhead free_area[MAX_ORDER+1];
 } kmem;
 
-//Some Symbol Aliaing
-extern const uint64 total_pages __attribute__((alias("_hidden_total_pages")));
-extern const uint64 start_pfn __attribute__((alias("_hidden_start_pfn")));
+//Some Symbol Aliaing(use extern to prevent memory allocation)
+extern const volatile uint64 total_pages __attribute__((alias("_hidden_total_pages")));
+extern const volatile uint64 start_pfn __attribute__((alias("_hidden_start_pfn")));
 
 //Provide a const extern interface to achieve optimization without modifying the content.
 
@@ -162,7 +163,7 @@ static void del_from_list_nolock(page_t *p, uint64 order){    //Occupied
     //check if this block's oreder is expected
     if(p->flags.buddy_head.order!=order){
         KALLOC_TRACE("try to delete Order.%llu block list while this block is Order.%llu \n",
-            order, p->flags.buddy_head.order);
+            order, (uint64)p->flags.buddy_head.order);
         panic("void");
     }
     p->flags.common.type=PG_TYPE_MAPPED;
@@ -180,7 +181,7 @@ static void add_to_list_nolock(page_t *p, uint64 order){  //free
     kmem.free_area[order].head=new_head;
     if(p->flags.buddy_head.order!=order){
         KALLOC_TRACE("try to add to Order.%llu block list, while this block is Order.%llu\n",
-            order, p->flags.buddy_head.order);
+            order, (uint64)p->flags.buddy_head.order);
         panic("add_to_list");
     }
     p->flags.common.type=PG_TYPE_FREE;
@@ -416,6 +417,29 @@ int reclaim_orphan_pages(void *pa, uint64 size){
     return 0;
 }
 
+void *kmalloc(uint64 size){
+    if(size >= (1ull<<MAX_SIZE_SHIFT))
+        return alloc_memory(size);
+    //Must smaller than (1ull<<MAX_SIZE_SHIFT)
+    uint64 size1=get_cache_size(size);
+    if(size1==-1)   panic("Shouldn't reach here.\n");
+    int idx=i_log2(size1)-MIN_SIZE_SHIFT;
+    if(idx>=NR_SLAB_CACHES)   panic("Shouldn't reach here.\n");
+    return slab_alloc(&kmalloc_caches[idx]);
+}
+
+void kfree(void *pa, uint64 size){
+    page_t *del_page=get_page_desc_safe(paddr2pfn((uint64)pa));
+    if(del_page==NULL){
+        KALLOC_TRACE("try to free protected area.\n");
+        return;
+    }
+    if(del_page->flags.common.type==PG_TYPE_SLAB)
+        slab_free(pa);
+    else
+        free_pages(pa, size);
+}
+
 int is_all_same_swar(const uint8 *data, uint64 len){    //SIMD Within A Register
     if(len==0)  return 1;
     uint8 ref=data[0];
@@ -469,6 +493,7 @@ void kinit() {
 #ifdef DEBUG_KALLOC
     KALLOC_TRACE("initialization complete\n");
 #endif
+    init_slab_system();
 }
 //return 1 while pa at [free_start_addr, PHYstop) --RAM region
 //return 0 while pa outside this region.
@@ -480,7 +505,7 @@ uint8 is_managed_memory(uint64 pa){
 // which normally should have been returned by a
 // call to kalloc().  (The exception is when
 // initializing the allocator; see kinit above.)
-void kfree(void *pa) {
+void kfree_page(void *pa) {
 #ifdef DEBUG_KALLOC
     struct proc *p = myproc();
     int pid = p ? p->pid : -1;
@@ -494,10 +519,11 @@ void kfree(void *pa) {
 #endif
     free_pages(pa, PGSIZE);
 }
+
 // Allocate one 4096-byte page of physical memory.
 // Returns a pointer that the kernel can use.
 // Returns 0 if the memory cannot be allocated.
-void *kalloc(void) {
+void *kalloc_page(void) {
 #ifdef DEBUG_KALLOC
     struct proc *p = myproc();
     int pid = p ? p->pid : -1;

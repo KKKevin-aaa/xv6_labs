@@ -1,11 +1,93 @@
 ++echo log reset to ./logs/crash_dump.log
-log reset to ./logs/crash_dump.log+bt
-#0  0x000000008000da7a in acquire (lk=0x8012fa78 <tickslock>)
-    at kernel/spinlock.c:27
-#1  0x0000000080004c62 in sleep (waitChannel=<optimized out>, lk=<optimized out>)
-    at kernel/proc.c:575
-#2  0x0000000080005918 in sys_pause () at kernel/sysproc.c:74
-#3  0x00000000800057a8 in syscall () at kernel/syscall.c:206
-#4  0x00000000800053c4 in usertrap () at kernel/trap.c:56
-#5  0x0000003ffffff09c in ?? ()
+log reset to ./logs/crash_dump.log+print right
+$6 = 0x1d72
++print left
+$7 = 0x0
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++print right
+$8 = 0x1d72
++print left
+$9 = 0x1cfe
++print
+$10 = 0x1cfe
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++next
++print left
+$11 = 0x1d72
++print tight
+No symbol "tight" in current context.
++print right
+$12 = 0x1d72
++next
++print ret_idx
+$13 = 0x1d71
++next
++print kernel_addr_map.start_addr[$13]
+$14 = 0x8000f112
++print kernel_addr_map.end_addr[$13]
+There is no member named end_addr.
++info symbol 0x8001a3e0
+proc in section .bss
++x/1gx 0x8001a3e0
+0x8001a3e0 <proc>:	0x0000000000000000
++bt
+#0  find_debug_info (pa=pa@entry=0x8001a3e0) at kernel/printf.c:372
+#1  0x000000008000e75c in backtrace () at kernel/printf.c:414
+#2  backtrace () at kernel/printf.c:392
+#3  0x0000000080005d20 in sys_pause () at kernel/sysproc.c:76
+#4  0x0000000080005b76 in syscall () at kernel/syscall.c:206
+#5  0x0000000080005792 in usertrap () at kernel/trap.c:56
+#6  0x0000003ffffff09c in ?? ()
++next
++next
+printf (fmt=0x80014e68 "%s:%u(0x%llx)\n") at kernel/printf.c:151
++next
++next
++next
++next
++next
+backtrace () at kernel/printf.c:416
++next
++next
++next
+backtrace () at kernel/printf.c:411
++next
++next
+printf (fmt=0x80014f40 "[Corrupted Stack frame](0x%llx)\n") at kernel/printf.c:151
++next
 +q

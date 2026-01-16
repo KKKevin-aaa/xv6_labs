@@ -405,19 +405,19 @@ uint64 sys_exec(void)  // A intermidiate function for exec system call(between u
             argv[i] = 0;
             break;
         }
-        argv[i] = kalloc();
+        argv[i] = kalloc_page();
         if (argv[i] == 0) goto bad;
         if (fetchstr(uarg, argv[i], PGSIZE) < 0) goto bad;
     }
 
     int ret = kexec(path, argv);
 
-    for (i = 0; i < NELEM(argv) && argv[i] != 0; i++) kfree(argv[i]);
+    for (i = 0; i < NELEM(argv) && argv[i] != 0; i++) kfree_page(argv[i]);
 
     return ret;
 
 bad:
-    for (i = 0; i < NELEM(argv) && argv[i] != 0; i++) kfree(argv[i]);
+    for (i = 0; i < NELEM(argv) && argv[i] != 0; i++) kfree_page(argv[i]);
     return -1;
 }
 

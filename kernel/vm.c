@@ -53,7 +53,7 @@ pte_t *walk_internal(pagetable_t pagetable, uint64 va, int alloc, int target_lev
             }
             pagetable = (pagetable_t)PTE2PA(*pte);
         } else {
-            if (!alloc || (pagetable = (pde_t *)kalloc()) == 0) return 0;
+            if (!alloc || (pagetable = (pde_t *)kalloc_page()) == 0) return 0;
             //create a new mappaing.
             memset(pagetable, 0, PGSIZE);
             acquire(&rmap_lock);
@@ -261,7 +261,7 @@ pagetable_t split_and_prune(pte_t pte, uint64 start_vpn, uint64 end_vpn, uint64 
 // returns 0 if out of memory.
 pagetable_t uvmcreate() {
     pagetable_t pagetable;
-    pagetable = (pagetable_t)kalloc();
+    pagetable = (pagetable_t)kalloc_page();
     if (pagetable == 0) return 0;
     memset(pagetable, 0, PGSIZE);
     return pagetable;

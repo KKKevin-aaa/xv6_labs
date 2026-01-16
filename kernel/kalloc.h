@@ -13,20 +13,29 @@
     } while (0)
 #endif
 
-extern const uint64 start_pfn;
-extern const uint64 total_pages;    //Privilege Demotion
+//NOTE: Since we initially qualified it as const, the compiler default to using its
+//initial value(e.g. 0)due to constant folding,ignoring subsequent modifications,
+//So we must use valatile to force compiler to read the required value from memory every time.
+
+//size-special pool
+#define MIN_SIZE_SHIFT 5    //32=1<<5
+#define MAX_SIZE_SHIFT 13   //8192=1<<13
+#define NR_SLAB_CACHES  (MAX_SIZE_SHIFT-MIN_SIZE_SHIFT+1)
+
+extern const volatile uint64 start_pfn;
+extern const volatile uint64 total_pages;    //Privilege Demotion
 
 static inline uint64 paddr2pfn(uint64 pa){    //paddr convert to Page Frame Number
     // if(pa%PGSIZE!=0)    panic("paddr_to_pfn: unaligned!");
     if(pa%PGSIZE!=0)
         pa=(pa & ~(PGSIZE-1));
-    if(pa<KERNBASE || pa>=PHYSTOP)  panic("paddr_to_pfn, out of range");
+    if(pa<KERNBASE || pa>=PHYSTOP)  panic("out of range\n");
     return (pa-KERNBASE)/PGSIZE;
 }
 
 //Defensive Programming, provide two interface(must exist and try get)
 static inline uint64 pfn2paddr(uint64 pfn){
-    if(pfn>total_pages)    panic("pfn_to_paddr: Segment fault");
+    if(pfn>total_pages)    panic("Segment fault\n");
     return (pfn*PGSIZE + KERNBASE);
 }
 

@@ -39,6 +39,7 @@ static inline rb_node_t *rb_parent(rb_node_t *rb){
 static inline void rb_set_parent(rb_node_t *rb, rb_node_t *rb_parent){
     //reset the parent of a node
     if(rb==NULL)    return;
+    if(rb==rb_parent)   panic("Attempting to point the parent node to itself.\n");
     rb->rb_parent_color=(rb->rb_parent_color & 3) | (uint64)rb_parent;
 }
 

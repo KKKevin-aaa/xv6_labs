@@ -2,7 +2,7 @@
 #include "kernel/stat.h"
 #include "user/user.h"
 int main(int argc, char *argv[]) {
-    int nr_cpu=4;
+    int nr_cpu=1;
     int pid_list[nr_cpu];
     for (int i = 0; i < nr_cpu; i++) {
         int pid = fork();

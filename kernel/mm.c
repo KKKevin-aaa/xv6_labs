@@ -11,6 +11,8 @@
 #include "kvm.h"
 #include "slab.h"
 #include "mm.h"
+#define DEBUG_MM
+
 
 //Compresssing pre-CPU data within caches eliminates the need of 
 // create a seperate cache object for each CPU entry.
@@ -42,17 +44,30 @@ int vma_put(vm_area_struct_t *vma){    //Drop one reference
     return 0;
 }
 
+static int vma_ctor(void *ptr){
+    //treat as vma,initialize ref_count
+    vm_area_struct_t *vma=(vm_area_struct_t *)ptr;
+    if(vma==NULL)
+        return -1;
+    else{   //do some additional initialization.
+        vma->ref_count=1;
+        return 0;
+    }
+}
+
 void init_mm(void){ //Init the system(alloc prepare, )
-    vma_cache=create_slab_cache("vma_pool", sizeof(vm_area_struct_t), 8);
+    vma_cache=create_slab_cache("vma_pool", sizeof(vm_area_struct_t), 8, vma_ctor, NULL);
     if(vma_cache==NULL){
-        panic("init vma_cache pool fail.\n");
+        panic("init vma_cache fail.\n");
         return;
     }
-    mm_cache=create_slab_cache("mm_pool", sizeof(mm_struct_t), 8);
+    else    MM_TRACE("init vma_cache succeed.\n");
+    mm_cache=create_slab_cache("mm_pool", sizeof(mm_struct_t), 8, NULL, NULL);
     if(vma_cache==NULL){
-        panic("init mm_cache pool fail.\n");
+        panic("init mm_cache fail.\n");
         return;
     }
+    else    MM_TRACE("init mm_cache succeed.\n");
 }
 
 vm_area_struct_t *insert_vma_helper(mm_struct_t *mm, uint64 va, uint64 sz, int perm){
@@ -86,27 +101,20 @@ vm_area_struct_t *insert_vma_helper(mm_struct_t *mm, uint64 va, uint64 sz, int p
 
 //-----------------------VMA_OPERATIONS--------------------------------
 
-static int vma_ctor(void *ptr){
-    //treat as vma,initialize ref_count
-    vm_area_struct_t *vma=(vm_area_struct_t *)ptr;
-    if(vma==NULL)
-        return -1;
-    else{   //do some additional initialization.
-        vma->ref_count=1;
-        return 0;
-    }
-}
-
 __attribute__((warn_unused_result)) vm_area_struct_t *alloc_vma_node(){
-    return (vm_area_struct_t *)slab_alloc(vma_cache, vma_ctor);
+    return (vm_area_struct_t *)slab_alloc(vma_cache);
 }
 
 __attribute__((warn_unused_result)) mm_struct_t *mm_create() {
-    return (mm_struct_t *)slab_alloc(mm_cache, NULL);
+    return (mm_struct_t *)slab_alloc(mm_cache);
 }
 
 int reclaim_vma_node(vm_area_struct_t *node){
-    return slab_free((void *)node, NULL);
+    return slab_free((void *)node);
+}
+
+void clear_mm_internal(mm_struct_t *mm){
+    //FIXME: 
 }
 
 vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr){
@@ -139,7 +147,8 @@ vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr){
     if(found){
         mm->mmap_cache=found; //if found, update the cache
     }
-    else    panic("find_vma.\n");
+    else
+        MM_TRACE("Could not locate a node containing this vaddr within the VMA pool.\n");
     return found; 
 }
 
@@ -148,7 +157,7 @@ vm_area_struct_t *find_vma_and_get(mm_struct_t *mm, uint64 addr){
         panic("[find_vma_and_get]Race Conditions: Accessing mm without lock");
     vm_area_struct_t *vma=find_vma(mm, addr);
     if(vma!=NULL)   vma_get(vma);
-    else    panic("1.\n");
+    else    MM_TRACE("Could not locate a node containd addr within vma pool.\n");
     return vma;
 }
 

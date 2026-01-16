@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "mm.h"
 // #define DEBUG_FORK
 #ifdef DEBUG_FORK
 #define FORK_TRACE(fmt, ...) \
@@ -46,7 +47,7 @@ void proc_mapstacks(pagetable_t kpgtbl) {
     struct proc *p;
     void kvmmap_boot_only(pagetable_t,uint64,uint64,uint64,int);
     for (p = proc; p < &proc[NPROC]; p++) {
-        char *pa = kalloc();
+        char *pa = kalloc_page();
         if (pa == 0) panic("kalloc");
         uint64 va = KSTACK((int)(p - proc));
         printf("[proc_mapstacks] proc %d: kernel_stack located at %llx\n", (int)(p-proc), va);
@@ -114,8 +115,10 @@ static struct proc *allocproc(void) {
         acquire(&p->lock);
         if (p->state == UNUSED) {
             if(p->mm==NULL){
-                
+                p->mm=mm_create();
+                memset(p->mm, 0, sizeof(struct mm_struct));
             }
+            else    clear_mm_internal(p->mm);
             goto found;
         } else {
             release(&p->lock);
@@ -128,7 +131,7 @@ found:
     p->state = USED;
     p->syscall_mask =0;
     // Allocate a trapframe page.
-    if ((p->trapframe = (struct trapframe *)kalloc()) == 0) {
+    if ((p->trapframe = (struct trapframe *)kalloc_page()) == 0) {
         freeproc(p);
         release(&p->lock);
         return 0;
@@ -155,7 +158,7 @@ found:
 // including user pages.
 // p->lock must be held.
 static void freeproc(struct proc *p) {
-    if (p->trapframe) kfree((void *)p->trapframe);
+    if (p->trapframe) kfree_page((void *)p->trapframe);
     p->trapframe = 0;
     #ifdef PROC_DEBUG
     printf("in freeproc oldpagetbale is %p\n", p->pagetable);
@@ -272,6 +275,7 @@ int kfork(void) {
     #endif
     // Allocate process(process control block).
     // Critical: allocproc() acquires p->lock of the new process.
+    // NOTE: (Still holding the process's private lock upon return.)
     if ((np = allocproc()) == 0) {
         #ifdef DEBUG_FORK
         FORK_TRACE("FAIL allocproc returned 0 (no free procs)\n");
@@ -290,7 +294,7 @@ int kfork(void) {
         FORK_TRACE("FAIL uvmcopy error for child pid=%d\n", np->pid);
         #endif
         freeproc(np);
-        release(&np->lock);
+        release(&np->lock);     //Release the lock got from allocproc()
         return -1;
     }
     np->sz = p->sz;
@@ -300,7 +304,7 @@ int kfork(void) {
     
     // Copy saved user registers.
     *(np->trapframe) = *(p->trapframe);
-    // NOTE: Duplicate all user stacks and registers, modifying only the a0 register
+    // NOTE: Duplicate all user stacks and registers,only modifying the a0 register
     // as the fork return value,so we can tell child and parent from return value.
     np->trapframe->a0 = 0;
 
@@ -314,7 +318,13 @@ int kfork(void) {
     pid = np->pid;
     np->syscall_mask = p->syscall_mask;
     safestrcpy(np->allow_path_str, p->allow_path_str, MAXPATH);
-    // Lock Ordering Dance (Deadlock Avoidance)
+
+    // Lock Ordering Dance (Avoid Deadlock)
+    // NOTE: Current np is set USED,make it private and inaccessiale to the scheduler.
+    // Wait_lock is used to modify parent-child relationship between processes.
+    //A potential deadlock scenario exists: 
+    //  CPU A holds p->lock and waits for wait_lock, while CPU B holds wait_lock and waits for p->lock
+    //Principle:the global wait_lock must be acquired before the specific p->lock—we must first release the process lock.
     release(&np->lock);
     acquire(&wait_lock);
     np->parent = p;

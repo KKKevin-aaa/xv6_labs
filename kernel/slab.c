@@ -10,28 +10,59 @@
 #include "kalloc.h"
 
 //size-special pool
-#define MIN_SIZE 32
-#define MAX_SIZE PGSIZE/4
-#define SIZE_STRIDE 32
-#define NR_SIZE ((MAX_SIZE-MIN_SIZE)/SIZE_STRIDE +1 )
-#define ALIGN_UP(a, size)   (((a) + (size) -1) & ~((size) -1))
-#define POOL_LIMIT 5
-#define DEBUG_SLAB
-
-#ifdef DEBUG_SLAB
-#define SLAB_TRACE(fmt, ...) \
-    do { \
-        printf("[SLAB:%s] " fmt, __func__, ##__VA_ARGS__); \
-    } while (0)
-#else
-#define KVM_TRACE(fmt, ...) \
-    do { \
-    } while (0)
-#endif
-
 static slab_cache_t boot_cache;
-
+extern slab_cache_t kmalloc_caches[NR_SLAB_CACHES]; //Initialize 
 //its basic_size cannot range from MIN_SIZE TO MAX_SIZE
+
+uint64 get_cache_size(uint64 basic_size){
+    if(basic_size<(1ull<<MIN_SIZE_SHIFT))   return (1ull<<MIN_SIZE_SHIFT);
+    else if(basic_size>(1ull<<MAX_SIZE_SHIFT)){
+        SLAB_TRACE("too large.recommend to alloc by buddy-system directly.\n");
+        return -1;
+    }
+    uint64 align_sz=1ull<<i_log2(basic_size);
+    if(align_sz != basic_size)  return align_sz<<1;
+    return basic_size;
+}
+
+void cal_slab_order(uint16 basic_size, uint16 *limit, uint16 *page_order){
+    if(basic_size < PGSIZE/8){
+        *limit=PGSIZE/basic_size;
+        *page_order=0;
+        return;
+    }
+    int cur_order=0, support_max=3;
+    int best_order=0;
+    int min_waste=100, cur_waste;
+    uint16 left_size=0;     //Must lower than basic_size, so uint16 is enough
+    uint32 cur_size=0;
+    for(;cur_order<=support_max;cur_order++){
+        cur_size=1<<(cur_order+ORDER_BASE);
+        if(cur_size < basic_size)   continue;
+        left_size=cur_size % basic_size;
+        cur_waste=left_size*100/cur_size;
+        if(cur_waste<13){
+            *limit=cur_size/basic_size;
+            *page_order=cur_order;
+            return;
+        }
+        //compare with the best
+        if(cur_waste<min_waste){
+            min_waste=cur_waste;
+            best_order=cur_order;
+        }
+    }
+    //None of them meet requirements,so select the best among them.
+    if(basic_size<=(1ull<<(best_order+ORDER_BASE))){
+        *limit=(1ull<<(best_order+ORDER_BASE))/basic_size;
+        *page_order=best_order;
+    }
+    else{
+        *limit=0;
+        *page_order=-1;
+        SLAB_TRACE("too large.recommend to alloc by buddy-system directly.\n");
+    }
+}
 
 static int relink_locked(slab_page_t *slab, slab_page_t **old_list,
                          slab_page_t **new_list) {
@@ -80,16 +111,25 @@ void init_slab_system(void){
     memset(&boot_cache, 0, sizeof(boot_cache));
     boot_cache.obj_size=sizeof(slab_cache_t);
     boot_cache.basic_size=ALIGN_UP(boot_cache.obj_size, 8);
-    if(boot_cache.basic_size>MAX_SIZE){
-        SLAB_TRACE("current slab_cache basic-size is %d\n", boot_cache.basic_size);
-        SLAB_TRACE("It is truly necessary to employ a slab  \
-                allocator for such a relatively large size??\n");
+    boot_cache.basic_size=get_cache_size(boot_cache.basic_size);
+    cal_slab_order(boot_cache.basic_size, &boot_cache.limit, &boot_cache.page_order);
+    if(boot_cache.limit==0 || boot_cache.page_order==-1){
+        //Shouldn't fail, panic
+        panic("slab_cache_t is too large to alloc required memory, adjust MAX_SIZE_SHIFT.\n");
+        return;     //stop and return early
     }
-    boot_cache.basic_size=ALIGN_UP(boot_cache.basic_size, SIZE_STRIDE);
     safestrcpy(boot_cache.name, "boot_cache", 32);
     initlock(&boot_cache.pool_lock, boot_cache.name);
-    //calcalute the limit
-    boot_cache.limit=PGSIZE/boot_cache.basic_size;
+
+    //initialize kmalloc_caches array for fixed size allocation(Dedicate Cache)
+    memset(kmalloc_caches, 0, sizeof(kmalloc_caches));
+    for(int i=0;i<NR_SLAB_CACHES;i++){
+        kmalloc_caches[i].obj_size=1ull<<(MIN_SIZE_SHIFT+i);
+        safestrcpy(kmalloc_caches[i].name, "kmalloc_caches", 32);
+        kmalloc_caches[i].basic_size=kmalloc_caches[i].obj_size;
+        cal_slab_order(kmalloc_caches[i].basic_size, &kmalloc_caches[i].limit, &kmalloc_caches[i].page_order);
+        initlock(&kmalloc_caches[i].pool_lock, kmalloc_caches[i].name);
+    }
 }
 
 struct slab_page *slab_refill(slab_cache_t *cache){  //Require lock held.
@@ -104,20 +144,22 @@ struct slab_page *slab_refill(slab_cache_t *cache){  //Require lock held.
         SLAB_TRACE("Requesting allocation even when free page are available.\n");
         return NULL;
     }
-    void *new_pool_mem=alloc_memory(PGSIZE);
+    void *new_pool_mem=alloc_memory(1ull<<(cache->page_order+ORDER_BASE));
     if(new_pool_mem==NULL){
         SLAB_TRACE("slab_refill fail.\n");
         return NULL;
     }
-    memset(new_pool_mem, 0, PGSIZE);
+    memset(new_pool_mem, 0, 1ULL<<(cache->page_order+ORDER_BASE));
     //Update struct page info, and record metadata off-page.
     struct page *new_page=get_page_desc_assert(paddr2pfn((uint64)new_pool_mem));
     //Post-allocation, pointer is exclusively head by current thread.(No lock!)
-    memset((void *)((uint64)(new_page)+sizeof(page_flags_t)), 0, sizeof(new_page->u));
-    new_page->flags.common.type=PG_TYPE_SLAB;
-    new_page->u.slab.cache=cache;
-    new_page->u.slab.magic=SLAB_PAGE_MAGIC;
-    new_page->u.slab.inuse_count=0;
+    for(int i=0;i<(1ull<<cache->page_order);i++){
+        memset((void *)&(new_page+i)->u, 0, sizeof(new_page->u));
+        (new_page+i)->flags.common.type=PG_TYPE_SLAB;
+        (new_page+i)->u.slab.cache=cache;
+        (new_page+i)->u.slab.magic=SLAB_PAGE_MAGIC;
+        (new_page+i)->u.slab.inuse_count=0;
+    }
 
     void *cur_ptr=new_pool_mem;
     new_page->u.slab.freelist=cur_ptr;
@@ -136,7 +178,7 @@ struct slab_page *slab_refill(slab_cache_t *cache){  //Require lock held.
     return PADDR2SLAB(new_pool_mem);
 }
 
-void *slab_alloc(slab_cache_t *cache, int (*ctor)(void *)){ 
+void *slab_alloc(slab_cache_t *cache){ 
     //also Accepts a function pointer to initialize newly created node,
     // or perform no operations if the pointer is null.(Require return zero if succeed.)
     if(cache==NULL){
@@ -150,9 +192,11 @@ void *slab_alloc(slab_cache_t *cache, int (*ctor)(void *)){
         void *ret=cpu_cache->obj[cpu_cache->avail-1];
         cpu_cache->obj[--cpu_cache->avail]=NULL;
         pop_off();  //Minimize Critical Section.Run time-consuming constructors after re-enabling.
-        if(ctor!=NULL){ 
+        if(ret!=NULL)
+            memset(ret, 0, cache->basic_size);      //clean on alloc
+        if(ret!=NULL && cache->ctor!=NULL){ 
             //Object is now private:this thread is responsible for manual deallocation if initialization fails.
-            if(ctor(ret)!=0){
+            if(cache->ctor(ret)!=0){
                 SLAB_TRACE("initialize newly object fail.\n");
                 slab_dealloc(ret);
                 ret=NULL;
@@ -173,9 +217,11 @@ void *slab_alloc(slab_cache_t *cache, int (*ctor)(void *)){
         void *ret=cpu_cache->obj[cpu_cache->avail-1];
         cpu_cache->obj[--cpu_cache->avail]=NULL;
         release(&cache->pool_lock);
+        if(ret!=NULL)
+            memset(ret, 0, cache->basic_size);  //clean on alloc
         //Reduce lock contention by invoking the costly constructor outside the critical section.
-        if(ctor!=NULL){
-            if(ctor(ret)!=0){
+        if(cache->ctor!=NULL){
+            if(cache->ctor(ret)!=0){
                 SLAB_TRACE("initialize newly object fail.\n");
                 slab_dealloc(ret);
                 ret=NULL;
@@ -185,6 +231,7 @@ void *slab_alloc(slab_cache_t *cache, int (*ctor)(void *)){
     }
     // Exhaustion: on objects available in the current cpu.
     struct slab_page *tmp=cache->partial_list;//Extract space from partial list
+    struct slab_page *tmp_next=NULL;
     // (extract limit/4 elements each time from the list, 
     // if fewer than four remain, extract one page at most.
     uint16 batch_size=(cache->limit/4 <4)?cache->limit:(cache->limit/4), nr_done=0;
@@ -194,6 +241,7 @@ void *slab_alloc(slab_cache_t *cache, int (*ctor)(void *)){
     while(tmp!=NULL){
         //transit into the full_list(Defer the inuse_count update while in critical state.)
         cur_avail=cache->limit-tmp->inuse_count;
+        tmp_next=PFN2SLAB(tmp->next_pfn);
         if(cur_avail<=batch_size-nr_done){
             if(relink_locked(tmp, &cache->partial_list, &cache->full_list)==-1){
                 SLAB_TRACE("relink from partial_list to full_list: fail!\n");
@@ -212,7 +260,7 @@ void *slab_alloc(slab_cache_t *cache, int (*ctor)(void *)){
         nr_done+=cur_batch_size;
         if(nr_done==batch_size)
             goto pick_from_array;
-        tmp=PFN2SLAB(tmp->next_pfn);
+        tmp=tmp_next;
     }
     //Still short of the target size, alloc new page.
     struct slab_page *new_slabpage=NULL;
@@ -225,10 +273,11 @@ void *slab_alloc(slab_cache_t *cache, int (*ctor)(void *)){
         SLAB_TRACE("failed to populate per-CPU array.return the existing element!\n");
         goto pick_from_array;
     }
-    if(batch_size-nr_done<cache->limit &&
-            relink_locked(new_slabpage, &cache->empty_list, &cache->partial_list)==-1){
-        SLAB_TRACE("relink from empty_list to partial_list: fail.\n");
-        goto pick_from_array;
+    if(batch_size-nr_done<cache->limit){
+        if(relink_locked(new_slabpage, &cache->empty_list, &cache->partial_list)==-1){
+            SLAB_TRACE("relink from empty_list to partial_list: fail.\n");
+            goto pick_from_array;
+        }
     }
     else if(relink_locked(new_slabpage, &cache->empty_list, &cache->full_list)==-1){
         SLAB_TRACE("relink from empty_list to full_list: fail.\n");
@@ -247,8 +296,10 @@ pick_from_array:
         cpu_cache->obj[--cpu_cache->avail]=NULL;
     }
     release(&cache->pool_lock);//Extract the object already.No lock needed now.
-    if(ret!=NULL && ctor!=NULL){
-        if(ctor(ret)!=0){
+    if(ret!=NULL)
+        memset(ret, 0, cache->basic_size);  //Clean-on-alloc
+    if(ret!=NULL && cache->ctor!=NULL){
+        if((cache->ctor)(ret)!=0){
             SLAB_TRACE("initialize newly object fail.\n");
             if(slab_dealloc(ret)!=0)
                 panic("Failed to reclaim a object that failed initialization.\n");
@@ -258,12 +309,13 @@ pick_from_array:
     return ret;
 }
 
-int slab_free(void *obj, int (*dtor)(void *)){      //Also accept Destructor function pointer
+int slab_free(void *obj){      //Also accept Destructor function pointer
     if(obj==NULL){
         SLAB_TRACE("free NULL.Invalid parameter\n");
         return -1;
     }
-    if(dtor!=NULL && dtor(obj)!=0){
+    slab_page_t *obj_page=PADDR2SLAB(obj);
+    if(obj_page->cache->dtor!=NULL && obj_page->cache->dtor(obj)!=0){
         SLAB_TRACE("destructor object fail.\n");
         return -1;
     }
@@ -309,7 +361,6 @@ int slab_dealloc(void *del_obj){
                 relink_locked(assoc_page, &cache->partial_list, &cache->empty_list)==-1)
             goto return_to_array;
         assoc_page->inuse_count-=1;
-        memset(ret_obj, 0, cache->basic_size);
         *(uint64 *)ret_obj=(uint64)assoc_page->freelist;
         assoc_page->freelist=ret_obj;
         cpu_cache->obj[i]=NULL;
@@ -333,8 +384,7 @@ int slab_dealloc(void *del_obj){
                 goto return_to_array;
             }
             next=PFN2SLAB(tmp->next_pfn);
-            memset((void *)tmp, 0, sizeof(slab_page_t));
-            free_pages((void *)SLAB2PADDR(tmp), PGSIZE);
+            free_pages((void *)SLAB2PADDR(tmp), 1ull<<(cache->page_order+ORDER_BASE));
             nr_empty--;
             tmp=next;
         }
@@ -354,7 +404,7 @@ return_to_array:
             panic("reclaim slab_object fail, unable to relink to partial_list.\n");
         else if(assoc_page->inuse_count==1 &&
                 relink_locked(assoc_page, &cache->partial_list, &cache->empty_list)==-1)
-            panic("reclaim slab_objectt fail, unable to relink to emtry_list.\n");
+            panic("reclaim slab_objectt fail, unable to relink to empty_list.\n");
         assoc_page->inuse_count-=1;
         memset(del_obj, 0, cache->basic_size);
         *(uint64 *)del_obj=(uint64)assoc_page->freelist;
@@ -364,8 +414,9 @@ return_to_array:
     return 0;
 }
 
-slab_cache_t *create_slab_cache(char *name, uint16 size, uint16 align){
-    slab_cache_t *new_slab=slab_alloc(&boot_cache, NULL);
+slab_cache_t *create_slab_cache(char *name, uint16 size, uint16 align,
+                                int (*ctor)(void *), int (*dtor)(void *)){
+    slab_cache_t *new_slab=slab_alloc(&boot_cache);
     if(new_slab==NULL){
         SLAB_TRACE("alloc slab_cache fail.\n");
         return NULL;
@@ -377,13 +428,14 @@ slab_cache_t *create_slab_cache(char *name, uint16 size, uint16 align){
     new_slab->obj_size=size;
     safestrcpy(new_slab->name, name, 32);
     new_slab->basic_size=ALIGN_UP(size, align);
-    if(new_slab->basic_size>MAX_SIZE){
-        SLAB_TRACE("current slab_cache basic-size is %d\n", new_slab->basic_size);
-        SLAB_TRACE("It is truly necessary to employ a slab  \
-                allocator for such a relatively large size??\n");
+    new_slab->basic_size=get_cache_size(new_slab->basic_size);
+    cal_slab_order(new_slab->basic_size, &new_slab->limit, &new_slab->page_order);
+    if(new_slab->limit==0 || new_slab->page_order==-1){
+        SLAB_TRACE("too large.recommend to alloc by buddy-system directly.\n");
+        return NULL;
     }
-    new_slab->basic_size=ALIGN_UP(new_slab->basic_size, SIZE_STRIDE);
-    new_slab->limit=PGSIZE/new_slab->basic_size;
+    new_slab->dtor=dtor;
+    new_slab->ctor=ctor;
     initlock(&new_slab->pool_lock, new_slab->name);
     return new_slab;
 }

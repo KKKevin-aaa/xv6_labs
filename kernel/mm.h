@@ -47,3 +47,14 @@ struct vm_operation_struct{
     void (*close)(vm_area_struct_t *vma);
     vm_fault_t (*fault)(vm_area_struct_t *vma, uint64 fault_addr);
 };
+
+#ifdef DEBUG_MM
+#define MM_TRACE(fmt, ...) \
+    do { \
+        printf("[KALLOC:%s] " fmt, __func__, ##__VA_ARGS__); \
+    } while (0)
+#else
+#define MM_TRACE(fmt, ...) \
+    do { \
+    } while (0)
+#endif

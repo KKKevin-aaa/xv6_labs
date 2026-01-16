@@ -92,17 +92,19 @@ void            ireclaim(int);
 // slab.c
 void            init_slab_system(void);
 struct slab_page* slab_refill(slab_cache_t *cache);
-void*           slab_alloc(slab_cache_t *cache, int (*ctor)(void *));
+void*           slab_alloc(slab_cache_t *cache);
 int             slab_dealloc(void *node);
-int             slab_free(void *obj, int (*dtor)(void *));
-slab_cache_t    *create_slab_cache(char *name, uint16 size, uint16 align);
-
+int             slab_free(void *obj);
+slab_cache_t    *create_slab_cache(char *name, uint16 size, 
+                                uint16 align, int (*)(void *), int (*)(void *));
+uint64          get_cache_size(uint64 basic_size);
+void            cal_slab_order(uint16 basic_size, uint16 *limit, uint16 *page_order);
 
 // kalloc.c
 page_t*         get_page_desc_safe(uint64 pfn);
 page_t*         get_page_desc_assert(uint64 pfn);
-void*           kalloc(void);
-void            kfree(void *);
+void*           kalloc_page(void);
+void            kfree_page(void *);
 void            kinit(void);
 uint64          page2pfn(struct page * pg);
 void            free_pages(void *pa, uint64 sz); //for huge page
@@ -272,6 +274,7 @@ vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr);
 int             insert_vma(mm_struct_t *mm, vm_area_struct_t *vma);
 int             insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont);
 int             remove_vma(mm_struct_t *mm, vm_area_struct_t *vma);
+void            clear_mm_internal(mm_struct_t *mm);
 uint64 get_unmapped_area(mm_struct_t *mm, uint64 len, uint64 low_limit, uint64 high_limit, vma_context_t *cont);
 uint64          gene_page_prot(uint64 vm_flags);
 uint64          gene_flags(uint64 vm_page_prot);

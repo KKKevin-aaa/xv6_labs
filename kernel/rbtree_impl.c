@@ -69,8 +69,12 @@ static void __cycle_detection_worker(rb_node_t *node, int cur_depth, uint64 *anc
 
 //Wrapper (public api)
 void Cycle_detection(rb_root_t *root){
-    if(root==NULL || root->rb_parent==NULL)
+    if(root==NULL)
         panic("Invalid root.\n");
+    if(root->rb_parent==NULL){
+        RBTREE_TRACE("empty tree.There is no eed to perform cycle detection\n");
+        return;
+    }
     memset(path_stack, 0, sizeof(path_stack));
     memset(filter_array, 0, sizeof(filter_array));
     __cycle_detection_worker(root->rb_parent, 0, filter_array);
@@ -128,7 +132,12 @@ static void check_order(vm_area_struct_t **array, int idx){
 
 void check_rbtree_integrity(rb_root_t *root){
     if(root==NULL)  return;
-    if(root->rb_parent==NULL)   panic("destory root.\n");
+    if(root->rb_parent==NULL){
+        RBTREE_TRACE("Empty tree,No need to perform rbtree_integrity.\n");
+        return;
+    }
+    if(root->rb_parent==rb_parent(root->rb_parent))
+        panic("loop exist, parent node is itself.\n");
     if(rb_color(root->rb_parent)!=RB_BLACK)
         panic("root must be black.\n");
     memset(check_bts_prop, 0, MAX_TEST_NODE);
@@ -417,6 +426,7 @@ start_fixup:
 
 void rb_link_node(rb_node_t *node, rb_node_t *parent, rb_node_t **rb_link){
     if(node==NULL || rb_link==NULL)   return;
+    if(node==parent)    panic("try to link to itself!\n");
     rb_set_parent(node, parent);
     node->rb_left=NULL;
     node->rb_right=NULL;

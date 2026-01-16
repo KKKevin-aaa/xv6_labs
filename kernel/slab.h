@@ -1,10 +1,6 @@
 #define PER_CPU_MAXSIZE 32
 #define SLAB_PAGE_MAGIC  0x32142361
-//size-special pool
-#define MIN_SIZE 32
-#define MAX_SIZE PGSIZE/4
-#define SIZE_STRIDE 32
-#define NR_SIZE ((MAX_SIZE-MIN_SIZE)/SIZE_STRIDE +1 )
+
 #define ALIGN_UP(a, size)   (((a) + (size) -1) & ~((size) -1))
 #define POOL_LIMIT 5
 #define DEBUG_SLAB
@@ -19,13 +15,6 @@
     do { \
     } while (0)
 #endif
-// struct page_slab_header{
-//     uint64 magic;
-//     void *freelist_head;
-//     struct page_slab_header *prev_page, *next_page;
-//     struct slab_cache *cache;   //reverse pointer:belong to what pool?
-//     uint16 inuse_count;
-// };
 
 struct slab_page{       //Slab page metadata
     void *freelist;
@@ -50,4 +39,8 @@ struct slab_cache{
     uint16 obj_size;
     uint16 basic_size;
     uint16 limit;   //maximun support entries in one page
+    uint16 page_order;  //Determine how much memory needs to be allocated at this time,
+                        //Expressed in order, and ensure the conversion is performed.
+    int (*ctor)(void *);
+    int (*dtor)(void *);
 };
