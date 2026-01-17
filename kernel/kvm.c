@@ -874,7 +874,7 @@ void test_kvm_stress_worker(int iters, int max_live, int max_pages){
     //  - touch one byte per page (forces mapping)
     //  - periodically check VMA list/RB-tree invariants under global_mm->mm_lock
     int pid=myproc()->pid;
-    printf("[kvm_test] stress_worker enter: cpu=%d iters=%d max_live=%d max_pages=%d\n",
+    printf("[kvm_test] stress_worker enter: pid=%d iters=%d max_live=%d max_pages=%d\n",
         myproc()->pid, iters, max_live, max_pages);
 
     if(holding(&kvm_lock) || holding(&global_mm->mm_lock))

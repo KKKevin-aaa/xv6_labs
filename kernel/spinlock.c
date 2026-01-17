@@ -39,7 +39,12 @@ void acquire(struct spinlock *lk) {
     __sync_synchronize();   //Prohibit Out-of-order Execution.
 
     // Record info about lock acquisition for holding() and debugging.
-    lk->cpu = mycpu();
+    struct cpu *cur_cpu=mycpu();
+    lk->cpu=cur_cpu;
+    if(cur_cpu->noff < MAX_LOCK_DEPTH){
+        cur_cpu->held_lock[cur_cpu->noff-1]=lk;
+    }
+
 }
 
 // Release the lock.
@@ -48,6 +53,20 @@ void release(struct spinlock *lk) {
 
     lk->cpu = 0;
 
+    //update the held lock(considering some hand-over-hand)
+    struct cpu *cur_cpu=mycpu();
+    if(cur_cpu->noff==0)
+        panic("Current no lock recorded at all(Dismatch).\n");
+    int end_idx=MIN(cur_cpu->noff-1, MAX_LOCK_DEPTH-1);
+    for(int found_idx=end_idx;found_idx>=0;found_idx--){
+        if(cur_cpu->held_lock[found_idx]==lk){
+            //move forward element if necessary
+            for(int j=found_idx;j<end_idx;j++){
+                cur_cpu->held_lock[j]=cur_cpu->held_lock[j+1];
+            }
+            cur_cpu->held_lock[end_idx]=NULL;
+        }
+    }
     // Tell the C compiler and the CPU to not move loads or stores
     // past this point, to ensure that all the stores in the critical
     // section are visible to other CPUs before the lock is released,
@@ -98,4 +117,20 @@ void pop_off(void) {
     if (c->noff < 1) panic("pop_off");
     c->noff -= 1;
     if (c->noff == 0 && c->intena) intr_on();
+}
+
+void print_held_locks(void){
+    struct cpu *cur_cpu=mycpu();
+    printf("CPU %d current holds %d lock(s)\n", cpuid(), cur_cpu->noff);
+    for(int i=0;i<cur_cpu->noff;i++){
+        if(i>=MAX_LOCK_DEPTH){
+            printf("Exceed the record lock depths.\n");
+            return;
+        }
+        struct spinlock *lk=cur_cpu->held_lock[i];
+        if(lk!=NULL)
+            printf(" [%d]: \"%s\" (ptr 0x%llx)\n", i, lk->name, (uint64)lk);
+        else
+            printf(" [%d]: ??? (unknown)\n", i);
+    }
 }

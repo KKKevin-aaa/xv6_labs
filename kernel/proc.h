@@ -19,10 +19,12 @@ struct context {
 };
 
 // Per-CPU state.
+#define MAX_LOCK_DEPTH 10
 struct cpu {
     struct proc *proc;       // The process running on this cpu, or null.
     struct context context;  // swtch() here to enter scheduler().
-    int noff;                // Depth of push_off() nesting.
+    int noff;                // The number of spinlocks currently held.
+    struct spinlock *held_lock[MAX_LOCK_DEPTH]; //Record the currently held locks.
     int intena;              // Were interrupts enabled before push_off()?
 };
 
@@ -84,7 +86,6 @@ enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 // Per-process state
 struct proc {              // Process control block(PCB)
     struct spinlock lock;  // Any operation that modifies this struct must hold this lock.
-
     // p->lock must be held when using these:
     enum procstate state;  // Process state
     void *waitChannel;     // If non-zero, sleeping on channel

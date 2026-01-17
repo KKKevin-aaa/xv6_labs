@@ -66,9 +66,9 @@ xv6 kernel is booting
 [proc_mapstacks] proc 62: kernel_stack located at 3ffff80000
 [proc_mapstacks] proc 63: kernel_stack located at 3ffff7e000
 Freeing unused kernel memory: 4 KB
+hart 3 starting
 hart 1 starting
 hart 2 starting
-hart 3 starting
 Freeing unused kernel memory: 4 KB
 Freeing unused kernel memory: 4 KB
 Freeing unused kernel memory: 4 KB
@@ -96,7 +96,7 @@ Freeing unused kernel memory: 4 KB
 ======================================================
 === TEST 2: RB-Tree & List Consistency (Verbose) ===
 ======================================================
-now the canary_top addr is 0x0000003fffffce60, test_mm is 0x0000003fffffce70, canary_hot is 0x0000003fffffce68
+now the canary_top addr is 0x0000003fffffce50, test_mm is 0x0000003fffffcdd0, canary_hot is 0x0000003fffffcdc8
 [TEST step 1] Initialized local test_mm struct.
 [TEST step 2] Creating VMA Nodes A, B, C...
 [32m[PASS][0m Nodes created. Ref counts are default (1).
@@ -138,15 +138,26 @@ color: vma_a is 0 and vma_b is 1 vma_c is 0
 === TEST 4: Unmapped Area Search Test ===
 ================================================
 === Unmapped Area Test Passed ===
-now the allocated data is 0xf000, and str_len is 0x1000
+[kvm_test] stress_worker enter: pid=2 iters=8000 max_live=2048 max_pages=64
+[kvm_test] stress_worker exit: pid=2 iters=8000 max_live=1024 max_pages=64 alloc_fail=0
+now the allocated data is 0xc000, and str_len is 0x1000
+Now load_debug_sym(vm version) succeed.
 init: starting sh
 $ bttest
-backtrace: (Kernel stack range from 0x80015000 to 0x80016000)
-kernel/kvm.c:246(0x8001a3e0)
-[Corrupted Stack frame](0xfffffffffffffff9)
-$ bte tt est
-backtrace: (Kernel stack range from 0x80015000 to 0x80016000)
-kernel/kvm.c:246(0x8001a3e0)
-[Corrupted Stack frame](0xfffffffffffffff9)
-$ QEMU: Terminated
+[kvm_test] stress_worker enter: pid=5 iters=40000 max_live=4096 max_pages=256
+[kvm_test] stress_worker exit: pid=5 iters=40000 max_live=1024 max_pages=256 alloc_fail=0
+backtrace: (Kernel stack range from 0x3fffff6000 to 0x3fffff7000)
+kernel/printf.c:415(0x8001bebc)
+kernel/sysproc.c:77(0x8000b0ea)
+kernel/syscall.c:206(0x8000adb2)
+kernel/trap.c:56(0x8000a252)
+[Trap Entry](Trampoline Page)
+Unable convert into kernel address:0x3ffffff09c
+[Corrupted Stack frame](0x6fa8)
+[kvm_test] stress_worker enter: pid=7 iters=40000 max_live=4096 max_pages=256
+Holding more than one lock when occur OOM.Cannot attempt to swap.
+
+PANIC at address 0x000000008001c5ee in acquire at kernel/spinlock.c:27
+acquire
+QEMU: Terminated
 

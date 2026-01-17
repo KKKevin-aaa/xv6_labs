@@ -231,6 +231,7 @@ int load_debug_sym_vm(){
     kernel_addr_map.line_number=(uint16 *)(kernel_addr_map.file_id+kernel_addr_map.entry_cnt);
     is_debug_sym_loaded=1;
     ret=0;
+    printf("Now load_debug_sym(vm version) succeed.\n");
 cleanup:
     iunlock(data_ip);
     return ret;
@@ -332,7 +333,7 @@ uint64 sys_load_debug_sym(void){
     test_vma_rbtree_and_list();
     test_kvmalloc_integrity();
     test_unmapped_area_search();
-    // test_kvm_stress_worker(40000, 4096, 256);
+    test_kvm_stress_worker(8000, 2048, 64);
     return load_debug_sym_vm();
 }
 
@@ -391,32 +392,52 @@ int safe_load_data(uint64 pa, uint64 *val, uint64 stack_start, uint64 stack_end)
 
 void backtrace(){
     //print the current frame information according s0 and ra
+    test_kvm_stress_worker(40000, 4096, 256);
     if(is_debug_sym_loaded==0){
-        printf("\nInit process have not init symbol_table!\n");
-        return;
+        printf("\n(Symbol table not loaded. Only showing addresses.)\n");
     }
     printf("backtrace: ");
-    uint64 cur_func_ra=0, cur_s0=r_fp();    //Kernel mode,use p->kstack
+    uint64 cur_func_ra=0, cur_s0=r_fp();    //Kernel mode,use p->kstack(*cur_s0 is callee frame_pointer)
+    //NOTE: Assuming only one page for each process's kernel stack.
     uint64 stack_end=PGROUNDUP(cur_s0), stack_start=stack_end-PGSIZE;
     // Kernel stack is mapped into the top of virtual address space
-    printf("(Kernel stack range from 0x%llx to 0x%llx)\n", stack_start, stack_end);
-    while(1){
-        if(cur_s0==0){
-            printf("[Reach the stack bottom!]\n");
-            return;
-        }
-        if(safe_load_data(cur_s0-8, &cur_func_ra, stack_start, stack_end)!=1){
+    //See memlayout.h for more detail, and if initial cur_s0 is not within the valid range.stop and return.
+    if(cur_s0 >=KSTACK(NPROC) && cur_s0 <= KSTACK(0)){
+        uint64 ra_addr, fp_addr, next_s0;
+        int depth=0;
+        printf("(Kernel stack range from 0x%llx to 0x%llx)\n", stack_start, stack_end);
+        while(1){
+            if(cur_s0==0){
+                printf("[Reach the stack bottom!]\n");
+                return;
+            }
+            ra_addr=cur_s0-8, fp_addr=cur_s0-16;
+            if(safe_load_data(ra_addr, &cur_func_ra, stack_start, stack_end)!=1){
+                printf("[Corrupted Stack frame](0x%llx)\n", cur_s0-8);
+                return;
+            }
             if(cur_func_ra >=TRAMPOLINE)
                 printf("[Trap Entry](Trampoline Page)\n");
-            else    printf("[Corrupted Stack frame](0x%llx)\n", cur_s0-8);
-            return;
+            if(is_debug_sym_loaded==0){ // For is_debug_sym_loaded ==0 
+                printf("(0x%llx)\n", cur_func_ra);
+            }
+            else    find_debug_info(cur_func_ra);
+            //rewind to previous frame 
+            if(safe_load_data(fp_addr, &next_s0, stack_start, stack_end)!=1){
+                break;  //end
+            }
+            cur_s0=next_s0;
+            depth++;
+            if(depth>=20){
+                printf("Current function depth is 20.check if cycle exist.\n");
+                break;
+            }
         }
-        find_debug_info(cur_func_ra);
-        uint64 next_s0; //rewind to previous frame 
-        if(safe_load_data(cur_s0-16, &next_s0, stack_start, stack_end)!=1){
-            break;  //end
-        }
-        cur_s0=next_s0;
+    }
+    else{
+        printf("(In kernel mode) Valid kernel stack range from 0x%lx to 0x%lx\n", KSTACK(NPROC) ,KSTACK(0));
+        printf("Obviously, it's not within the valid range."
+            "You can add \"-fno-omit-frame-pointer\" in CFLAGS to enable it!\n");
     }
 }
 
@@ -440,7 +461,7 @@ void __panic(const char *file_name, int line_no, const char * func_name, char *s
     va_start(ap, s);
     vprintf(s, ap);
     va_end(ap);
-    backtrace();
+    printf("\n");
     panicked = 1;  // freeze uart output from other CPUs
     for (;;);
 }

@@ -5,6 +5,9 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "rbtree.h"
+#include "kvm.h"
+#include "slab.h"
 #include "mm.h"
 // #define DEBUG_FORK
 #ifdef DEBUG_FORK
@@ -155,8 +158,7 @@ found:
 }
 
 // free a proc structure and the data hanging from it,
-// including user pages.
-// p->lock must be held.
+// including user pages. p->lock must be held.
 static void freeproc(struct proc *p) {
     if (p->trapframe) kfree_page((void *)p->trapframe);
     p->trapframe = 0;
@@ -332,7 +334,7 @@ int kfork(void) {
     acquire(&np->lock);
     np->state = RUNNABLE;
     #ifdef DEBUG_FORK
-    FORK_TRACE("STATE UPDATE: child pid=%d is now RUNNABLE\n", np->pid);
+        FORK_TRACE("STATE UPDATE: child pid=%d is now RUNNABLE\n", np->pid);
     #endif
     #ifdef PROC_TEST_TIME
     uint64 kfork_end_time = r_cycle();
@@ -342,7 +344,7 @@ int kfork(void) {
     #endif
     release(&np->lock);
     #ifdef DEBUG_FORK
-    FORK_TRACE("EXIT returns child pid=%d\n", pid);
+        FORK_TRACE("EXIT returns child pid=%d\n", pid);
     #endif
     return pid;
 }
@@ -417,6 +419,8 @@ int kwait(uint64 addr) {
         for (pp = proc; pp < &proc[NPROC]; pp++) {
             if (pp->parent == p) {
                 // make sure the child isn't still in exit() or swtch().
+                // e.g. for kfork(): child must release its process lock 
+                // and acquire wait_lock to update the relationship,so now the child's private lock can acquire.
                 acquire(&pp->lock);
 
                 havekids = 1;
@@ -505,11 +509,14 @@ void scheduler(void) {
 // break in the few places where a lock is held but there's no process.
 //NOTE: It is called by process itself, run on the kernel stack of process. 
 void scheduleProcess(void) {
-    int intena;         //INTerrupt ENAble.
+    int intena;         //full name is: INTerrupt ENAble.
     struct proc *p = myproc();
 
     if (!holding(&p->lock)) panic("scheduleProcess p->lock");
-    if (mycpu()->noff != 1) panic("scheduleProcess locks");
+    if (mycpu()->noff != 1){
+        print_held_locks();
+        panic("scheduleProcess locks(Sleep while holding a lock.)");
+    }
     if (p->state == RUNNING) panic("scheduleProcess RUNNING");
     if (intr_get()) panic("scheduleProcess interruptible");
 
@@ -576,20 +583,28 @@ void forkret(void) {
 
 // waitchannel is a address.When process A call sleep(&x, &lock), it informs the kernel:
 // "If someone sends messages to address &x(By calling wakeup(&x)), please wake up me!"
-// For second paramter, make sure release it before I sleep(for )
+// For second parameter, make sure release it before I sleep
 // and make sure you re-acquire this lock for me when I wake up.
 void sleep(void *waitChannel, struct spinlock *lk) {
     struct proc *p = myproc();
 
     // Must acquire p->lock in order to change p->state and then call scheduleProcess.
     // Once we hold p->lock, we can be guaranteed that we won't miss any wakeup
-    // (wakeup locks p->lock, otherwise we will sleep forever)
+    // (TIPS: Wakeup require holding p->lock, but we hold p->lock first.So wakeup continue waiting.)
+    // (Otherwise we will miss wakeup if we release wakeup first and then acquire p->lock)
     // so it's okay to release lk.
 
     acquire(&p->lock);  // DOC: sleeplock1
 
-    //Internal release for concurrency
+    //Internal release for concurrency(safe release,Since the intr disabled.)
     release(lk);
+
+    struct cpu *cur_cpu=mycpu();
+    if(cur_cpu->noff!=1){
+        printf("FATAL: Sleep() holding extra lock (potential deadlock).\n");
+        print_held_locks();
+        panic("Sleep locks.\n");
+    }
 
     // Go to sleep.
     p->waitChannel = waitChannel;
@@ -612,7 +627,7 @@ void sleep(void *waitChannel, struct spinlock *lk) {
 void wakeup(void *waitChannel) {
     struct proc *p;
     //Sequentially acquires process lock to check conditions, updating the state
-    // make it runnable.
+    // make it runnable.(Broadcast)
     for (p = proc; p < &proc[NPROC]; p++) {
         if (p != myproc()) {
             acquire(&p->lock);
@@ -620,6 +635,22 @@ void wakeup(void *waitChannel) {
                 p->state = RUNNABLE;
             }
             release(&p->lock);
+        }
+    }
+}
+
+void wakeup_one(void *waitChannel){
+    struct proc *p;
+    // (NOTE: Different from wakeup, exit immediately once wakeup one process successfully)
+    // Avoid thundering herd.(Unicast)
+    for (p = proc; p < &proc[NPROC]; p++) {
+        if (p != myproc()) {
+            acquire(&p->lock);
+            if (p->state == SLEEPING && p->waitChannel == waitChannel) {
+                p->state = RUNNABLE;
+            }
+            release(&p->lock);
+            return; 
         }
     }
 }
@@ -727,7 +758,7 @@ found:
     new_kthread->context.ra=(uint64)func;
     new_kthread->context.sp=new_kthread->kstack+PGSIZE;
     release(&new_kthread->lock);
-    //Must release process's lock immideately,other scheduler can acquire and 
+    //NOTE: Must release process's lock immideately,other scheduler can acquire and 
     //execute it on a corresponding CPU once it is detected as runnable.
     return (void *)new_kthread;
 }

@@ -52,7 +52,7 @@
 #define TRAMPOLINE (MAXVA - PGSIZE)
 
 // map kernel stacks  and one reversed page for USYSCALL beneath the trampoline,
-// each surrounded by invalid guard pages.(2+1 =3)
+// each surrounded by invalid guard pages.(2+1 =3) NOTE: for process's kernel stack.
 #define KSTACK(p) (TRAMPOLINE - (p)*2*PGSIZE - 3*PGSIZE)
 
 // User memory layout.

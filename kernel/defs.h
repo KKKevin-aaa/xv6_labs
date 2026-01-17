@@ -161,6 +161,7 @@ void            sleep(void*, struct spinlock*);
 void            userinit(void);
 int             kwait(uint64);
 void            wakeup(void*);
+void            wakeup_one(void *waitChannel);
 void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
@@ -178,6 +179,7 @@ void            release(struct spinlock*);
 void            push_off(void);
 void            pop_off(void);
 int             atomic_read4(int *addr);
+void            print_held_locks(void);
 #ifdef LAB_LOCK
 void            freelock(struct spinlock*);
 void            read_acquire(struct rwspinlock*);

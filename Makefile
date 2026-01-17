@@ -169,7 +169,7 @@ endif
 BUILD_ROOT_DIR := build
 
 DEBUG := 0
-ifeq ($(DEBUG), 1)
+ifeq ($(DEBUG), 2)
   CFLAGS += -DDEBUG_FORK -DDEBUG_VM -DDEBUG_KALLOC -DDEBUG_EXEC -O0 -ggdb3 -gdwarf-4
   CFLAGS += -fno-omit-frame-pointer
   CFLAGS += -fno-partial-inlining -fno-ipa-cp -fno-ipa-sra
@@ -178,7 +178,17 @@ ifeq ($(DEBUG), 1)
   CFLAGS := $(filter-out -O%, $(CFLAGS)) -O0
   # This flags instructs the compiler to enable profilling by inserting a call
   # to the mcount routine at the prologue of every function.
-  OBJ_DIR := $(BUILD_ROOT_DIR)/debug
+  OBJ_DIR := $(BUILD_ROOT_DIR)/debug2
+else ifeq ($(DEBUG), 1)
+  CFLAGS +=  -O0 -ggdb3 -gdwarf-4
+  CFLAGS += -fno-omit-frame-pointer
+  CFLAGS += -fno-partial-inlining -fno-ipa-cp -fno-ipa-sra
+  CFLAGS += -fno-optimize-sibling-calls
+  CFLAGS += -finstrument-functions
+  CFLAGS := $(filter-out -O%, $(CFLAGS)) -O0
+  # This flags instructs the compiler to enable profilling by inserting a call
+  # to the mcount routine at the prologue of every function.
+  OBJ_DIR := $(BUILD_ROOT_DIR)/debug1
 else
   CFLAGS += -O2 -ggdb -gdwarf-4
   OBJ_DIR := $(BUILD_ROOT_DIR)/release

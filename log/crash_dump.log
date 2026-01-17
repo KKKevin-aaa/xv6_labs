@@ -1,93 +1,98 @@
 ++echo log reset to ./logs/crash_dump.log
-log reset to ./logs/crash_dump.log+print right
-$6 = 0x1d72
-+print left
-$7 = 0x0
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+print right
-$8 = 0x1d72
-+print left
-$9 = 0x1cfe
-+print
-$10 = 0x1cfe
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+print left
-$11 = 0x1d72
-+print tight
-No symbol "tight" in current context.
-+print right
-$12 = 0x1d72
-+next
-+print ret_idx
-$13 = 0x1d71
-+next
-+print kernel_addr_map.start_addr[$13]
-$14 = 0x8000f112
-+print kernel_addr_map.end_addr[$13]
-There is no member named end_addr.
-+info symbol 0x8001a3e0
-proc in section .bss
-+x/1gx 0x8001a3e0
-0x8001a3e0 <proc>:	0x0000000000000000
+log reset to ./logs/crash_dump.log+c
+Continuing.
+Cannot execute this command while the target is running.
+Use the "interrupt" command to stop the target
+and then try again.
+Cannot execute this command while the target is running.
+Use the "interrupt" command to stop the target
+and then try again.
+Quit
++info threads
+Cannot execute this command while the target is running.
+Use the "interrupt" command to stop the target
+and then try again.
++interrupty
+Undefined command: "interrupty".  Try "help".
++interrupt
+
+Thread 1 received signal SIGINT, Interrupt.
+0x000000008001c5f0 in acquire (lk=0x801447d8 <tickslock>) at kernel/spinlock.c:33
+Quit
++info threads
+  Id   Target Id                    Frame 
+* 1    Thread 1.1 (CPU#0 [running]) 0x000000008001c5f0 in acquire (lk=0x801447d8 <tickslock>) at kernel/spinlock.c:33
+  2    Thread 1.2 (CPU#1 [running]) 0x000000008001c5f0 in acquire (lk=0x801447d8 <tickslock>) at kernel/spinlock.c:33
+  3    Thread 1.3 (CPU#2 [running]) __panic (
+    file_name=0x800232d8 "kernel/spinlock.c", 
+    line_no=0x1b, 
+    func_name=0x8001f0b0 <__func__.2> "acquire", 
+    s=0x800232d0 "acquire") at kernel/printf.c:466
+  4    Thread 1.4 (CPU#3 [running]) 0x000000008001c5f0 in acquire (lk=0x801447d8 <tickslock>) at kernel/spinlock.c:33
++thread 3
+[Switching to thread 3 (Thread 1.3)]
+#0  __panic (file_name=0x800232d8 "kernel/spinlock.c", 
+    line_no=0x1b, 
+    func_name=0x8001f0b0 <__func__.2> "acquire", 
+    s=0x800232d0 "acquire") at kernel/printf.c:466
 +bt
-#0  find_debug_info (pa=pa@entry=0x8001a3e0) at kernel/printf.c:372
-#1  0x000000008000e75c in backtrace () at kernel/printf.c:414
-#2  backtrace () at kernel/printf.c:392
-#3  0x0000000080005d20 in sys_pause () at kernel/sysproc.c:76
-#4  0x0000000080005b76 in syscall () at kernel/syscall.c:206
-#5  0x0000000080005792 in usertrap () at kernel/trap.c:56
-#6  0x0000003ffffff09c in ?? ()
-+next
-+next
-printf (fmt=0x80014e68 "%s:%u(0x%llx)\n") at kernel/printf.c:151
-+next
-+next
-+next
-+next
-+next
-backtrace () at kernel/printf.c:416
-+next
-+next
-+next
-backtrace () at kernel/printf.c:411
-+next
-+next
-printf (fmt=0x80014f40 "[Corrupted Stack frame](0x%llx)\n") at kernel/printf.c:151
-+next
+#0  __panic (file_name=0x800232d8 "kernel/spinlock.c", 
+    line_no=0x1b, 
+    func_name=0x8001f0b0 <__func__.2> "acquire", 
+    s=0x800232d0 "acquire") at kernel/printf.c:466
+#1  0x000000008001c5ee in acquire (lk=0x80028410 <kmem>)
+    at kernel/spinlock.c:27
+#2  0x0000000080000aa0 in get_order (pa=0x87424000)
+    at kernel/kalloc.c:188
+#3  0x0000000080003c60 in uvmunmap_helper (
+    pagetable=0x80b7f000, va=0x98443000, size=0x1000, 
+    cur_level=0x0, do_free=0x1) at kernel/vm.c:327
+#4  0x0000000080003db8 in uvmunmap_helper (
+    pagetable=0x8029d000, va=0x98443000, size=0x1000, 
+    cur_level=0x1, do_free=0x1) at kernel/vm.c:341
+#5  0x0000000080003db8 in uvmunmap_helper (
+    pagetable=0x87d61000, va=0x98443000, size=0x1000, 
+    cur_level=0x2, do_free=0x1) at kernel/vm.c:341
+#6  0x00000000800041a0 in uvmunmap (pagetable=0x87d61000, 
+    va=0x98443000, size=0x1000, do_free=0x1)
+    at kernel/vm.c:414
+#7  0x0000000080005162 in uvmdealloc (
+    pagetable=0x87d61000, oldsz=0x98460000, 
+    newsz=0x98443000) at kernel/vm.c:666
+#8  0x00000000800123a2 in helper_kvmdealloc_locked (
+    Kpagetable=0x87d61000, oldsz=0x98460000, 
+    newsz=0x98443000) at kernel/kvm.c:455
+#9  0x0000000080012e24 in Kernel_buddy_alloc_locked (
+    Kpagetable=0x87d61000, va=0x98443000, size=0x99000, 
+    xperm=0xe) at kernel/kvm.c:670
+#10 0x00000000800130ce in kvmalloc_range_locked (
+    Kpagetable=0x87d61000, start_va=0x98443000, 
+    sz=0xb6000, xperm=0xe, cont=...) at kernel/kvm.c:719
+#11 0x0000000080013232 in kvmalloc (Kpagetable=0x87d61000, 
+    req_sz=0xb6000, xperm=0xe) at kernel/kvm.c:750
+#12 0x0000000080013aa4 in test_kvm_stress_worker (
+    iters=0x9c40, max_live=0x400, max_pages=0x100)
+    at kernel/kvm.c:912
+#13 0x000000008001bdf4 in backtrace ()
+    at kernel/printf.c:395
+#14 0x000000008000b0ea in sys_pause ()
+    at kernel/sysproc.c:76
+#15 0x000000008000adb2 in syscall ()
+    at kernel/syscall.c:206
+#16 0x000000008000a252 in usertrap () at kernel/trap.c:56
+#17 0x0000003ffffff09c in ?? ()
++frame 1
+#1  0x000000008001c5ee in acquire (lk=0x80028410 <kmem>)
+    at kernel/spinlock.c:27
++print *lk
+$1 = {
+  locked = 0x1,
+  name = 0x8001f2e8 "kmem",
+  cpu = 0x80028698 <cpus+432>
+}
++print mycpu()
+$2 = (struct cpu *) 0x80028698 <cpus+432>
++frame 2
+#2  0x0000000080000aa0 in get_order (pa=0x87424000)
+    at kernel/kalloc.c:188
 +q

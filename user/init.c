@@ -13,7 +13,7 @@ char *argv[] = {"sh", 0};
 
 int main(void) {
     int pid, wpid;
-    load_debug_sym();
+    load_debug_sym();   //Only executed by one cpu.(share the same info)
     if (open("console", O_RDWR) < 0) {
         mknod("console", CONSOLE, 0);
         open("console", O_RDWR);

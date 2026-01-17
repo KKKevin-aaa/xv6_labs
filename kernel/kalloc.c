@@ -36,6 +36,8 @@ struct {    //Anonymous structure(Single Pattern)
     //Buddy system, minimum page size is 4096 bytes(4kB)
     page_t *mem_bitmaps;    //Embedded Array
     struct listhead free_area[MAX_ORDER+1];
+    uint64 nr_free;       // The number of current free pages.
+    uint64 low_watermark;
 } kmem;
 
 //Some Symbol Aliaing(use extern to prevent memory allocation)
@@ -57,31 +59,22 @@ static inline void w_head_order(page_t *p, uint64 order){
     if(p==NULL)     return;
     p->flags.buddy_head.is_head=1;
     p->flags.buddy_head.order=order;
-    // uint64 existing_flag= p->flags & ~(P_DATA_MASK | P_TYPE_MASK);
-    // uint64 new_val = P_TYPE_HEAD | ((order<<1) & P_DATA_MASK);
-    // p->flags = existing_flag | new_val;
 }
 
 static inline void w_tail_offset(page_t *p, uint64 offset){
     if(p==NULL)     return;
     p->flags.buddy_tail.is_head=0;
     p->flags.buddy_tail.offset=offset;
-    // uint64 existing_flag= p->flags & ~(P_DATA_MASK | P_TYPE_MASK);
-    // uint64 new_val = P_TYPE_TAIL| ((offset<<1) & P_DATA_MASK);
-    // p->flags = existing_flag | new_val;
 }
 
 static inline void set_free(page_t * p){
     if(p==NULL)     return;
     p->flags.common.type=PG_TYPE_FREE;
-    // p->flags |= P_FREE_MASK;
 }
 
 static inline void set_alloc(page_t *p){
-    //Syntax Error: function body must be a compound statement
     if(p==NULL)     return;
     p->flags.common.type=PG_TYPE_MAPPED;
-    // p->flags &= ~P_FREE_MASK;
 }
 
 uint64 page2pfn(struct page *pg){
@@ -143,6 +136,8 @@ static void init_whole_area(uint64 end_addr, uint64 maximum_addr){
     for(int i=_hidden_start_pfn;i<_hidden_total_pages;i++){
         free_pages_nolock((void *)pfn2paddr(i), PGSIZE);
     }
+    kmem.low_watermark=20;      //32 * PGSIZE=0X20000
+    kmem.nr_free=(_hidden_total_pages-_hidden_start_pfn);
     release(&kmem.lock);
 }
 //Ensure the element in the list are valid(in the range[start_pfn ,total_size))
@@ -223,32 +218,42 @@ void *alloc_memory(uint64 size){
         return NULL;
     }
     uint8 order=i_log2(size-1)-11;
-    if(size != (1ull<<(order+ORDER_BASE))){   //size must be a valid set member.No internal splitting performed.
+    if(size != (1ull<<(order+ORDER_BASE))){
+        //size must be a valid set member.No internal splitting performed.
         KALLOC_TRACE("alloc memory: allocation size is not basic unit supported!");
         panic("alloc_memory");
     }
     page_t *tmp,*high_tmp;  //higher page
-    uint64 step;
+    uint64 step, offset;
     acquire(&kmem.lock);
     if(order>MAX_ORDER){
-        acquire(&swap_lock);
-        wakeup((void *)&swap_kthread);
-        release(&kmem.lock);
-        sleep((void *)&kmem, &swap_lock);
-        acquire(&kmem.lock);
-        release(&swap_lock);
+        KALLOC_TRACE("Required size is 0x%llx.Exceeds the maximum supported order, "
+                        "leading to an allocation failure.\n", size);
         return NULL;
     }
     //In general cases, allocating a single is sufficient.
-    uint8 split_order=order;uint64 offset;
-    while(split_order<=MAX_ORDER && kmem.free_area[split_order].head==NULL){
+    uint8 split_order=order, kswap_woken=0;
+retry:
+    while(split_order<=MAX_ORDER && kmem.free_area[split_order].head==NULL)
         split_order++;
-    }
     if(split_order>MAX_ORDER){
+        if(mycpu()->noff>1){
+            printf("Holding more than one lock when occur OOM.Cannot attempt to swap.\n");
+            return NULL;
+        }
+        kswap_woken=1;
+        acquire(&swap_lock);    //Before this mement only holding kmem.lock
+        //NOTE: Make the "check for out-of-memory" and "go to sleep" into a single atomic operations.
+        wakeup((void *)swap_kthread);
         release(&kmem.lock);
-        dump_memory_map();
-        wakeup((void *)&kmem);
-        panic("alloc_memory: out-of-memory!");
+        sleep((void *)&kmem, &swap_lock);
+        //Sleep safely,ensuring all wakeup signal will definitely be blocked
+        release(&swap_lock);    //release first.
+        acquire(&kmem.lock);
+        printf("Current available space isn't enough, swap starting...\n");
+        //Now after swapping to the disk, checking if current space is enough now.
+        split_order=order;
+        goto retry;
     }
     tmp=kmem.free_area[split_order].head;   //lower page
     high_tmp=tmp;  //higher page
@@ -260,13 +265,14 @@ void *alloc_memory(uint64 size){
         split_order--;
         step=1ull<<split_order;
         high_tmp=get_page_desc_assert(tmp_pfn+step);
-        blocks_flags_reset(tmp, split_order, 1);
-        blocks_flags_reset(high_tmp, split_order, 0);
-        add_to_list_nolock(tmp, split_order);
-        tmp=high_tmp;
-        tmp_pfn+=step;  //update tmp_pfn;
+        blocks_flags_reset(tmp, split_order, 0);
+        blocks_flags_reset(high_tmp, split_order, 1);
+        add_to_list_nolock(high_tmp, split_order);
     }
     offset=(tmp-kmem.mem_bitmaps)*PGSIZE;
+    kmem.nr_free-=(size/PGSIZE);        //Maintaining the current free pages.
+    if(kswap_woken==1 && kmem.nr_free> kmem.low_watermark)
+        wakeup_one(&kmem);
     release(&kmem.lock);
     return (void *)(offset+KERNBASE);
 }
@@ -343,6 +349,10 @@ void free_pages_nolock(void *pa, uint64 size){
     if(head_pfn!=b_head_pfn || tail_pfn!=b_tail_pfn)
         panic("free_page: (non-header page)fail!");
     reclaim_and_merge(b_head_pfn, req_order);
+    uint64 prev_nrfree=kmem.nr_free;
+    kmem.nr_free+=(size/PGSIZE);
+    if(prev_nrfree<kmem.low_watermark)
+        wakeup_one(&kmem);
 }
 
 void free_pages(void *pa, uint64 size){
@@ -370,7 +380,11 @@ int reclaim_orphan_pages(void *pa, uint64 size){
     uint64 head_pfn, mid_pfn, tail_pfn; //Involved blocks description
     page_t *b_head, *head;
     b_head_pfn=paddr2pfn((uint64)pa);
-    size_order=i_log2(size-1)-12;
+    size_order=i_log2(size-1)-ORDER_BASE;
+    if(size!= 1ull<<(size_order+ORDER_BASE)){
+        printf("Unsupported size in buddy-system, not power of 2.\n");
+        return -1;
+    }
     b_tail_pfn=b_head_pfn+(1ull<<size_order);
     ensure_pfn_valid(b_tail_pfn-1);
     //Three cases in total:cross one blocks, cross two blocks, cross multi-blocks
@@ -414,6 +428,10 @@ int reclaim_orphan_pages(void *pa, uint64 size){
         if(size==0) break;
         size_order=i_log2(size-1)-12;
     }
+    uint64 prev_nrfree=kmem.nr_free;
+    kmem.nr_free+=(size/PGSIZE);
+    if(prev_nrfree<kmem.low_watermark)
+        wakeup_one(&kmem);
     return 0;
 }
 
@@ -612,25 +630,32 @@ int set_poison(void *ptr, uint64 size){
 
 
 void swap_out(void){
-    // release(&swap_kthread->lock);
-    // extern struct proc proc[NPROC];
-    // printf("Swap out started on pid %d\n", myproc()->pid);
-    // for(;;){
-    //     acquire(&swap_lock);
-    //     while(0);
-    //     sleep((void *)&swap_kthread, &swap_lock);   //Wake up 
-    //     release(&swap_lock);    //Allow other processes to signal swap_kthread and enter sleep.
-    //     printf("Now waking up to reclaim pages...\n");
-    //     //Locate infrequently used physical pages to swap them to the disk(without kmem_lock)
-    //     for(struct proc *tmp=proc;tmp<&proc[NPROC];tmp++){
+    release(&swap_kthread->lock);
+    extern struct proc proc[NPROC];
+    printf("Swap out started on pid %d\n", myproc()->pid);
+    for(;;){
+        acquire(&swap_lock);
+        while(0);
+        sleep((void *)swap_kthread, &swap_lock);   //Wake up 
+        release(&swap_lock);    //Allow other processes to signal swap_kthread and enter sleep.
 
-    //     }
-    //     //Now found it, acquire the lock to update kmem
-    //     acquire(&kmem.lock);
+        //NOTE: Determine whether it is truly necessary to trigger the swap mechanism;
+        //it's possible that other processes have released memory in the interim.(Re-validation!)
+        if(1){
+            printf("Now waking up to reclaim pages...\n");
+            //Locate infrequently used physical pages to swap them to the disk(without kmem_lock)
+            for(struct proc *tmp=proc;tmp<&proc[NPROC];tmp++){
 
-    //     //done, now wakeup to inform all waiting process.
-    //     wakeup((void *)&kmem);
-    //     release(&kmem.lock);
-    // }
+            }
+            //Now found it, acquire the lock to update kmem
+            acquire(&kmem.lock);
+            ????????? FIXME: try to find out which acquire kmem but not release correctly.
+            //done, now wakeup to inform all waiting process.(Must holding swap_lock!!)
+            release(&kmem.lock);
+        }
+        acquire(&swap_lock);
+        wakeup_one((void *)&kmem);
+        release(&swap_lock);
+    }
     panic("have not implemented.\n");
 }

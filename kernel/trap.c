@@ -85,6 +85,13 @@ uint64 usertrap(void) {
     // give up the CPU if this is a timer interrupt.
     if (which_dev == 2) yield();
 
+    //check if still holding some unreleased lock before return to userspace
+    if(mycpu()->noff!=0){
+        printf("FATAL: Returning to user sapce with held locks!\n");
+        print_held_locks();
+        panic("Usertrapret locks.\n");
+    }
+
     prepare_return();
 
     // the user page table to switch to, for trampoline.S
