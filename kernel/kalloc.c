@@ -649,7 +649,7 @@ void swap_out(void){
             }
             //Now found it, acquire the lock to update kmem
             acquire(&kmem.lock);
-            ????????? FIXME: try to find out which acquire kmem but not release correctly.
+            //????????? FIXME: try to find out which acquire kmem but not release correctly.
             //done, now wakeup to inform all waiting process.(Must holding swap_lock!!)
             release(&kmem.lock);
         }

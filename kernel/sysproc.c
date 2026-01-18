@@ -27,36 +27,51 @@ uint64 sys_wait(void) {
     return kwait(p);
 }
 
+//Different from vmfault(Explicitly invoked by the user.)
 uint64 sys_sbrk(void) {
     uint64 addr;
     int t;
     int n;
-
+    uint64 tmp_ret;
+    struct proc *cur_proc=myproc();
     argint(0, &n);
     argint(1, &t);
-    addr = myproc()->sz;
-    if(addr+n>=MAXVA)   return -1;  
+    acquire(&cur_proc->uvm_lock);
+
+    addr = cur_proc->sz;
+    if(addr+n>=MAXVA){
+        tmp_ret=-1;  
+        goto release_and_ret;
+    }
     //Prevent excessive n from overwriting kernel memory
     if (t == SBRK_EAGER) {
         if (growproc(n) < 0) {
-            return -1;
+            tmp_ret=-1;
+            goto release_and_ret;
         }
-    } else {
+    } 
+    else {
         // Lazily allocate memory for this process: increase its memory
         // size but don't allocate memory. If the processes uses the
         // memory, vmfault() will allocate it.
-        struct proc *p=myproc();
         if(n<0){
-        #ifdef RESERVE
-            free_res_memory(p->rb_array, p->pagetable, p->rb_array[0].va, p->sz, p->sz+n);
-            p->sz += n; //In lazy shrink
-        #else
-            if(growproc(n)<0)   return -1;  //non-reserve
-        #endif
+            #ifdef RESERVE
+                free_res_memory(cur_proc->rb_array, cur_proc->pagetable, 
+                                cur_proc->rb_array[0].va, cur_proc->sz, cur_proc->sz+n);
+                cur_proc->sz += n; //In lazy shrink
+            #else
+                if(growproc(n)<0){
+                    tmp_ret=-1;
+                    goto release_and_ret;
+                }  //non-reserve
+            #endif
         }
-        else    p->sz += n; //In lazy grow
+        else    cur_proc->sz += n; //In lazy grow
     }
-    return addr;
+    tmp_ret=addr;
+release_and_ret:
+    release(&cur_proc->uvm_lock);
+    return tmp_ret;
 }
 
 uint64 sys_pause(void) {
@@ -98,7 +113,9 @@ int sys_kpgtbl(void) {
     struct proc *p;
 
     p = myproc();
+    acquire(&p->uvm_lock);
     vmprint(p->pagetable);
+    release(&p->uvm_lock);
     return 0;
 }
 // #endif

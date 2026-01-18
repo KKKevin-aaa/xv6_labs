@@ -260,18 +260,29 @@ void consoleintr(int input_char) {
 int console_ioctl(int requset, uint64 user_addr){
     //Use spinlock(busy-wait lock):keep checking until the lock release
     int temp_value;   //mode and echo's type both are int.
+    struct proc *p=myproc();
     switch(requset){
         case CONSOLE_GET_MODE:
             acquire(&console_buf.lock);
             temp_value=console_buf.mode;
             release(&console_buf.lock);
-            if(copyout(myproc()->pagetable, user_addr, (char *)&temp_value, sizeof(int))<0)
-                return -1;
-            break;
-        case CONSOLE_SET_MODE:
-            if(copyin(myproc()->pagetable, (char *)&temp_value, user_addr, sizeof(console_buf.mode))<0){
+
+            acquire(&p->uvm_lock);
+            if(copyout(p->pagetable, user_addr, (char *)&temp_value, sizeof(int))<0){
+                release(&p->uvm_lock);
                 return -1;
             }
+            release(&p->uvm_lock);
+            
+            break;
+        case CONSOLE_SET_MODE:
+            acquire(&p->uvm_lock);
+            if(copyin(p->pagetable, (char *)&temp_value, user_addr, sizeof(console_buf.mode))<0){
+                release(&p->uvm_lock);
+                return -1;
+            }
+            release(&p->uvm_lock);      //Narrowing the critical section.
+
             if(temp_value!=CONSOLE_MODE_CANONICAL && temp_value!=CONSOLE_MODE_RAW){
                 return -1;
             }
@@ -283,13 +294,23 @@ int console_ioctl(int requset, uint64 user_addr){
             acquire(&console_buf.lock);
             temp_value=console_buf.echo;
             release(&console_buf.lock);
-            if(copyout(myproc()->pagetable, user_addr, (char *)&temp_value, sizeof(int))<0)
-                return -1;
-            break;
-        case CONSOLE_SET_ECHO:
-            if(copyin(myproc()->pagetable, (char *)&temp_value, user_addr, sizeof(console_buf.mode))<0){
+
+            acquire(&p->uvm_lock);
+            if(copyout(p->pagetable, user_addr, (char *)&temp_value, sizeof(int))<0){
+                release(&p->uvm_lock);
                 return -1;
             }
+            release(&p->uvm_lock);
+            break;
+
+        case CONSOLE_SET_ECHO:
+            acquire(&p->uvm_lock);
+            if(copyin(p->pagetable, (char *)&temp_value, user_addr, sizeof(console_buf.mode))<0){
+                release(&p->uvm_lock);
+                return -1;
+            }
+            release(&p->uvm_lock);
+
             if(temp_value!=CONSOLE_ECHO_OFF && temp_value!=CONSOLE_ECHO_ON){
                 return -1;
             }

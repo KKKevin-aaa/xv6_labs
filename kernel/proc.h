@@ -20,11 +20,15 @@ struct context {
 
 // Per-CPU state.
 #define MAX_LOCK_DEPTH 10
+enum cpustate {CPU_SPINNING, CPU_RUNNING, CPU_HALTED, CPU_PANIC};
 struct cpu {
     struct proc *proc;       // The process running on this cpu, or null.
     struct context context;  // swtch() here to enter scheduler().
-    int noff;                // The number of spinlocks currently held.
     struct spinlock *held_lock[MAX_LOCK_DEPTH]; //Record the currently held locks.
+    volatile enum cpustate state;       //Flags, while corresponding payload is wait_lock
+    struct spinlock * volatile wait_lock;//Track locks that exceed the maximum wait duration.
+    //NOTE: Optimize to fit within a CPU register to enable lock-free access and reduce cache line footprint.
+    int noff;                // The number of spinlocks currently held.
     int intena;              // Were interrupts enabled before push_off()?
 };
 
@@ -81,7 +85,8 @@ struct trapframe {
     /* 280 */ uint64 t6;
 };
 
-enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+enum procstate { PROC_UNUSED, PROC_USED, PROC_SLEEPING, 
+            PROC_RUNNABLE, PROC_RUNNING, PROC_ZOMBIE };
 
 // Per-process state
 struct proc {              // Process control block(PCB)
@@ -104,7 +109,10 @@ struct proc {              // Process control block(PCB)
     uint64 kstack;  // Virtual address of kernel stack(allocated and mappage in proc_mapstacks)
     uint64 sz;  // Size of process memory (bytes),indicates the top of the user heap, modified by
                 // sbrk()
+
     pagetable_t pagetable;   // User page table
+    struct spinlock uvm_lock;       //User pagetable lock
+
     struct trapframe *trapframe;  // data page for trampoline.S(Mode switch)
     //(switch form User to kernel,like syscall) still belong to this process,"what I am doing before
     //enter kernel"

@@ -64,19 +64,6 @@ uint64 usertrap(void) {
         printf("usertrap(): unexpected scause 0x%llx pid=%d\n", r_scause(), p->pid);
         printf("            sepc=0x%llx stval=0x%llx\n", r_sepc(), r_stval());
         printf("            pagetable is %p, name is %s\n",p->pagetable, p->name);
-        if (r_scause() == 15 && r_stval() >= 0x5000 && r_stval() < 0x6000) {
-            printf("!!! DEBUG TRAP: Page Fault at %llx pid=%d name=%s !!!\n", 
-                   r_stval(), p->pid, p->name);            
-            pte_t *pte = walk(p->pagetable, r_stval(), 0, 0);
-            if(pte == 0) {
-                printf(" -> PTE does not exist (page table missing)\n");
-            } else {
-                printf(" -> PTE content: %llx (Valid bit: %lld, Write bit: %lld)\n", 
-                       *pte, (*pte & PTE_V), (*pte & PTE_W)>>2);
-            }            
-            vmprint(p->pagetable); 
-            //panic("Stop for inspection");
-        }
         setkilled(p);
     }
 

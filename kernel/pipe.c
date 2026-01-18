@@ -64,19 +64,24 @@ void pipeclose(struct pipe *pi, int writable) {
         release(&pi->lock);
 }
 
+//The following two functions must adhere to the same lock ordering
 int pipewrite(struct pipe *pi, uint64 addr, int n) {
     int i = 0;
     struct proc *pr = myproc();
 
     acquire(&pi->lock);
+    acquire(&pr->uvm_lock);
     while (i < n) {
         if (pi->readopen == 0 || killed(pr)) {
+            release(&pr->uvm_lock);
             release(&pi->lock);
             return -1;
         }
         if (pi->nwrite == pi->nread + PIPESIZE) {  // DOC: pipewrite-full
             wakeup(&pi->nread);
+            release(&pr->uvm_lock);     //Do not sleep with lock(release first)
             sleep(&pi->nwrite, &pi->lock);
+            acquire(&pr->uvm_lock);     //Reacquire lock
         } else {
             char ch;
             if (copyin(pr->pagetable, &ch, addr + i, 1) == -1) break;
@@ -85,8 +90,9 @@ int pipewrite(struct pipe *pi, uint64 addr, int n) {
         }
     }
     wakeup(&pi->nread);
-    release(&pi->lock);
 
+    release(&pr->uvm_lock);
+    release(&pi->lock);
     return i;
 }
 
@@ -96,12 +102,16 @@ int piperead(struct pipe *pi, uint64 addr, int n) {
     char ch;
 
     acquire(&pi->lock);
+    acquire(&pr->uvm_lock);
     while (pi->nread == pi->nwrite && pi->writeopen) {  // DOC: pipe-empty
         if (killed(pr)) {
+            release(&pr->uvm_lock);
             release(&pi->lock);
             return -1;
         }
+        release(&pr->uvm_lock);
         sleep(&pi->nread, &pi->lock);  // DOC: piperead-sleep
+        acquire(&pr->uvm_lock);
     }
     for (i = 0; i < n; i++) {  // DOC: piperead-copy
         if (pi->nread == pi->nwrite) break;
@@ -109,6 +119,8 @@ int piperead(struct pipe *pi, uint64 addr, int n) {
         if (copyout(pr->pagetable, addr + i, &ch, 1) == -1) break;
     }
     wakeup(&pi->nwrite);  // DOC: piperead-wakeup
+
+    release(&pr->uvm_lock);
     release(&pi->lock);
     return i;
 }

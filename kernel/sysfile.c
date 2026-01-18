@@ -436,14 +436,17 @@ uint64 sys_pipe(void) {
         fileclose(wf);
         return -1;
     }
+    acquire(&p->uvm_lock);
     if (copyout(p->pagetable, fdarray, (char *)&fd0, sizeof(fd0)) < 0 ||
         copyout(p->pagetable, fdarray + sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0) {
+        release(&p->uvm_lock);
         p->ofile[fd0] = 0;
         p->ofile[fd1] = 0;
         fileclose(rf);
         fileclose(wf);
         return -1;
     }
+    release(&p->uvm_lock);
     return 0;
 }
 

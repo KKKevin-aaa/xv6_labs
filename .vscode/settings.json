@@ -10,6 +10,11 @@
 
     // 3. 字号建议：Anonymous Pro 偏小，建议设为 16
     "editor.fontFontSize": 18,
+    "python.testing.pytestArgs": [
+        "."
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
     
     // 4. 加粗：这款字体加粗一点点更好看 (可选)
     //"editor.fontWeight": "bold"

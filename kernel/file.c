@@ -80,7 +80,12 @@ int filestat(struct file *f, uint64 addr) {
         ilock(f->ip);
         stati(f->ip, &st);
         iunlock(f->ip);
-        if (copyout(p->pagetable, addr, (char *)&st, sizeof(st)) < 0) return -1;
+        acquire(&p->uvm_lock);
+        if (copyout(p->pagetable, addr, (char *)&st, sizeof(st)) < 0){
+            release(&p->uvm_lock);
+            return -1;
+        }
+        release(&p->uvm_lock);
         return 0;
     }
     return -1;

@@ -270,6 +270,7 @@ vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr);
 vm_area_struct_t *find_vma_and_get(mm_struct_t *mm, uint64 vaddr);
 vm_area_struct_t *find_upper_vma_and_get(mm_struct_t *mm, uint64 vaddr);
 mm_struct_t     *mm_create();
+int             remove_mm(mm_struct_t *mm);
 vm_area_struct_t *alloc_vma_node(void);
 int             reclaim_vma_node(vm_area_struct_t *);
 vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr);

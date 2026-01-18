@@ -3,6 +3,9 @@ struct vm_area_struct;
 struct mm_struct;   //forward declaration
 struct vm_operation_struct;
 
+#define VM_READ  0x1
+#define VM_WRITE 0x2
+#define VM_EXEC  0x4
 struct vm_area_struct{  //Virtual Memory Area
     uint64 vm_start, vm_end;
     uint64 vm_filesz;    //check if .bss segment 

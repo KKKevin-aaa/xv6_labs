@@ -868,6 +868,7 @@ void uvmfree(res_block *rblocks, pagetable_t pagetable, uint64 sz) {
     if (sz > 0) freewalk(pagetable, 1, 0, sz, 2);
     else    freewalk(pagetable, 0, 0, sz, 2);
 }
+
 // Given a parent process's page table, copy its memory into a child's page table.
 // Copies both the page table and the physical memory.
 // returns 0 on success, -1 on failure. frees any allocated pages on failure.
@@ -900,6 +901,7 @@ void uvmclear(pagetable_t pagetable, uint64 va) {
     if (pte == 0) panic("uvmclear");
     *pte &= ~PTE_U;
 }
+
 //-----NOTE:the following three function are build upon kernel page, user pa is treated as kernel va.--------
 // Copy from kernel to user.
 // Copy len bytes from src to virtual address dstva in a given page table.
@@ -957,6 +959,7 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
     }
     return 0;
 }
+
 // Copy from user to kernel.
 // Copy len bytes to dst from virtual address srcva in a given page table.
 // Return 0 on success, -1 on error.
@@ -1012,6 +1015,7 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
     }
     return 0;
 }
+
 // Copy a null-terminated string from user to kernel.
 // Copy bytes to dst from virtual address srcva in a given page table,
 // until a '\0', or max.
@@ -1054,14 +1058,16 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max) {
 // and return physical address if successful.
 uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
     struct proc *p = myproc();
+    uint64 tmp_ret=0;
+    acquire(&p->uvm_lock);
+
     //Pass arugment rblocks etc explicitly instead of implicitly retriving them via myproc()
     if (va >= p->sz) return 0;
     va = PGROUNDDOWN(va);
-    if (ismapped(pagetable, va)) {
-        return 0;
-    }
+    if (ismapped(pagetable, va))
+        tmp_ret=0;
     #ifdef RESERVE
-        return Simp_alloc_res_memory(rblocks, pagetable, va, PTE_W|PTE_R|PTE_U);
+        tmp_ret=Simp_alloc_res_memory(rblocks, pagetable, va, PTE_W|PTE_R|PTE_U);
     #else
         uint64 mem = (uint64)kalloc();
         if (mem == 0) return 0;
@@ -1072,6 +1078,8 @@ uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
         }
         return mem;
     #endif
+    release(&p->uvm_lock);
+    return tmp_ret;
 }
 
 int ismapped(pagetable_t pagetable, uint64 va) {

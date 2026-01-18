@@ -29,10 +29,11 @@
  */
 pagetable_t kernel_pagetable;
 
-//NOTE: Compilation precedes linking.the symbol table does not yet exist.
-//so the compiler can only parse code according to fixed, rigid rules.We must "deceive" the compiler or explicitly declare 
-// that it should not look up the value at that location and then return the data to us.
-// Difference is: la a0, _init_start and the other is la a0, _init_start and or so lb a1, 0(a0)
+//NOTE: Compliation precedes linking.the symbol table does not yet exist during complier.
+// so the compiler can only parse code according to fixed, rigid rules.
+//We must "deceive" the compiler or explicitly declare that it should not look up the value 
+// at that location and then return the data to us.
+// Difference is: la a0, _init_start ; the other: la a0, _init_start, lb a1, 0(a0)
 // Two method to solve it: & ,or  using array name deacy into address automatically.
 extern char etext[];  // kernel.ld sets this to end of kernel code.
 
@@ -44,10 +45,13 @@ extern char _init_end;
 
 void *usyscall_pa=NULL;
 extern char trampoline[];  // trampoline.S
-//Maintain global state.
 
-mm_struct_t *global_mm=NULL;
+//Involved lock: kvm_lock(protect kernel pagetable); mm->mm_lock(can be global_mm),
+//protect the rb_tree + vma_list
+//Sequence(rank): mm_lock/proc_lock, fs_lock, kvm_lock/pagetable_lock, kmem_lock/alloc_lock
+mm_struct_t *global_mm=NULL;    //Share kernel pagetable among multi-cpu.
 struct spinlock kvm_lock;   //protect the kernel pagetable in multi-cpu
+
 
 static inline uint8 in_kernel_heap(uint64 va){
 #ifdef DEBUG_KVM
@@ -467,8 +471,8 @@ uint64 kvmdealloc_range(pagetable_t Kpagetable, uint64 va_start, uint64 va_end){
     uint64 align_start=PGROUNDUP(va_start);
     uint64 align_end=PGROUNDDOWN(va_end);
     if(align_start==align_end)    return va_start;
-    acquire(&global_mm->mm_lock);
     acquire(&kvm_lock); //Only one kernel_tablepage, so only one lock!
+    acquire(&global_mm->mm_lock);
     vm_area_struct_t *find_ret=find_vma_and_get(global_mm, align_start);
     if(find_ret==NULL || !(find_ret->vm_start>=align_start && align_end<=find_ret->vm_end)){ 
         //Pass the range test firstly

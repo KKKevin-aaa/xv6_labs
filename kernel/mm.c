@@ -117,6 +117,11 @@ void clear_mm_internal(mm_struct_t *mm){
     //FIXME: 
 }
 
+int remove_mm(mm_struct_t *mm){
+    clear_mm_internal(mm);
+    return slab_free((void *)mm);
+}
+
 vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr){
     //Assuming hold mm->mm_lock(Lock-Prected Borrowing)
     //No refcount update is needed since the object isn't leaked out of the critical sections.

@@ -23,15 +23,52 @@ void acquire(struct spinlock *lk) {
     //by the interrupt and cannot release the lock,the ISR will spin indefinitely on the same
     //CPU, leading th a system deadlock.
 
-
     if (holding(lk)) panic("acquire");
 
+    //NOTE: (New added)Panic on timeout
     // On RISC-V, sync_lock_test_and_set turns into an atomic swap:
     //   a5 = 1
     //   s1 = &lk->locked
     //   amoswap.w.aq a5, a5, (s1)
-    while (__sync_lock_test_and_set(&lk->locked, 1) != 0);
-
+    int cnt=1, lock_updated=0;
+    while (__sync_lock_test_and_set(&lk->locked, 1) != 0){
+        if(cnt<1000000000)  cnt++;
+        else{
+            cnt=0;      //Reduce the testing rounds
+            struct cpu *cur_cpu=mycpu();
+            if(lock_updated==0){
+                mycpu()->wait_lock=lk;
+                __sync_synchronize();
+                __sync_lock_test_and_set(&cur_cpu->state, CPU_SPINNING);
+                //Seperate intent and fact.
+                lock_updated=1;
+            }
+            //Cycle detection(e.g. AB-BA)starting with lk(try to hold)
+            struct spinlock *test_lk=lk;
+            while(1){
+                struct cpu *snapshot=test_lk->cpu;  //Load to local
+                if(snapshot==NULL || snapshot->state==CPU_RUNNING)  break;      //Maybe not cycle or some CPU's release lock
+                __sync_synchronize();
+                //Multi-Core concurrency + lock-free + Ordering matters(Explicit Memory barriers)
+                struct spinlock *ss_lock=snapshot->wait_lock;
+                if(ss_lock==NULL)   break;
+                if(ss_lock->cpu==cur_cpu)   goto deadlock;
+                test_lk=ss_lock;        //update
+            }
+            continue;   //Keep wating(no deadlock exist)
+deadlock:
+            printf("DEADLOCK DETECHED!LOCK name is %s held by cpu: %d\n",
+                lk->name, (int)(lk->cpu-cpus));
+            //At this point, interrupts are masked(disabled) on the cpu,
+            //So we must trigger a non-maskable exception to bring the cpu to a halt.
+            asm volatile("ebreak");
+        }
+    }
+    if(lock_updated==1){
+        __sync_lock_test_and_set(&mycpu()->state, CPU_RUNNING);
+        __sync_synchronize();
+        mycpu()->wait_lock=NULL;    //Reverse the sequence used during CPU deactivation.
+    }
     // Tell the C compiler and the processor to not move loads or stores
     // past this point, to ensure that the critical section's memory
     // references happen strictly after the lock is acquired.
@@ -60,10 +97,8 @@ void release(struct spinlock *lk) {
     int end_idx=MIN(cur_cpu->noff-1, MAX_LOCK_DEPTH-1);
     for(int found_idx=end_idx;found_idx>=0;found_idx--){
         if(cur_cpu->held_lock[found_idx]==lk){
-            //move forward element if necessary
-            for(int j=found_idx;j<end_idx;j++){
-                cur_cpu->held_lock[j]=cur_cpu->held_lock[j+1];
-            }
+            //Move last element to held_lock[found_idx]
+            cur_cpu->held_lock[found_idx]=cur_cpu->held_lock[end_idx];
             cur_cpu->held_lock[end_idx]=NULL;
         }
     }
@@ -77,8 +112,7 @@ void release(struct spinlock *lk) {
 
     // Release the lock, equivalent to lk->locked = 0.
     // This code doesn't use a C assignment, since the C standard
-    // implies that an assignment might be implemented with
-    // multiple store instructions.
+    // implies that an assignment might be implemented with multiple store instructions.
     // On RISC-V, sync_lock_release turns into an atomic swap:
     //   s1 = &lk->locked
     //   amoswap.w zero, zero, (s1)

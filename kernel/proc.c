@@ -66,7 +66,7 @@ void procinit(void) {
     initlock(&wait_lock, "wait_lock");
     for (p = proc; p < &proc[NPROC]; p++) {
         initlock(&p->lock, "proc");
-        p->state = UNUSED;
+        p->state = PROC_UNUSED;
         p->kstack = KSTACK((int)(p - proc));
     }
 }
@@ -116,7 +116,7 @@ static struct proc *allocproc(void) {
 
     for (p = proc; p < &proc[NPROC]; p++) {
         acquire(&p->lock);
-        if (p->state == UNUSED) {
+        if (p->state == PROC_UNUSED) {
             if(p->mm==NULL){
                 p->mm=mm_create();
                 memset(p->mm, 0, sizeof(struct mm_struct));
@@ -131,7 +131,7 @@ static struct proc *allocproc(void) {
 
 found:
     p->pid = allocpid();
-    p->state = USED;
+    p->state = PROC_USED;
     p->syscall_mask =0;
     // Allocate a trapframe page.
     if ((p->trapframe = (struct trapframe *)kalloc_page()) == 0) {
@@ -177,7 +177,7 @@ static void freeproc(struct proc *p) {
     p->waitChannel = 0;
     p->killed = 0;
     p->xstate = 0;
-    p->state = UNUSED;
+    p->state = PROC_UNUSED;
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -216,7 +216,8 @@ pagetable_t proc_pagetable(struct proc *p) {
         uvmfree(p->rb_array, pagetable, 0);  //have not alloc memory, so size equal zero!
         return 0;
     }
-
+    //initlock/reset pagetable lock at the same time
+    initlock(&p->uvm_lock, "User_process lock");
     return pagetable;
 }
 
@@ -239,7 +240,7 @@ void userinit(void) {
 
     p->cwd = namei("/");
 
-    p->state = RUNNABLE;
+    p->state = PROC_RUNNABLE;
 
     release(&p->lock);
 }
@@ -249,7 +250,8 @@ void userinit(void) {
 int growproc(int n) {
     uint64 sz;
     struct proc *p = myproc();
-
+    if(!holding(&p->uvm_lock))
+        panic("access user's pagetable without lock.\n");
     sz = p->sz;
     if (n > 0) {
         if ((sz = uvmalloc(p->pagetable, sz, sz + n, PTE_W)) == 0) {
@@ -266,60 +268,45 @@ int growproc(int n) {
 // Sets up child kernel stack to return as if from fork() system call.
 int kfork(void) {
     int i, pid;
-    struct proc *np;
-    struct proc *p = myproc();
-    #ifdef PROC_TEST_TIME
-    uint64 kfork_start_time = r_cycle();
-    #endif
-    #ifdef DEBUG_FORK
-    FORK_TRACE("ENTRY parent pid=%d name='%s' sz=0x%llx mask=0x%x\n", 
-               p->pid, p->name, p->sz, p->syscall_mask);
-    #endif
+    struct proc *new_child;
+    struct proc *cur_parent = myproc();
+
     // Allocate process(process control block).
     // Critical: allocproc() acquires p->lock of the new process.
     // NOTE: (Still holding the process's private lock upon return.)
-    if ((np = allocproc()) == 0) {
-        #ifdef DEBUG_FORK
-        FORK_TRACE("FAIL allocproc returned 0 (no free procs)\n");
-        #endif
+    if ((new_child = allocproc()) == 0) 
         return -1;
-    }
-    #ifdef DEBUG_FORK
-    FORK_TRACE("allocproc success: child pid=%d pt=%p\n", np->pid, np->pagetable);
-    FORK_TRACE("START uvmcopy: parent_pt=%p -> child_pt=%p sz=0x%llx\n", 
-               p->pagetable, np->pagetable, p->sz);
-    #endif
+
     // Copy user memory from parent to child.
-    memmove(np->rb_array, p->rb_array, sizeof(struct Reservation)*MAX_RES_BLOCK);   //copy the rb_array first
-    if (uvmcopy(np->rb_array, p->pagetable, np->pagetable, p->sz) < 0) {
-        #ifdef DEBUG_FORK
-        FORK_TRACE("FAIL uvmcopy error for child pid=%d\n", np->pid);
-        #endif
-        freeproc(np);
-        release(&np->lock);     //Release the lock got from allocproc()
+    memmove(new_child->rb_array, cur_parent->rb_array, sizeof(struct Reservation)*MAX_RES_BLOCK);   //copy the rb_array first
+    acquire(&cur_parent->uvm_lock);
+
+    if (uvmcopy(new_child->rb_array, cur_parent->pagetable, new_child->pagetable, cur_parent->sz) < 0) {
+
+        freeproc(new_child);
+        release(&new_child->lock);     //Release the lock got from allocproc()
+        release(&cur_parent->uvm_lock);
         return -1;
     }
-    np->sz = p->sz;
-    #ifdef DEBUG_FORK
-    FORK_TRACE("END uvmcopy: success. child sz=0x%llx\n", np->sz);
-    #endif
-    
+    new_child->sz = cur_parent->sz;
+    release(&cur_parent->uvm_lock);
+
     // Copy saved user registers.
-    *(np->trapframe) = *(p->trapframe);
+    *(new_child->trapframe) = *(cur_parent->trapframe);
     // NOTE: Duplicate all user stacks and registers,only modifying the a0 register
     // as the fork return value,so we can tell child and parent from return value.
-    np->trapframe->a0 = 0;
+    new_child->trapframe->a0 = 0;
 
     // Increment reference counts on open file descriptors.
     for (i = 0; i < NOFILE; i++)
-        if (p->ofile[i]) np->ofile[i] = filedup(p->ofile[i]);
+        if (cur_parent->ofile[i]) new_child->ofile[i] = filedup(cur_parent->ofile[i]);
     // Duplicate the current working directory.
-    np->cwd = idup(p->cwd);
+    new_child->cwd = idup(cur_parent->cwd);
     // Copy the process name
-    safestrcpy(np->name, p->name, sizeof(p->name));
-    pid = np->pid;
-    np->syscall_mask = p->syscall_mask;
-    safestrcpy(np->allow_path_str, p->allow_path_str, MAXPATH);
+    safestrcpy(new_child->name, cur_parent->name, sizeof(cur_parent->name));
+    pid = new_child->pid;
+    new_child->syscall_mask = cur_parent->syscall_mask;
+    safestrcpy(new_child->allow_path_str, cur_parent->allow_path_str, MAXPATH);
 
     // Lock Ordering Dance (Avoid Deadlock)
     // NOTE: Current np is set USED,make it private and inaccessiale to the scheduler.
@@ -327,25 +314,16 @@ int kfork(void) {
     //A potential deadlock scenario exists: 
     //  CPU A holds p->lock and waits for wait_lock, while CPU B holds wait_lock and waits for p->lock
     //Principle:the global wait_lock must be acquired before the specific p->lock—we must first release the process lock.
-    release(&np->lock);
+
+    release(&new_child->lock);
     acquire(&wait_lock);
-    np->parent = p;
+    new_child->parent = cur_parent;
     release(&wait_lock);
-    acquire(&np->lock);
-    np->state = RUNNABLE;
-    #ifdef DEBUG_FORK
-        FORK_TRACE("STATE UPDATE: child pid=%d is now RUNNABLE\n", np->pid);
-    #endif
-    #ifdef PROC_TEST_TIME
-    uint64 kfork_end_time = r_cycle();
-    if(kfork_end_time - kfork_start_time > 10000){
-        printf("PERF: fork pid %d took %lld cycles\n", np->pid, kfork_end_time - kfork_start_time);
-    }
-    #endif
-    release(&np->lock);
-    #ifdef DEBUG_FORK
-        FORK_TRACE("EXIT returns child pid=%d\n", pid);
-    #endif
+    acquire(&new_child->lock);
+    new_child->state = PROC_RUNNABLE;
+
+    release(&new_child->lock);
+
     return pid;
 }
 
@@ -395,7 +373,7 @@ void kexit(int status) {
     acquire(&p->lock);
 
     p->xstate = status; //eXit state
-    p->state = ZOMBIE;
+    p->state = PROC_ZOMBIE;
 
     release(&wait_lock);
 
@@ -407,7 +385,7 @@ void kexit(int status) {
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
 int kwait(uint64 addr) {
-    struct proc *pp;
+    struct proc *tmp_p;
     int havekids, pid;
     struct proc *p = myproc();
 
@@ -416,29 +394,29 @@ int kwait(uint64 addr) {
     for (;;) {
         // Scan through table looking for exited children.
         havekids = 0;   //Initially assume no children are ready.
-        for (pp = proc; pp < &proc[NPROC]; pp++) {
-            if (pp->parent == p) {
+        for (tmp_p = proc; tmp_p < &proc[NPROC]; tmp_p++) {
+            if (tmp_p->parent == p) {
                 // make sure the child isn't still in exit() or swtch().
                 // e.g. for kfork(): child must release its process lock 
                 // and acquire wait_lock to update the relationship,so now the child's private lock can acquire.
-                acquire(&pp->lock);
+                acquire(&tmp_p->lock);
 
                 havekids = 1;
-                if (pp->state == ZOMBIE) {
+                if (tmp_p->state == PROC_ZOMBIE) {
                     // Found one.
-                    pid = pp->pid;
+                    pid = tmp_p->pid;
                     if (addr != 0 &&
-                        copyout(p->pagetable, addr, (char *)&pp->xstate, sizeof(pp->xstate)) < 0) {
-                        release(&pp->lock);
+                        copyout(p->pagetable, addr, (char *)&tmp_p->xstate, sizeof(tmp_p->xstate)) < 0) {
+                        release(&tmp_p->lock);
                         release(&wait_lock);
                         return -1;
                     }
-                    freeproc(pp);
-                    release(&pp->lock);
+                    freeproc(tmp_p);
+                    release(&tmp_p->lock);
                     release(&wait_lock);
                     return pid;
                 }
-                release(&pp->lock);
+                release(&tmp_p->lock);
             }
         }
 
@@ -477,11 +455,11 @@ void scheduler(void) {
         int found = 0;
         for (p = proc; p < &proc[NPROC]; p++) {
             acquire(&p->lock);  //Only holding process's lock,cpu can take control it.
-            if (p->state == RUNNABLE) {
+            if (p->state == PROC_RUNNABLE) {
                 // Switch to chosen process.  It is the process's job
                 // to release its lock and then reacquire it
                 // before jumping back to us.
-                p->state = RUNNING;
+                p->state = PROC_RUNNING;
                 c->proc = p;
                 // Save my context(include ra,sp and all callee-save register:s0-s11)to c->context,
                 // and then load the registers from p->context(where we going to)
@@ -517,7 +495,7 @@ void scheduleProcess(void) {
         print_held_locks();
         panic("scheduleProcess locks(Sleep while holding a lock.)");
     }
-    if (p->state == RUNNING) panic("scheduleProcess RUNNING");
+    if (p->state == PROC_RUNNING) panic("scheduleProcess RUNNING");
     if (intr_get()) panic("scheduleProcess interruptible");
 
     intena = mycpu()->intena;
@@ -539,7 +517,7 @@ void scheduleProcess(void) {
 void yield(void) {
     struct proc *p = myproc();
     acquire(&p->lock);
-    p->state = RUNNABLE;
+    p->state = PROC_RUNNABLE;
     scheduleProcess();
     release(&p->lock);
 }
@@ -608,7 +586,7 @@ void sleep(void *waitChannel, struct spinlock *lk) {
 
     // Go to sleep.
     p->waitChannel = waitChannel;
-    p->state = SLEEPING;
+    p->state = PROC_SLEEPING;
 
     scheduleProcess();
 
@@ -631,8 +609,8 @@ void wakeup(void *waitChannel) {
     for (p = proc; p < &proc[NPROC]; p++) {
         if (p != myproc()) {
             acquire(&p->lock);
-            if (p->state == SLEEPING && p->waitChannel == waitChannel) {
-                p->state = RUNNABLE;
+            if (p->state == PROC_SLEEPING && p->waitChannel == waitChannel) {
+                p->state = PROC_RUNNABLE;
             }
             release(&p->lock);
         }
@@ -646,8 +624,8 @@ void wakeup_one(void *waitChannel){
     for (p = proc; p < &proc[NPROC]; p++) {
         if (p != myproc()) {
             acquire(&p->lock);
-            if (p->state == SLEEPING && p->waitChannel == waitChannel) {
-                p->state = RUNNABLE;
+            if (p->state == PROC_SLEEPING && p->waitChannel == waitChannel) {
+                p->state = PROC_RUNNABLE;
             }
             release(&p->lock);
             return; 
@@ -665,9 +643,9 @@ int kkill(int pid) {
         acquire(&p->lock);
         if (p->pid == pid) {
             p->killed = 1;
-            if (p->state == SLEEPING) {
+            if (p->state == PROC_SLEEPING) {
                 // Wake process from sleep().
-                p->state = RUNNABLE;
+                p->state = PROC_RUNNABLE;
             }
             release(&p->lock);
             return 0;
@@ -698,7 +676,10 @@ int killed(struct proc *p) {
 int either_copyout(int user_dst, uint64 dst, void *src, uint64 len) {
     struct proc *p = myproc();
     if (user_dst) {
-        return copyout(p->pagetable, dst, src, len);
+        acquire(&p->uvm_lock);
+        int tmp_ret=copyout(p->pagetable, dst, src, len);
+        release(&p->uvm_lock);
+        return tmp_ret;
     } else {
         memmove((char *)dst, src, len);
         return 0;
@@ -711,7 +692,10 @@ int either_copyout(int user_dst, uint64 dst, void *src, uint64 len) {
 int either_copyin(void *dst, int user_src, uint64 src, uint64 len) {
     struct proc *p = myproc();
     if (user_src) {
-        return copyin(p->pagetable, dst, src, len);
+        acquire(&p->uvm_lock);
+        int tmp_ret=copyin(p->pagetable, dst, src, len);
+        release(&p->uvm_lock);
+        return tmp_ret;
     } else {
         memmove(dst, (char *)src, len);
         return 0;
@@ -722,14 +706,14 @@ int either_copyin(void *dst, int user_src, uint64 src, uint64 len) {
 // Runs when user types ^P on console.
 // No lock to avoid wedging a stuck machine further.
 void procdump(void) {
-    static char *states[] = {[UNUSED] "unused",   [USED] "used",      [SLEEPING] "sleep ",
-                             [RUNNABLE] "runble", [RUNNING] "run   ", [ZOMBIE] "zombie"};
+    static char *states[] = {[PROC_UNUSED] "unused",   [PROC_USED] "used",      [PROC_SLEEPING] "sleep ",
+                             [PROC_RUNNABLE] "runble", [PROC_RUNNING] "run   ", [PROC_ZOMBIE] "zombie"};
     struct proc *p;
     char *state;
 
     printf("\n");
     for (p = proc; p < &proc[NPROC]; p++) {
-        if (p->state == UNUSED) continue;
+        if (p->state == PROC_UNUSED) continue;
         if (p->state >= 0 && p->state < NELEM(states) && states[p->state]) state = states[p->state];
         else
             state = "???";
@@ -743,7 +727,7 @@ struct proc *kthread_create(const char *name, void (*func)(void)){
     struct proc *new_kthread;
     for(new_kthread=proc;new_kthread< &proc[NPROC];new_kthread++){
         acquire(&new_kthread->lock);
-        if(new_kthread->state==UNUSED)
+        if(new_kthread->state==PROC_UNUSED)
             goto found;
         else    release(&new_kthread->lock);
     }
@@ -751,7 +735,7 @@ struct proc *kthread_create(const char *name, void (*func)(void)){
     return NULL;
 found:
     new_kthread->pid=allocpid();
-    new_kthread->state=RUNNABLE;
+    new_kthread->state=PROC_RUNNABLE;
     //Able to be scheduled by the cpu and enter the entry function for execution.
     safestrcpy(new_kthread->name, name, strlen(name));  //null-terminated
     memset(&new_kthread->context, 0, sizeof(new_kthread->context));
