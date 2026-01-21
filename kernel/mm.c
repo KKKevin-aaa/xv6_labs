@@ -41,6 +41,10 @@ int vma_put(vm_area_struct_t *vma){    //Drop one reference
     else if(new_ref<0){
         panic("VMA Ref-count underflow!Double free deteched!");
     }
+    else if(vma->vm_mm==NULL){   //new_ref > 0
+        printf("[Warning] VMA %p is detached but ref=%d\n", vma, new_ref);
+        printf("Double check this usage, make sure free after use.\n");
+    }
     return 0;
 }
 
@@ -76,18 +80,9 @@ vm_area_struct_t *insert_vma_helper(mm_struct_t *mm, uint64 va, uint64 sz, int p
 #endif
     if(!holding(&mm->mm_lock))    //Kernel-specific VMA initialization
         panic("[Insert_vma_helper]Race Conditions: access global_mm without lock\n");
-    vm_area_struct_t *tmp_vma=NULL;
-    if(sizeof(vm_area_struct_t)>=PGSIZE){
-        uint64 nr_pages=PGROUNDUP(sizeof(vm_area_struct_t));
-        tmp_vma=(vm_area_struct_t *)alloc_memory(nr_pages*PGSIZE);
-        if(tmp_vma==NULL){
-            printf("[insert_vma_helper]alloc_memory fail(more than 4KB)\n");
-            return NULL;
-        }
-        memset((void *)tmp_vma, 0, nr_pages*PGSIZE);
-    }
-    else    tmp_vma=alloc_kernel_vma();
+    vm_area_struct_t *tmp_vma=alloc_kernel_vma();
     if(tmp_vma==NULL)   return NULL;
+    memset(tmp_vma, 0, sizeof(vm_area_struct_t));
     tmp_vma->vm_start=va;
     tmp_vma->vm_end=va+sz;
     tmp_vma->vm_page_prot=perm;
@@ -95,7 +90,13 @@ vm_area_struct_t *insert_vma_helper(mm_struct_t *mm, uint64 va, uint64 sz, int p
     tmp_vma->vm_mm=mm;
     tmp_vma->ref_count=1;   //Held by mm_struct
     //Omit values for unused arguments.
-    insert_vma(mm, tmp_vma);
+    if(insert_vma(mm, tmp_vma)!=0){
+        MM_TRACE("insert va=%llx, size=%llx fail.\n", va, sz);
+        memset((void *)tmp_vma, 0, sizeof(vm_area_struct_t));
+        if(remove_vma(mm, tmp_vma)!=0)
+            panic("Fail to remove temporary vma.\n");
+        return NULL;
+    }
     return tmp_vma;
 }
 
@@ -114,11 +115,28 @@ int reclaim_vma_node(vm_area_struct_t *node){
 }
 
 void clear_mm_internal(mm_struct_t *mm){
-    //FIXME: 
+    //Ensure the pagetable and associated resource have cleared before this function.
+    //And this remove the vma from mm tree only. Maybe some process still hold some vmas
+    // but turst ref_count and don't bypass vma_put and call reclaim_vma_node directly
+    if(mm==NULL)    return;
+    if(!holding(&mm->mm_lock))
+        panic("called without mm_lock.\n");
+    vm_area_struct_t *clear_vma=mm->mmap, *tmp_next;
+    while(clear_vma!=NULL){
+        tmp_next=clear_vma->vm_next;
+        if(remove_vma(mm, clear_vma)!=0)   //remove from the existing mm completely
+            panic("remove vma %p fail.\n", clear_vma);
+        clear_vma=tmp_next;
+    }
+    memset((void *)mm, 0, sizeof(mm_struct_t));
 }
 
 int remove_mm(mm_struct_t *mm){
+    if(mm==NULL)    return 0;
+    acquire(&mm->mm_lock);
     clear_mm_internal(mm);
+    release(&mm->mm_lock);      //Freeing 'mm' while holding its lock it fatal
+    //The cpu cannot unlock a memory area that has already been deallocated
     return slab_free((void *)mm);
 }
 
@@ -180,7 +198,7 @@ static vm_area_struct_t *find_upper_vma(mm_struct_t *mm, uint64 vaddr){
     if(found && vaddr >= found->vm_start && vaddr < found->vm_end)
         return found; //cache hit
     rb_node_t *iter=mm->rb_root.rb_parent; //Cache miss, search the RB tree
-    rb_node_t *best_fit=iter;
+    rb_node_t *best_fit=NULL;
     found=NULL;
     while(iter){
         vm_area_struct_t *candidate=rb_entry(iter, vm_area_struct_t, vm_rb_node);
@@ -282,6 +300,10 @@ int insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont)
         printf("insert_vma: pass an invalid argument!\n");
         return -1;
     }
+    if(vma->vm_mm!=mm){
+        printf("try to insert vma to another new tree(maybe the tree have already replaced.\n)");
+        return -1;
+    }
     if(cont==NULL || (cont->prev==NULL && cont->next==NULL))
         return insert_vma(mm, vma);
     if((cont->prev && cont->prev->vm_end>vma->vm_start) ||
@@ -321,6 +343,10 @@ int insert_vma(mm_struct_t *mm, vm_area_struct_t *vma){
 #endif
     //Builds the structure by linking the new VMA into both 
     //the RB-Tree and the linked list after checking for overlaps
+    if(vma->vm_mm!=mm){
+        printf("try to insert vma to another new tree(maybe the tree have already replaced.\n)");
+        return -1;
+    }
     if(mm==NULL || vma==NULL || vma->vm_start%PGSIZE!=0 || vma->vm_end%PGSIZE!=0)
         panic("insert_vma: pass an invalid argument!\n");
     if(!holding(&mm->mm_lock))
@@ -372,6 +398,10 @@ int remove_vma(mm_struct_t *mm, vm_area_struct_t *vma){
 #endif
     if(!holding(&mm->mm_lock))
         panic("[remove_vma]Race Conditions: access mm without lock!");
+    if(vma->vm_mm!=mm){
+        printf("try to insert vma to another new tree(maybe the tree have already replaced.\n)");
+        return -1;
+    }
     //Remove from the list,maintain mmap,also need to free the associated resource
     rb_node_t *vma_node=&vma->vm_rb_node;
     vm_area_struct_t *vm_prev=vma->vm_prev, *vm_next=vma->vm_next;

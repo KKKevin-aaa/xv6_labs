@@ -48,6 +48,7 @@ int kexec(char *path, char **argv) {
     if(shadow_mm==NULL)     goto bad;
     memset(shadow_mm, 0, sizeof(mm_struct_t));
     //Thead-local object, Exempt from locking.
+    initlock(&shadow_mm->mm_lock, p->mm->mm_lock.name);
 
     begin_op();
     if ((ip = namei(path)) == 0) {
@@ -149,31 +150,35 @@ int kexec(char *path, char **argv) {
     for (last = s = path; *s; s++)
         if (*s == '/') last = s + 1;
     safestrcpy(p->name, last, sizeof(p->name));
-    old_pagetable = p->pagetable;
-    old_rbarray = p->rb_array;  //outdate rb_array, store first 
-
-    acquire(&p->uvm_lock);
-    p->pagetable = new_pagetable;
-    p->sz = sz;
-    release(&p->uvm_lock);
 
     //Ownership handover(atomic exchange, Nullifying the source)
-    acquire(&p->mm->mm_lock);
-    mm_struct_t *old_mm=p->mm;
-    p->mm=shadow_mm;
-    shadow_mm=old_mm;??????????FIXME: 
-    initlock(&p->mm->mm_lock, shadow_mm->mm_lock.name);
+    acquire(&p->uvm_lock);  //Top-level lock.
+    old_pagetable = p->pagetable;
+    old_rbarray = p->rb_array;  //store the outdate rb_array firstly
 
+    mm_struct_t *old_mm=p->mm;
+    if(old_mm!=NULL)    acquire(&old_mm->mm_lock);  //Lock-Ordering:take the high-level lock first.
+    p->mm=shadow_mm;
+    shadow_mm=NULL;
+
+    p->pagetable = new_pagetable;
+    p->sz = sz;
     p->trapframe->epc = elf.entry;
     p->trapframe->sp = sp;
 
-    proc_freepagetable(old_rbarray, old_pagetable, oldsz);
+    if(old_mm!=NULL)    release(&old_mm->mm_lock);
+    release(&p->uvm_lock);   //Release locks as early as possible to enhance system concurrency
 
+
+    proc_freepagetable(old_rbarray, old_pagetable, oldsz);
     //init the reserved area(after delete the previous resource)
     init_res_array(p->rb_array, p->sz);
-    clear_mm_internal(shadow_mm);
-    release(&shadow_mm->mm_lock);
-    remove_mm(shadow_mm);
+
+    if(old_mm!=NULL){   //reclaim the unused resource 
+        clear_mm_internal(old_mm);
+        remove_mm(old_mm);
+    }
+
     return argc;
 bad:
     remove_mm(shadow_mm);
