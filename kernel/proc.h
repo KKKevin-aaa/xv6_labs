@@ -107,8 +107,7 @@ struct proc {              // Process control block(PCB)
 
     // these are private to the process, so p->lock need not be held.
     uint64 kstack;  // Virtual address of kernel stack(allocated and mappage in proc_mapstacks)
-    uint64 sz;  // Size of process memory (bytes),indicates the top of the user heap, modified by
-                // sbrk()
+    // uint64 sz;  // end of .bss segment.(Invariant)
 
     pagetable_t pagetable;   // User page table
     struct spinlock uvm_lock;       //Address Space Lock(also protect p->mm)

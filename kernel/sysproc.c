@@ -8,8 +8,11 @@
 #ifdef PGTBL_SOL
 #include "riscv.h"
 #endif
+#include "rbtree.h"
+#include "kvm.h"
+#include "slab.h"
+#include "mm.h"
 #include "vm.h"
-
 uint64 sys_exit(void) {
     int n;
     argint(0, &n);
@@ -32,20 +35,37 @@ uint64 sys_sbrk(void) {
     uint64 addr;
     int t;
     int n;
-    uint64 tmp_ret;
+    uint64 tmp_ret=0;
     struct proc *cur_proc=myproc();
     argint(0, &n);
     argint(1, &t);
-    acquire(&cur_proc->uvm_lock);
+    if(cur_proc->mm==NULL)
+        panic("Fatal Error: sbrk invoked on a process lacking an mm_struct.\n");
+    acquire(&cur_proc->mm->mm_lock);        ????FIXME: lock!!!
+    if(cur_proc->mm->heap_vma==NULL){
+        printf("Current process lack heap_vma, unable to get necessary info.\n");
+        goto release_and_ret;
+    }
 
-    addr = cur_proc->sz;
-    if(addr+n>=MAXVA){
-        tmp_ret=-1;  
+    addr = cur_proc->mm->heap_vma->vm_end;
+    vm_area_struct_t *next_vma=cur_proc->mm->heap_vma->vm_next;
+    uint64 limit=0;
+    if(next_vma==NULL){
+        printf("[sbrk]Warning:current memlayout lack of stack.\n");
+        limit=USERSTACK_END;
+    }
+    else if(next_vma==cur_proc->mm->stack_vma)
+        limit=cur_proc->mm->stack_vma->vm_start-PGSIZE;
+    else
+        limit=next_vma->vm_start;
+    if(addr +n > limit){      //mmap vma
+        printf("[sbrk]No space to grow, remain space is %llx\n.\n", limit-addr);
+        tmp_ret=-1;
         goto release_and_ret;
     }
     //Prevent excessive n from overwriting kernel memory
     if (t == SBRK_EAGER) {
-        if (growproc(n) < 0) {
+        if (growproc(n) < 0) {      //Already update heap_vma boundary in growproc.
             tmp_ret=-1;
             goto release_and_ret;
         }
@@ -55,22 +75,24 @@ uint64 sys_sbrk(void) {
         // size but don't allocate memory. If the processes uses the
         // memory, vmfault() will allocate it.
         if(n<0){
-            #ifdef RESERVE
-                free_res_memory(cur_proc->rb_array, cur_proc->pagetable, 
-                                cur_proc->rb_array[0].va, cur_proc->sz, cur_proc->sz+n);
-                cur_proc->sz += n; //In lazy shrink
-            #else
-                if(growproc(n)<0){
-                    tmp_ret=-1;
-                    goto release_and_ret;
-                }  //non-reserve
-            #endif
+        #ifdef RESERVE
+            uint64 start_va=cur_proc->mm->heap_vma->vm_end;
+            uint64 end_va=start_va+n;
+            free_res_memory(cur_proc->rb_array, cur_proc->pagetable, 
+                            cur_proc->rb_array[0].va, start_va, end_va);
+            cur_proc->mm->heap_vma->vm_end+=n;
+        #else
+            if(growproc(n)<0){
+                tmp_ret=-1;
+                goto release_and_ret;
+            }  //non-reserve
+        #endif
         }
-        else    cur_proc->sz += n; //In lazy grow
+        else    cur_proc->mm->heap_vma->vm_end += n; //In lazy grow
     }
     tmp_ret=addr;
 release_and_ret:
-    release(&cur_proc->uvm_lock);
+    release(&cur_proc->mm->mm_lock);
     return tmp_ret;
 }
 

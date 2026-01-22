@@ -7,6 +7,12 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "fs.h"
+#include "sleeplock.h"
+#include "file.h"
+#include "fcntl.h"
+#include "rbtree.h"
+#include "mm.h"
+#include "vm.h"
 
 // #define DEBUG_VM
 #ifdef DEBUG_VM
@@ -680,21 +686,18 @@ uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
 
 //----------------------END dealloc------------------------------------------------------
 
-// Recursively free page-table pages.(And consider one-to-many mappings, where
-// a single allocation corresponds to N PTEs, and the first pte owing the control of whole
-// physical memory, so just free the header and clear the next ptes)
-void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz, int level) {
+// Recursively free page-table pages totally 
+void freewalk(pagetable_t pagetable, int do_free, int level) {
 #ifdef DEBUG_VM
     if (base_va == 0 && level == 2)
         VM_TRACE("Freewalk Start: pt=%p base_va=0x%llx max_sz=0x%llx\n", pagetable, base_va, max_sz);
 #endif
     pte_t pte;// there are 2^9 = 512 PTEs in a page table.
     uint64 pa, num_4k_page, page_per_slot, step;
-    uint64 standard_stride=get_step_size(level), cur_va=base_va, va_step;
+    uint64 standard_stride=get_step_size(level), va_step;
     uint64 cur_order;
     int idx=0;
     while(idx<512){
-        if(cur_va>=max_sz)   break;
         pte = pagetable[idx];
         pa = PTE2PA(pte);    //child pagetable or physical
         if ((pte & PTE_V) && PTE_LEAF(pte) == 0) {
@@ -702,9 +705,8 @@ void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz,
             #ifdef DEBUG_VM
                 VM_TRACE("%sDir: idx=%d va=0x%llx -> next_pa=%p\n", INDENT_STR(level), idx, cur_va, (void*)pa);
             #endif
-            freewalk((pagetable_t)pa, do_free, cur_va, max_sz, level-1);
+            freewalk((pagetable_t)pa, do_free, level-1);
             step=1;
-            va_step=standard_stride;
         } else if ((pte & PTE_V) && do_free!=0) {   //leaf-node,release the physical page
             //check if next page is associated with current page
             cur_order=get_order(pa);    //Specific area(Cannot be freed),so skip additional checks.
@@ -720,10 +722,7 @@ void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz,
             free_pages((void *)pa, va_step); //record statement before freeing, 
             // as the merging process potentially alter the metadata.
         }
-        else{
-            step=1; //Invalid pte
-            va_step=standard_stride;
-        }
+        else    step=1; //Invalid pte
         for(int j=0;j<step;j++){
             if(idx+j==512){
                 panic("freewalk: alignment error");
@@ -731,11 +730,64 @@ void freewalk(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz,
             }
             pagetable[idx+j]=0; //Clear the relevant PTEs
         }
-        cur_va+=va_step;
         idx+=step;
     }
     free_pages((void *)pagetable, PGSIZE);
 }
+
+void freewalk_limit(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz, int level) {
+    #ifdef DEBUG_VM
+        if (base_va == 0 && level == 2)
+            VM_TRACE("Freewalk Start: pt=%p base_va=0x%llx max_sz=0x%llx\n", pagetable, base_va, max_sz);
+    #endif
+        pte_t pte;// there are 2^9 = 512 PTEs in a page table.
+        uint64 pa, num_4k_page, page_per_slot, step;
+        uint64 standard_stride=get_step_size(level), cur_va=base_va, va_step;
+        uint64 cur_order;
+        int idx=0;
+        while(idx<512){
+            if(cur_va>=max_sz)   break;
+            pte = pagetable[idx];
+            pa = PTE2PA(pte);    //child pagetable or physical
+            if ((pte & PTE_V) && PTE_LEAF(pte) == 0) {
+                // this PTE points to a lower-level page table.
+                #ifdef DEBUG_VM
+                    VM_TRACE("%sDir: idx=%d va=0x%llx -> next_pa=%p\n", INDENT_STR(level), idx, cur_va, (void*)pa);
+                #endif
+                freewalk_limit((pagetable_t)pa, do_free, cur_va, max_sz, level-1);
+                step=1;
+                va_step=standard_stride;
+            } else if ((pte & PTE_V) && do_free!=0) {   //leaf-node,release the physical page
+                //check if next page is associated with current page
+                cur_order=get_order(pa);    //Specific area(Cannot be freed),so skip additional checks.
+                va_step=1ull<<(cur_order+ORDER_BASE);
+                num_4k_page=1ull<<cur_order;
+                page_per_slot=1ull<<(level*9);
+                step=num_4k_page/page_per_slot;
+                if(step<=0) step=1; //at least advance one
+                #ifdef DEBUG_VM
+                VM_TRACE("%sLeaf: idx=%d va=0x%llx pa=%p order=%llu size=0x%llx (step=%lld)\n", 
+                         INDENT_STR(level), idx, cur_va, (void*)pa, cur_order, va_step, step);
+                #endif
+                free_pages((void *)pa, va_step); //record statement before freeing, 
+                // as the merging process potentially alter the metadata.
+            }
+            else{
+                step=1; //Invalid pte
+                va_step=standard_stride;
+            }
+            for(int j=0;j<step;j++){
+                if(idx+j==512){
+                    panic("freewalk: alignment error");
+                    break;
+                }
+                pagetable[idx+j]=0; //Clear the relevant PTEs
+            }
+            cur_va+=va_step;
+            idx+=step;
+        }
+        free_pages((void *)pagetable, PGSIZE);
+    }
 
 // Recursively copy page-table pages. Quit recursively.when the superpage Error occurs, 
 // Directly assign the known PTE to bypass the mappage overhead, significantly improving efficiency
@@ -863,26 +915,26 @@ int copywalk(struct vm_dupl_ctx v1){
 // an non-zero sz implies the need to release the corresponding page)
 // Even though the release process itself does not requires the sz parameter.
 // Must free page-table pages.
-void uvmfree(res_block *rblocks, pagetable_t pagetable, uint64 sz) {
+void uvmfree_range(res_block *rblocks, pagetable_t pagetable, uint64 start_va, uint64 sz) {
     reclaim_res_memory_range(rblocks, pagetable, 0, sz);
-    if (sz > 0) freewalk(pagetable, 1, 0, sz, 2);
-    else    freewalk(pagetable, 0, 0, sz, 2);
+    if (sz > 0) freewalk_limit(pagetable, 1, start_va, sz, 2);
+    else    freewalk_limit(pagetable, 0, start_va, sz, 2);
 }
 
 // Given a parent process's page table, copy its memory into a child's page table.
 // Copies both the page table and the physical memory.
 // returns 0 on success, -1 on failure. frees any allocated pages on failure.
-int uvmcopy(res_block *rblocks, pagetable_t old_pg, pagetable_t new_pg, uint64 sz) {
+int uvmcopy_range(res_block *rblocks, pagetable_t old_pg, pagetable_t new_pg, 
+                    uint64 start_va, uint64 sz) {
 #ifdef DEBUG_VM
     VM_TRACE("old_pg=%p new_pg=%p sz=0x%llx\n", (void *)old_pg, (void *)new_pg, sz);
 #endif
-    uint64 start_va=0;
     uint64 ret_va=0;
     sz=PGROUNDUP(sz);   //Aligned firstly
     struct vm_dupl_ctx v1={.old_pg=old_pg, new_pg=new_pg, .base_va=start_va, .ret_va=&ret_va,
         .max_sz=sz, .level=2, .rblocks=rblocks};
     if(copywalk(v1)<0){//prevent resources leaks and waste
-        uvmfree(rblocks, new_pg, ret_va-start_va);
+        uvmfree_range(rblocks, new_pg, start_va ,ret_va-start_va);
         //Error occurs, size are guaranteed not to exceed the original size
         return -1;
     }
@@ -1062,22 +1114,89 @@ uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
     acquire(&p->uvm_lock);
 
     //Pass arugment rblocks etc explicitly instead of implicitly retriving them via myproc()
-    if (va >= p->sz) return 0;
+    if(p->mm==NULL){
+        VM_TRACE("Fatal error: proc's mm is NULL.\n");
+        release(&p->uvm_lock);
+        return 0;
+    }
+    acquire(&p->mm->mm_lock);
     va = PGROUNDDOWN(va);
-    if (ismapped(pagetable, va))
-        tmp_ret=0;
-    #ifdef RESERVE
-        tmp_ret=Simp_alloc_res_memory(rblocks, pagetable, va, PTE_W|PTE_R|PTE_U);
-    #else
-        uint64 mem = (uint64)kalloc();
-        if (mem == 0) return 0;
-        memset((void *)mem, 0, PGSIZE);
-        if (mappages(p->pagetable, va, PGSIZE, mem, PTE_W | PTE_U | PTE_R) != 0) {
-            kfree((void *)mem);
-            return 0;
+    vm_area_struct_t *vma=find_vma(p->mm, va);
+    if(vma==NULL){
+        VM_TRACE("Cannot find the corresponding vma.\n");
+        goto release_and_ret;
+    }
+    if((read==1 && !(vma->vm_flags & VM_READ)) || (read==0 && !(vma->vm_flags & VM_WRITE))){
+        VM_TRACE("Inconsisent permission.\n");
+        goto release_and_ret;
+    }
+    //Valid vma, categorization and dispatching.
+    pte_t *pte=walk(p->pagetable, va, 0, 0);
+    if(pte==NULL){      //Lazy allocation.
+        if(vma->vm_file==NULL){     //Anonymous Fault.(.bss or heap or stack), mayeb mmap
+        #ifdef RESERVE
+            tmp_ret=Simp_alloc_res_memory(rblocks, pagetable, va, PTE_W|PTE_R|PTE_U);
+        #else
+            tmp_ret = (uint64)kalloc_page();
+            if (tmp_ret == 0){
+                VM_TRACE("alloc new page fail.\n");
+                goto release_and_ret;
+            }
+            memset((void *)tmp_ret, 0, PGSIZE);
+            if (mappages(p->pagetable, va, PGSIZE, tmp_ret, gene_page_prot(vma->vm_flags)) != 0) {
+                kfree_page((void *)tmp_ret);
+                tmp_ret=0;
+                goto release_and_ret;
+            }
+        #endif
         }
-        return mem;
-    #endif
+        else{       //File-backed Fault(.text or .data)
+            uint64 offset=vma->vm_pgoff + (va-vma->vm_start);
+            uint len=(va+PGSIZE > vma->vm_end)?(vma->vm_end-va):PGSIZE;
+            tmp_ret = (uint64)kalloc_page();
+            if (tmp_ret == 0){
+                VM_TRACE("alloc new page fail.\n");
+                goto release_and_ret;
+            }
+            memset((void *)tmp_ret, 0, PGSIZE);
+            begin_op();
+            ilock(vma->vm_file->ip);
+            if (readi(vma->vm_file->ip, 0, tmp_ret, offset, len) != len){
+                VM_TRACE("load from %llx fail(Expected is %lx)", va, len);
+                kfree_page((void *)tmp_ret);
+                tmp_ret=0;
+                goto file_close;
+            }
+            if (mappages(p->pagetable, va, PGSIZE, tmp_ret, gene_page_prot(vma->vm_flags)) != 0) {
+                VM_TRACE("Mappage %llx fail", va);
+                kfree_page((void *)tmp_ret);
+                tmp_ret=0;
+            }
+file_close:
+            iunlock(vma->vm_file->ip);
+            end_op();
+        }
+    }
+    else if(pte!=NULL && (*pte & PTE_V)==0){        //Swap in Fault
+        //extrace info(Swap_id) from the pte.
+        //FIXME: 
+    }
+    else{       //PTE is valid, but permission dismatch
+        if(vma->vm_flags & VM_WRITE){   //COW(copy on write)
+            tmp_ret=(uint64)alloc_memory(PGSIZE);
+            if(tmp_ret==0){
+                printf("[vmfault] COW:alloc memory fail.\n");
+                goto release_and_ret;
+            }
+            //FIXME: 
+        }
+        else{
+            VM_TRACE("Try to write constant area.\n");
+            goto release_and_ret;
+        }
+    }
+release_and_ret:
+    release(&p->mm->mm_lock);
     release(&p->uvm_lock);
     return tmp_ret;
 }

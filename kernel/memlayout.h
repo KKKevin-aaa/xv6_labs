@@ -68,8 +68,9 @@
 //   TRAPFRAME (p->trapframe, used by the trampoline)
 //   TRAMPOLINE (the same page as in the kernel)
 #define TRAPFRAME (TRAMPOLINE - PGSIZE)
-
 #define USYSCALL (TRAPFRAME - PGSIZE)
+#define USERSTACK_END   USYSCALL
+
 
 #ifndef __ASSEMBLER__
 /*

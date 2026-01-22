@@ -1,5 +1,7 @@
 #include "types.h"
 #include "param.h"
+#include "fs.h"
+#include "file.h"
 #include "memlayout.h"
 #include "riscv.h"
 #include "spinlock.h"
@@ -60,7 +62,21 @@ int kexec(char *path, char **argv) {
     if (elf.magic != ELF_MAGIC) goto bad;
     if ((new_pagetable = proc_pagetable(p)) == 0) goto bad;
 
+    struct file *wrapped_f=filealloc();
+    if(wrapped_f==NULL){
+        iunlockput(ip);
+        end_op();
+        return -1;
+    }
+    memset(wrapped_f, 0, sizeof(struct file));
+    wrapped_f->type=FD_INODE;   //Initialize this file_struct manually
+    wrapped_f->ip=ip;
+    wrapped_f->off=0;
+    wrapped_f->readable=1;
+    wrapped_f->writable=0;
+    
     vma_context_t *prev_vma=NULL;
+    //Loader will scan all program headers, select PT_LOAD segment.
     for (i = 0, off = elf.phoff; i < elf.phnum; i++, off += sizeof(ph)) {
         if (readi(ip, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph)) goto bad;
         if (ph.type != ELF_PROG_LOAD) continue;
@@ -76,9 +92,10 @@ int kexec(char *path, char **argv) {
         vma->vm_start = ph.vaddr; 
         vma->vm_end = PGROUNDUP(ph.vaddr + ph.memsz); 
         
-        vma->vm_filesz = ph.filesz;
-        vma->vm_pgoff = ph.off; 
-        vma->file_fd = -1; // 这里不是 mmap 打开的文件，没有 fd，设为 -1
+        vma->vm_filesz = ph.filesz; 
+        vma->vm_pgoff = ph.off;     //file-backed VMA.
+        vma->vm_file = wrapped_f;
+        filedup(wrapped_f);         //Increase file's ref_count.
         
         vma->vm_flags = gene_flags(ph.flags);
         vma->vm_page_prot = gene_page_prot(ph.flags);
@@ -100,51 +117,73 @@ int kexec(char *path, char **argv) {
             shadow_mm->end_data = vma->vm_end;
         }
         sz = sz1;
-    }
+    }   //sz is the highest address among all loadable segments.
     iunlockput(ip);
     end_op();
     ip = 0;
-    p = myproc();
-    uint64 oldsz = p->sz, sz1;
-    sz = PGROUNDUP(sz);
-    if ((sz1 = uvmalloc(new_pagetable, sz, sz + (USERSTACK + 1) * PGSIZE, PTE_W)) == 0) goto bad;
-    sz = sz1;
-    uvmclear(new_pagetable, sz - (USERSTACK + 1) * PGSIZE);
-    sp = sz;
-    stackbase = sp - USERSTACK * PGSIZE;
+    fileclose(wrapped_f);
 
+    p = myproc();
+    uint64 oldsz =0;
+    if(p->mm && p->mm->heap_vma)
+        oldsz = p->mm->heap_vma->vm_start;
+    else    panic("Unable get the outgoing process's heap_vma");
+    sz = PGROUNDUP(sz);
+
+    //Create heap VMA before stack VMA
+    vm_area_struct_t *heap_vma = alloc_vma_node();
+    if (!heap_vma) goto bad;
+    heap_vma->vm_start = sz;        //New programe break
+    heap_vma->vm_end = sz; 
+    heap_vma->vm_flags = VM_READ | VM_WRITE;
+    heap_vma->vm_page_prot = PTE_R | PTE_W | PTE_U;
+    heap_vma->vm_mm = shadow_mm;
+    heap_vma->vm_ops = NULL;
+    heap_vma->vm_file = NULL;     //Anonymous VMA
+    if(insert_vma_fast(shadow_mm, heap_vma, &(vma_context_t){.prev=prev_vma, .next=NULL})==-1){
+        remove_vma(shadow_mm, heap_vma);
+        goto bad;
+    }
+    shadow_mm->heap_vma = heap_vma;
+    prev_vma=heap_vma;
+
+    //Do some preparation work.
+    stackbase=USERSTACK_END- (USERSTACK + 1)*PGSIZE;    //Top-guard + bottom-guard
+    if (uvmalloc(new_pagetable, stackbase-PGSIZE, USERSTACK_END, PTE_W) == 0) goto bad;
+    uvmclear(new_pagetable, USERSTACK_END-PGSIZE);
+    uvmclear(new_pagetable, stackbase-PGSIZE);
     // --- 创建 Stack VMA ---
     vm_area_struct_t *stack_vma = alloc_vma_node();
     if (!stack_vma) goto bad;
-    
-    stack_vma->vm_start = stackbase;
-    stack_vma->vm_end = sz; // 栈顶（高地址）
-    stack_vma->vm_flags = VM_READ | VM_WRITE; // 栈通常不可执行
+    stack_vma->vm_start = stackbase;     //Skip the guard pages.
+    //This represents the static ownership of the memory region,
+    // which remains constant regradless of stack utilization.
+    stack_vma->vm_end = USERSTACK_END-PGSIZE; 
+    stack_vma->vm_flags = VM_READ | VM_WRITE; 
     stack_vma->vm_page_prot = PTE_R | PTE_W | PTE_U;
     stack_vma->vm_mm = shadow_mm;
     stack_vma->vm_ops = NULL;
-    stack_vma->file_fd = -1;
-    
+    stack_vma->vm_file = NULL;
     if(insert_vma_fast(shadow_mm, stack_vma, &(vma_context_t){.prev=prev_vma, .next=NULL})==-1){
         remove_vma(shadow_mm, stack_vma);
         goto bad;
     }
     shadow_mm->stack_vma = stack_vma;
-    shadow_mm->heap_vma = NULL; 
 
+    sp=USERSTACK_END-PGSIZE;
     //Pass arguments on the stack;no heap involvement.
     for (argc = 0; argv[argc]; argc++) {
         if (argc >= MAXARG) goto bad;
         sp -= strlen(argv[argc]) + 1;
         sp -= sp % 16;
-        if (sp < stackbase) goto bad;
+        if (sp < shadow_mm->stack_vma->vm_start) goto bad;   //Stack Underflow.
         if (copyout(new_pagetable, sp, argv[argc], strlen(argv[argc]) + 1) < 0) goto bad;
         ustack[argc] = sp;
     }
     ustack[argc] = 0;
     sp -= (argc + 1) * sizeof(uint64);
     sp -= sp % 16;
-    if (sp < stackbase) goto bad;
+    if (sp < shadow_mm->stack_vma->vm_start) goto bad;
     if (copyout(new_pagetable, sp, (char *)ustack, (argc + 1) * sizeof(uint64)) < 0) goto bad;
     p->trapframe->a1 = sp;
     for (last = s = path; *s; s++)
@@ -162,17 +201,14 @@ int kexec(char *path, char **argv) {
     shadow_mm=NULL;
 
     p->pagetable = new_pagetable;
-    p->sz = sz;
     p->trapframe->epc = elf.entry;
     p->trapframe->sp = sp;
-
     if(old_mm!=NULL)    release(&old_mm->mm_lock);
     release(&p->uvm_lock);   //Release locks as early as possible to enhance system concurrency
 
-
-    proc_freepagetable(old_rbarray, old_pagetable, oldsz);
+    proc_freepagetable(new_pagetable);
     //init the reserved area(after delete the previous resource)
-    init_res_array(p->rb_array, p->sz);
+    init_res_array(p->rb_array, p->mm->heap_vma->vm_start);
 
     if(old_mm!=NULL){   //reclaim the unused resource 
         clear_mm_internal(old_mm);
@@ -182,8 +218,9 @@ int kexec(char *path, char **argv) {
     return argc;
 bad:
     remove_mm(shadow_mm);
-    if (new_pagetable) proc_freepagetable(old_rbarray, new_pagetable, sz);
-    if (ip) {
+    if (new_pagetable!=NULL) proc_freepagetable(new_pagetable);
+    if(wrapped_f!=NULL)     fileclose(wrapped_f);
+    if (ip!=NULL) {
         iunlockput(ip);
         end_op();
     }

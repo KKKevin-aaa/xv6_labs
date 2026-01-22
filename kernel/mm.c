@@ -36,6 +36,8 @@ int vma_put(vm_area_struct_t *vma){    //Drop one reference
     if(new_ref==0){
         if(vma->vm_ops && vma->vm_ops->close)
             vma->vm_ops->close(vma);
+        if(vma->vm_file!=NULL)
+            fileclose(vma->vm_file);
         return reclaim_vma_node(vma);
     }
     else if(new_ref<0){
@@ -111,6 +113,9 @@ __attribute__((warn_unused_result)) mm_struct_t *mm_create() {
 }
 
 int reclaim_vma_node(vm_area_struct_t *node){
+    if(node->vm_file!=NULL)     fileclose(node->vm_file);
+    if(node->vm_ops->close!=NULL)
+        node->vm_ops->close(node);
     return slab_free((void *)node);
 }
 
@@ -128,7 +133,13 @@ void clear_mm_internal(mm_struct_t *mm){
             panic("remove vma %p fail.\n", clear_vma);
         clear_vma=tmp_next;
     }
-    memset((void *)mm, 0, sizeof(mm_struct_t));
+    // struct spinlock mmlock_copy=mm->mm_lock;
+    // memset((void *)mm, 0, sizeof(mm_struct_t));
+    // mm->mm_lock=mmlock_copy;    //Value-copy
+    // NOTE: if mm_lock is the first member for mm_struct,some offset trick can be used.
+    void *clear_start=(void *)((uint64)mm+sizeof(struct spinlock));
+    uint64 clear_len=sizeof(mm_struct_t)-sizeof(struct spinlock);
+    memset(clear_start, 0, clear_len);
 }
 
 int remove_mm(mm_struct_t *mm){
@@ -300,7 +311,7 @@ int insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont)
         printf("insert_vma: pass an invalid argument!\n");
         return -1;
     }
-    if(vma->vm_mm!=mm){
+    if(vma->vm_mm!=mm){     //Initialize this member explicitly before enter this function.
         printf("try to insert vma to another new tree(maybe the tree have already replaced.\n)");
         return -1;
     }
@@ -338,6 +349,8 @@ int insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont)
 }
 
 int insert_vma(mm_struct_t *mm, vm_area_struct_t *vma){
+    //for some special cases: e.g. heap_vma,the(vm_start < vm_end) isn't strictly required.
+    //Therefore, we relax this constraint and allow such configuraion.
 #ifdef DEBUG_KVM
     KVM_TRACE("mm=%p vma=%p\n", (void *)mm, (void *)vma);
 #endif
@@ -414,6 +427,7 @@ int remove_vma(mm_struct_t *mm, vm_area_struct_t *vma){
     //Update the cache to prevent Use-After-Free(UAF)
     if(mm->mmap_cache==vma) mm->mmap_cache=NULL;
     vma->vm_prev=NULL;vma->vm_next=NULL;
+    vma->vm_mm=NULL;
     return vma_put(vma);
 }
 

@@ -9,7 +9,7 @@ struct vm_operation_struct;
 struct vm_area_struct{  //Virtual Memory Area
     uint64 vm_start, vm_end;
     uint64 vm_filesz;    //check if .bss segment 
-    int file_fd;    //can't store file * directly
+    struct file *vm_file;    //can't store file * directly
     uint64 vm_page_prot; //hardware page table entry prototype
     uint64 vm_flags; //Logical Permission indenpedent of hareware
     uint64 vm_pgoff;
@@ -31,6 +31,10 @@ struct vma_context{
     vm_area_struct_t *next;
 };
 struct mm_struct{
+    struct spinlock mm_lock;
+    //Protects concurrent VMA modifications within the same address space.
+    //By replacing the lock in mm_struct rather than the process descriptor
+    //we reduce contention among threads and decouple memory from process logic.
     vm_area_struct_t *mmap;  //Head of the list of VMAs(sorted by the address)
     rb_root_t rb_root;   //root of the red-block tree of VMAs
     vm_area_struct_t *mmap_cache;
@@ -41,9 +45,8 @@ struct mm_struct{
     vm_area_struct_t *heap_vma; //start and end of the heap
     vm_area_struct_t *stack_vma; //tell us the start address of main block
     uint64 arg_start, arg_end;
-    uint64 env_start, env_end; 
-    struct spinlock mm_lock;
-};   //one process have one tree
+    uint64 env_start, env_end;  
+};   //one process must have one tree
 
 struct vm_operation_struct{
     void (*open)(vm_area_struct_t *vma);
