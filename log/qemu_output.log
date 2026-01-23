@@ -1,77 +1,13 @@
 
 xv6 kernel is booting
 
-[proc_mapstacks] proc 0: kernel_stack located at 3fffffc000
-[proc_mapstacks] proc 1: kernel_stack located at 3fffffa000
-[proc_mapstacks] proc 2: kernel_stack located at 3fffff8000
-[proc_mapstacks] proc 3: kernel_stack located at 3fffff6000
-[proc_mapstacks] proc 4: kernel_stack located at 3fffff4000
-[proc_mapstacks] proc 5: kernel_stack located at 3fffff2000
-[proc_mapstacks] proc 6: kernel_stack located at 3fffff0000
-[proc_mapstacks] proc 7: kernel_stack located at 3ffffee000
-[proc_mapstacks] proc 8: kernel_stack located at 3ffffec000
-[proc_mapstacks] proc 9: kernel_stack located at 3ffffea000
-[proc_mapstacks] proc 10: kernel_stack located at 3ffffe8000
-[proc_mapstacks] proc 11: kernel_stack located at 3ffffe6000
-[proc_mapstacks] proc 12: kernel_stack located at 3ffffe4000
-[proc_mapstacks] proc 13: kernel_stack located at 3ffffe2000
-[proc_mapstacks] proc 14: kernel_stack located at 3ffffe0000
-[proc_mapstacks] proc 15: kernel_stack located at 3ffffde000
-[proc_mapstacks] proc 16: kernel_stack located at 3ffffdc000
-[proc_mapstacks] proc 17: kernel_stack located at 3ffffda000
-[proc_mapstacks] proc 18: kernel_stack located at 3ffffd8000
-[proc_mapstacks] proc 19: kernel_stack located at 3ffffd6000
-[proc_mapstacks] proc 20: kernel_stack located at 3ffffd4000
-[proc_mapstacks] proc 21: kernel_stack located at 3ffffd2000
-[proc_mapstacks] proc 22: kernel_stack located at 3ffffd0000
-[proc_mapstacks] proc 23: kernel_stack located at 3ffffce000
-[proc_mapstacks] proc 24: kernel_stack located at 3ffffcc000
-[proc_mapstacks] proc 25: kernel_stack located at 3ffffca000
-[proc_mapstacks] proc 26: kernel_stack located at 3ffffc8000
-[proc_mapstacks] proc 27: kernel_stack located at 3ffffc6000
-[proc_mapstacks] proc 28: kernel_stack located at 3ffffc4000
-[proc_mapstacks] proc 29: kernel_stack located at 3ffffc2000
-[proc_mapstacks] proc 30: kernel_stack located at 3ffffc0000
-[proc_mapstacks] proc 31: kernel_stack located at 3ffffbe000
-[proc_mapstacks] proc 32: kernel_stack located at 3ffffbc000
-[proc_mapstacks] proc 33: kernel_stack located at 3ffffba000
-[proc_mapstacks] proc 34: kernel_stack located at 3ffffb8000
-[proc_mapstacks] proc 35: kernel_stack located at 3ffffb6000
-[proc_mapstacks] proc 36: kernel_stack located at 3ffffb4000
-[proc_mapstacks] proc 37: kernel_stack located at 3ffffb2000
-[proc_mapstacks] proc 38: kernel_stack located at 3ffffb0000
-[proc_mapstacks] proc 39: kernel_stack located at 3ffffae000
-[proc_mapstacks] proc 40: kernel_stack located at 3ffffac000
-[proc_mapstacks] proc 41: kernel_stack located at 3ffffaa000
-[proc_mapstacks] proc 42: kernel_stack located at 3ffffa8000
-[proc_mapstacks] proc 43: kernel_stack located at 3ffffa6000
-[proc_mapstacks] proc 44: kernel_stack located at 3ffffa4000
-[proc_mapstacks] proc 45: kernel_stack located at 3ffffa2000
-[proc_mapstacks] proc 46: kernel_stack located at 3ffffa0000
-[proc_mapstacks] proc 47: kernel_stack located at 3ffff9e000
-[proc_mapstacks] proc 48: kernel_stack located at 3ffff9c000
-[proc_mapstacks] proc 49: kernel_stack located at 3ffff9a000
-[proc_mapstacks] proc 50: kernel_stack located at 3ffff98000
-[proc_mapstacks] proc 51: kernel_stack located at 3ffff96000
-[proc_mapstacks] proc 52: kernel_stack located at 3ffff94000
-[proc_mapstacks] proc 53: kernel_stack located at 3ffff92000
-[proc_mapstacks] proc 54: kernel_stack located at 3ffff90000
-[proc_mapstacks] proc 55: kernel_stack located at 3ffff8e000
-[proc_mapstacks] proc 56: kernel_stack located at 3ffff8c000
-[proc_mapstacks] proc 57: kernel_stack located at 3ffff8a000
-[proc_mapstacks] proc 58: kernel_stack located at 3ffff88000
-[proc_mapstacks] proc 59: kernel_stack located at 3ffff86000
-[proc_mapstacks] proc 60: kernel_stack located at 3ffff84000
-[proc_mapstacks] proc 61: kernel_stack located at 3ffff82000
-[proc_mapstacks] proc 62: kernel_stack located at 3ffff80000
-[proc_mapstacks] proc 63: kernel_stack located at 3ffff7e000
-hart 1 starting
-Freeing unused kernel memory: 4 KB
-Freeing unused kernel memory: 4 KB
-hart 3 starting
+[36m[INFO]  Freeing unused kernel memory: 4 KB[0m
 hart 2 starting
-Freeing unused kernel memory: 4 KB
-Freeing unused kernel memory: 4 KB
+[36m[INFO]  Freeing unused kernel memory: 4 KB[0m
+hart 1 starting
+[36m[INFO]  Freeing unused kernel memory: 4 KB[0m
+hart 3 starting
+[36m[INFO]  Freeing unused kernel memory: 4 KB[0m
 
 
 ================================================
@@ -96,7 +32,7 @@ Freeing unused kernel memory: 4 KB
 ======================================================
 === TEST 2: RB-Tree & List Consistency (Verbose) ===
 ======================================================
-now the canary_top addr is 0x0000003fffffce50, test_mm is 0x0000003fffffcdd0, canary_hot is 0x0000003fffffcdc8
+now the canary_top addr is 0x0000003fffffce50, test_mm is 0x0000003fffffcdc8, canary_hot is 0x0000003fffffcdc0
 [TEST step 1] Initialized local test_mm struct.
 [TEST step 2] Creating VMA Nodes A, B, C...
 [32m[PASS][0m Nodes created. Ref counts are default (1).
@@ -140,49 +76,15 @@ color: vma_a is 0 and vma_b is 1 vma_c is 0
 === Unmapped Area Test Passed ===
 [kvm_test] stress_worker enter: pid=2 iters=8000 max_live=2048 max_pages=64
 [kvm_test] stress_worker exit: pid=2 iters=8000 max_live=1024 max_pages=64 alloc_fail=0
-now the allocated data is 0xc000, and str_len is 0x1000
+now the allocated data is 0xd000, and str_len is 0x1000
 Now load_debug_sym(vm version) succeed.
 init: starting sh
-$ bttest
-[kvm_test] stress_worker enter: pid=5 iters=40000 max_live=4096 max_pages=256
-[kvm_test] stress_worker exit: pid=5 iters=40000 max_live=1024 max_pages=256 alloc_fail=0
-backtrace: (Kernel stack range from 0x3fffff6000 to 0x3fffff7000)
-kernel/printf.c:415(0x8001becc)
-kernel/sysproc.c:77(0x8000b0f2)
-kernel/syscall.c:206(0x8000adba)
-kernel/trap.c:56(0x8000a258)
-[Trap Entry](Trampoline Page)
-Unable convert into kernel address:0x3ffffff09c
-[Corrupted Stack frame](0x6fa8)
-[kvm_test] stress_worker enter: pid=7 iters=40000 max_live=4096 max_pages=256
-[kvm_test] stress_worker exit: pid=7 iters=40000 max_live=1024 max_pages=256 alloc_fail=0
-backtrace: (Kernel stack range from 0x3fffff2000 to 0x3fffff3000)
-kernel/printf.c:415(0x8001becc)
-kernel/sysproc.c:77(0x8000b0f2)
-kernel/syscall.c:206(0x8000adba)
-kernel/trap.c:56(0x8000a258)
-[Trap Entry](Trampoline Page)
-Unable convert into kernel address:0x3ffffff09c
-[Corrupted Stack frame](0x6fa8)
-[kvm_test] stress_worker enter: pid=6 iters=40000 max_live=4096 max_pages=256
-[kvm_test] stress_worker exit: pid=6 iters=40000 max_live=1024 max_pages=256 alloc_fail=0
-backtrace: (Kernel stack range from 0x3fffff4000 to 0x3fffff5000)
-kernel/printf.c:415(0x8001becc)
-kernel/sysproc.c:77(0x8000b0f2)
-kernel/syscall.c:206(0x8000adba)
-kernel/trap.c:56(0x8000a258)
-[Trap Entry](Trampoline Page)
-Unable convert into kernel address:0x3ffffff09c
-[Corrupted Stack frame](0x6fa8)
-[kvm_test] stress_worker enter: pid=8 iters=40000 max_live=4096 max_pages=256
-[kvm_test] stress_worker exit: pid=8 iters=40000 max_live=1024 max_pages=256 alloc_fail=0
-backtrace: (Kernel stack range from 0x3fffff0000 to 0x3fffff1000)
-kernel/printf.c:415(0x8001becc)
-kernel/sysproc.c:77(0x8000b0f2)
-kernel/syscall.c:206(0x8000adba)
-kernel/trap.c:56(0x8000a258)
-[Trap Entry](Trampoline Page)
-Unable convert into kernel address:0x3ffffff09c
-[Corrupted Stack frame](0x6fa8)
-$ QEMU: Terminated
+CPU 3 current holds 2 lock(s)
+ [0]: "proc" (ptr 0x8002a3c8)
+ [1]: "User_process lock" (ptr 0x8002a498)
+
+PANIC at address 0x0000000080009d38 in sleep at kernel/proc.c:640
+Sleep locks.
+
+QEMU: Terminated
 

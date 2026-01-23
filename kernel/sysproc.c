@@ -41,9 +41,10 @@ uint64 sys_sbrk(void) {
     argint(1, &t);
     if(cur_proc->mm==NULL)
         panic("Fatal Error: sbrk invoked on a process lacking an mm_struct.\n");
-    acquire(&cur_proc->mm->mm_lock);        ????FIXME: lock!!!
+    acquire(&cur_proc->uvm_lock);       //blocks operations like Page fault, exec, exit ...
+    acquire(&cur_proc->mm->mm_lock);
     if(cur_proc->mm->heap_vma==NULL){
-        printf("Current process lack heap_vma, unable to get necessary info.\n");
+        PROC_TRACE("Current process lack heap_vma, unable to get necessary info.\n");
         goto release_and_ret;
     }
 
@@ -51,21 +52,21 @@ uint64 sys_sbrk(void) {
     vm_area_struct_t *next_vma=cur_proc->mm->heap_vma->vm_next;
     uint64 limit=0;
     if(next_vma==NULL){
-        printf("[sbrk]Warning:current memlayout lack of stack.\n");
+        PROC_TRACE("Warning:current memlayout lack of stack.\n");
         limit=USERSTACK_END;
     }
     else if(next_vma==cur_proc->mm->stack_vma)
         limit=cur_proc->mm->stack_vma->vm_start-PGSIZE;
     else
-        limit=next_vma->vm_start;
-    if(addr +n > limit){      //mmap vma
-        printf("[sbrk]No space to grow, remain space is %llx\n.\n", limit-addr);
+        limit=next_vma->vm_start;       //Mmap vma
+    if(addr +n > limit){
+        //Prevent excessive n from overwriting kernel memory
+        pr_warn("No space to grow, remain space is %llx\n.\n", limit-addr);
         tmp_ret=-1;
         goto release_and_ret;
     }
-    //Prevent excessive n from overwriting kernel memory
     if (t == SBRK_EAGER) {
-        if (growproc(n) < 0) {      //Already update heap_vma boundary in growproc.
+        if (growproc(n) < 0) {      //Update heap_vma boundary in growproc already
             tmp_ret=-1;
             goto release_and_ret;
         }
@@ -93,6 +94,7 @@ uint64 sys_sbrk(void) {
     tmp_ret=addr;
 release_and_ret:
     release(&cur_proc->mm->mm_lock);
+    release(&cur_proc->uvm_lock);
     return tmp_ret;
 }
 

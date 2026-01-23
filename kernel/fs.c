@@ -595,6 +595,7 @@ static char *skipelem(char *path, char *name) {
 // path element into name, which must have room for DIRSIZ bytes.
 // Must be called inside a transaction since it calls iput().
 static struct inode *namex(char *path, int nameiparent, char *name) {
+    //for special case: namex("/", 0, name); bypass the path_parsing and loading
     struct inode *ip, *next;
 
     if (*path == '/') ip = iget(ROOTDEV, ROOTINO);

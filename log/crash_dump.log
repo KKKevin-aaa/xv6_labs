@@ -1,51 +1,46 @@
 ++echo log reset to ./logs/crash_dump.log
-log reset to ./logs/crash_dump.log+info threads
+log reset to ./logs/crash_dump.log+c
+Continuing.
+
+Thread 1 received signal SIGINT, Interrupt.
+acquire (lk=0x8002a3c8 <proc>) at kernel/spinlock.c:36
++info threads
   Id   Target Id                    Frame 
-* 1    Thread 1.1 (CPU#0 [running]) memset (dst=0x844a8000, 
-    c=0x0, n=0x8000) at kernel/string.c:7
-  2    Thread 1.2 (CPU#1 [running]) __panic (
-    file_name=0x8001fe50 "kernel/trap.c", line_no=0x99, 
-    func_name=0x80020090 <__func__.0> "kerneltrap", 
-    s=0x80020050 "kerneltrap") at kernel/printf.c:466
-  3    Thread 1.3 (CPU#2 [running]) uartputc_sync (c=0x44)
-    at kernel/uart.c:105
-  4    Thread 1.4 (CPU#3 [running]) acquire (
-    lk=0x80144818 <tickslock>) at kernel/spinlock.c:36
-+thread 2
-[Switching to thread 2 (Thread 1.2)]
-#0  __panic (file_name=0x8001fe50 "kernel/trap.c", line_no=0x99, 
-    func_name=0x80020090 <__func__.0> "kerneltrap", 
-    s=0x80020050 "kerneltrap") at kernel/printf.c:466
+* 1    Thread 1.1 (CPU#0 [running]) acquire (
+    lk=0x8002a3c8 <proc>) at kernel/spinlock.c:36
+  2    Thread 1.2 (CPU#1 [running]) acquire (
+    lk=0x8002a3c8 <proc>) at kernel/spinlock.c:36
+  3    Thread 1.3 (CPU#2 [running]) acquire (
+    lk=0x8002a3c8 <proc>) at kernel/spinlock.c:36
+  4    Thread 1.4 (CPU#3 [running]) __panic (
+    file_name=0x80020c30 "kernel/proc.c", 
+    line_no=0x280, 
+    func_name=0x80020028 <__func__.2> "sleep", 
+    s=0x80020ea8 "Sleep locks.\n")
+    at kernel/printf.c:466
++thread 4
+[Switching to thread 4 (Thread 1.4)]
+#0  __panic (file_name=0x80020c30 "kernel/proc.c", 
+    line_no=0x280, 
+    func_name=0x80020028 <__func__.2> "sleep", 
+    s=0x80020ea8 "Sleep locks.\n")
+    at kernel/printf.c:466
 +bt
-#0  __panic (file_name=0x8001fe50 "kernel/trap.c", line_no=0x99, 
-    func_name=0x80020090 <__func__.0> "kerneltrap", 
-    s=0x80020050 "kerneltrap") at kernel/printf.c:466
-#1  0x000000008000a624 in kerneltrap () at kernel/trap.c:153
-#2  <signal handler called>
-   0x0000000080010314 <kernelvec+52>:	82 60	ld	ra,0(sp)
-#3  0x0000000000000000 in ?? ()
-#4  0x000000008001c650 in acquire (lk=0x80144818 <tickslock>)
-    at kernel/spinlock.c:38
-#5  0x0000000080009666 in sleep (waitChannel=0x80023608 <ticks>, 
-    lk=0x80144818 <tickslock>) at kernel/proc.c:622
-#6  0x000000008000b0c6 in sys_pause () at kernel/sysproc.c:74
-#7  0x000000008000adb2 in syscall () at kernel/syscall.c:206
-#8  0x000000008000a252 in usertrap () at kernel/trap.c:56
-#9  0x0000003ffffff09c in ?? ()
-+bt
-#0  __panic (file_name=0x8001fe50 "kernel/trap.c", line_no=0x99, 
-    func_name=0x80020090 <__func__.0> "kerneltrap", 
-    s=0x80020050 "kerneltrap") at kernel/printf.c:466
-#1  0x000000008000a624 in kerneltrap () at kernel/trap.c:153
-#2  <signal handler called>
-   0x0000000080010314 <kernelvec+52>:	82 60	ld	ra,0(sp)
-#3  0x0000000000000000 in ?? ()
-#4  0x000000008001c650 in acquire (lk=0x80144818 <tickslock>)
-    at kernel/spinlock.c:38
-#5  0x0000000080009666 in sleep (waitChannel=0x80023608 <ticks>, 
-    lk=0x80144818 <tickslock>) at kernel/proc.c:622
-#6  0x000000008000b0c6 in sys_pause () at kernel/sysproc.c:74
-#7  0x000000008000adb2 in syscall () at kernel/syscall.c:206
-#8  0x000000008000a252 in usertrap () at kernel/trap.c:56
-#9  0x0000003ffffff09c in ?? ()
+#0  __panic (file_name=0x80020c30 "kernel/proc.c", 
+    line_no=0x280, 
+    func_name=0x80020028 <__func__.2> "sleep", 
+    s=0x80020ea8 "Sleep locks.\n")
+    at kernel/printf.c:466
+#1  0x0000000080009d38 in sleep (
+    waitChannel=0x8002a3c8 <proc>, 
+    lk=0x801463e0 <wait_lock>) at kernel/proc.c:640
+#2  0x0000000080009936 in kwait (addr=0x0)
+    at kernel/proc.c:488
+#3  0x000000008000b650 in sys_wait ()
+    at kernel/sysproc.c:30
+#4  0x000000008000b4e8 in syscall ()
+    at kernel/syscall.c:225
+#5  0x000000008000a998 in usertrap ()
+    at kernel/trap.c:56
+#6  0x0000003ffffff09c in ?? ()
 +q

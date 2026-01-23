@@ -9,18 +9,8 @@
 #include "kvm.h"
 #include "slab.h"
 #include "mm.h"
-// #define DEBUG_FORK
-#ifdef DEBUG_FORK
-#define FORK_TRACE(fmt, ...) \
-    do { \
-        printf("[FORK:%s] " fmt, __func__, ##__VA_ARGS__); \
-    } while (0)
-#else
-#define FORK_TRACE(fmt, ...) \
-    do { \
-    } while (0)
-#endif
-// #define PROC_DEBUG
+#include "colors.h"
+
 // #define PROC_TEST_TIME 
 struct cpu cpus[NCPU];
 
@@ -53,7 +43,7 @@ void proc_mapstacks(pagetable_t kpgtbl) {
         char *pa = kalloc_page();
         if (pa == 0) panic("kalloc");
         uint64 va = KSTACK((int)(p - proc));
-        printf("[proc_mapstacks] proc %d: kernel_stack located at %llx\n", (int)(p-proc), va);
+        PROC_TRACE("proc %d: kernel_stack located at %llx\n", (int)(p-proc), va);
         kvmmap_boot_only(kpgtbl, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
     }
 }
@@ -117,11 +107,8 @@ static struct proc *allocproc(void) {
     for (p = proc; p < &proc[NPROC]; p++) {
         acquire(&p->lock);
         if (p->state == PROC_UNUSED) {
-            if(p->mm==NULL){
-                p->mm=mm_create();
-                memset(p->mm, 0, sizeof(struct mm_struct));
-            }
-            else    clear_mm_internal(p->mm);
+            mm_put(p->mm);
+            p->mm=mm_create();  //Already clean on alloc.
             goto found;
         } else {
             release(&p->lock);
@@ -160,19 +147,21 @@ found:
 // free a proc structure and the data hanging from it,
 // including user pages. p->lock must be held.
 static void freeproc(struct proc *p) {
+    if(!holding(&p->lock)){
+        pr_err("access without proc's lock.\n");
+        return;
+    }
+    acquire(&p->uvm_lock);
     if (p->trapframe) kfree_page((void *)p->trapframe);
     p->trapframe = 0;
-    #ifdef PROC_DEBUG
-    printf("in freeproc oldpagetbale is %p\n", p->pagetable);
-    #endif
-    if(p->mm!=NULL)     remove_mm(p->mm);
-    //Execute the mm_struct reclaim first, 
-    if (p->pagetable){
-        proc_freepagetable(p);
-    }
-    #ifdef PROC_DEBUG
-    printf("Done free this process's memory!\n");
-    #endif
+#ifdef PROC_DEBUG
+    PROC_TRACE("in freeproc oldpagetbale is %p\n", p->pagetable);
+#endif
+    mm_put(p->mm);//Execute the mm_struct reclaim first,
+    if (p->pagetable)   proc_freepagetable(p->pagetable);
+#ifdef PROC_DEBUG
+    PROC_TRACE("Done free this process's memory!\n");
+#endif
     p->pagetable = 0;
     p->pid = 0;
     p->parent = 0;
@@ -181,6 +170,7 @@ static void freeproc(struct proc *p) {
     p->killed = 0;
     p->xstate = 0;
     p->state = PROC_UNUSED;
+    release(&p->uvm_lock);
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -225,12 +215,12 @@ pagetable_t proc_pagetable(struct proc *p) {
 }
 
 // Free a process's page table, and free the physical memory it refers to.
-void proc_freepagetable(struct proc *p) {
-    uvmunmap(p->pagetable, TRAMPOLINE, PGSIZE, 0);
-    uvmunmap(p->pagetable, TRAPFRAME, PGSIZE, 0);
-    uvmunmap(p->pagetable, USYSCALL, PGSIZE, 0);
+void proc_freepagetable(pagetable_t pagetable) {
+    uvmunmap(pagetable, TRAMPOLINE, PGSIZE, 0);
+    uvmunmap(pagetable, TRAPFRAME, PGSIZE, 0);
+    uvmunmap(pagetable, USYSCALL, PGSIZE, 0);
     //All process share one usyscall page,so don' free here!
-    freewalk(p->pagetable, 1, 2);       //Remove this pagetable completely.
+    freewalk(pagetable, 1, 2);       //Remove this pagetable completely.
 }
 
 // Set up first user process.
@@ -239,9 +229,11 @@ void userinit(void) {
 
     p = allocproc();
     initproc = p;
-
+    release(&p->lock);  
+    // Potentially Acquiring a sleeplock while interrupts 
+    // are disabled(holding spinlock) leads to indefinite blocking of the execution flow
     p->cwd = namei("/");
-
+    acquire(&p->lock);
     p->state = PROC_RUNNABLE;
 
     release(&p->lock);
@@ -249,19 +241,25 @@ void userinit(void) {
 
 // Shrink user memory by n bytes.
 // Return 0 on success, -1 on failure.
-int growproc(int n) {
+int growproc(int n) {       //Ensure enter this function holding two locks(uvmlock and mm_lock)
     struct proc *p = myproc();
-    if(!holding(&p->uvm_lock))
-        panic("access user's pagetable without lock.\n");
-    if(p->mm==NULL)
-        panic("Fatal error: proc's mm shouldn't be NULL.\n");
-    acquire(&p->mm->mm_lock);       //check the heap vma
-    if(p->mm->heap_vma==NULL)
-        panic("Fatal error: proc's heap_vma shouldn't be NULL.\n");
+    if(!holding(&p->uvm_lock)){
+        pr_err("access user's pagetable without lock.\n");
+        return -1;
+    }
+    if(p->mm==NULL){
+        pr_err("Fatal error: proc's mm shouldn't be NULL.\n");
+        return -1;
+    }
+    if(!holding(&p->mm->mm_lock))
+        pr_err("[Warning]Access process's mm_struct_t without lock(Protected by uvmlock).\n");
+    if(p->mm->heap_vma==NULL){      //check the heap vma
+        PROC_TRACE("Fatal error: proc's heap_vma shouldn't be NULL.\n");
+        return -1;
+    }
     uint64 heap_end=p->mm->heap_vma->vm_end;
     if(p->mm->heap_vma->vm_start > heap_end + n){
-        printf("[growproc] shrink heap fail, hitting the lower bound.\n");
-        release(&p->mm->mm_lock);
+        PROC_TRACE("shrink heap fail, hitting the lower bound.\n");
         return -1;
     }
     if (n > 0) {
@@ -272,7 +270,6 @@ int growproc(int n) {
         heap_end = uvmdealloc(p->pagetable, heap_end, heap_end + n);
     }
     p->mm->heap_vma->vm_end=heap_end; //update the heap boundary
-    release(&p->mm->mm_lock);
     return 0;
 }
 
@@ -288,9 +285,8 @@ int kfork(void) {
     // NOTE: (Still holding the process's private lock upon return.)
     if ((new_child = allocproc()) == 0) 
         return -1;
-
     if(new_child->mm==NULL){
-        printf("[kfork] Invalid proc without mm_struct_t\n");
+        pr_err("Invalid proc without mm_struct_t\n");
         freeproc(new_child);
         release(&new_child->lock);
         return -1;
@@ -298,7 +294,9 @@ int kfork(void) {
     // Copy user memory from parent to child.
     memmove(new_child->rb_array, cur_parent->rb_array, sizeof(struct Reservation)*MAX_RES_BLOCK);   //copy the rb_array first
     acquire(&cur_parent->uvm_lock);
+    acquire(&new_child->uvm_lock);      //Locks required for pagetable cloning
     acquire(&cur_parent->mm->mm_lock);
+    acquire(&new_child->mm->mm_lock);   //Locks required for mm_struct_t cloning
     //Create a new one mm_struct(value copy/Deep copy)--Metadata
     vm_area_struct_t *copy_vma=cur_parent->mm->mmap , *tmp_next=NULL, *prev_vma=NULL;
     vm_area_struct_t *new_vma=NULL;
@@ -306,7 +304,7 @@ int kfork(void) {
         tmp_next=copy_vma->vm_next;
         new_vma=alloc_vma_node();
         if(new_vma==NULL){
-            printf("kfrok:create new_vma fail.\n");
+            PROC_TRACE("create new_vma fail.\n");
             goto error_on_copy;
         }
         memset(new_vma, 0, sizeof(vm_area_struct_t));
@@ -325,7 +323,7 @@ int kfork(void) {
                 fileclose(new_vma->vm_file);
             if(new_vma->vm_ops!=NULL && new_vma->vm_ops->open!=NULL)
                 new_vma->vm_ops->close(new_vma);
-            reclaim_vma_node(new_vma);
+            vma_put(new_vma);
             goto error_on_copy;
         }
         //Physical memory Replication
@@ -337,8 +335,9 @@ int kfork(void) {
         copy_vma=tmp_next;
 
     }
-
+    release(&new_child->mm->mm_lock);
     release(&cur_parent->mm->mm_lock);
+    release(&new_child->uvm_lock);
     release(&cur_parent->uvm_lock);
     // Copy saved user registers.
     *(new_child->trapframe) = *(cur_parent->trapframe);
@@ -375,10 +374,13 @@ int kfork(void) {
 
     return pid;
 error_on_copy:
-    freeproc(new_child);        //remove complete pagetable and mm_struct
+    release(&new_child->mm->mm_lock);
     release(&cur_parent->mm->mm_lock);
-    release(&new_child->lock);
     release(&cur_parent->uvm_lock);
+    release(&new_child->uvm_lock);
+
+    freeproc(new_child);        //remove complete pagetable and mm_struct
+    release(&new_child->lock);
     return -1;
 }
 
@@ -455,17 +457,19 @@ int kwait(uint64 addr) {
                 // e.g. for kfork(): child must release its process lock 
                 // and acquire wait_lock to update the relationship,so now the child's private lock can acquire.
                 acquire(&tmp_p->lock);
-
                 havekids = 1;
                 if (tmp_p->state == PROC_ZOMBIE) {
                     // Found one.
                     pid = tmp_p->pid;
+                    acquire(&p->uvm_lock);      //for copyout;
                     if (addr != 0 &&
                         copyout(p->pagetable, addr, (char *)&tmp_p->xstate, sizeof(tmp_p->xstate)) < 0) {
+                        release(&p->uvm_lock);
                         release(&tmp_p->lock);
                         release(&wait_lock);
                         return -1;
                     }
+                    release(&p->uvm_lock);
                     freeproc(tmp_p);
                     release(&tmp_p->lock);
                     release(&wait_lock);
@@ -499,11 +503,9 @@ void scheduler(void) {
 
     c->proc = 0;
     for (;;) {
-        // The most recent process to run may have had interrupts
-        // turned off; enable them to avoid a deadlock if all
-        // processes are waiting. Then turn them back off
-        // to avoid a possible race between an interrupt
-        // and wfi.
+        // The most recent process to run may have had interrupts turned off; 
+        // enable them to avoid a deadlock if all processes are waiting. 
+        // Then turn them back off to avoid a possible race between an interrupt and wfi.
         intr_on();
         intr_off();
 
@@ -634,7 +636,7 @@ void sleep(void *waitChannel, struct spinlock *lk) {
 
     struct cpu *cur_cpu=mycpu();
     if(cur_cpu->noff!=1){
-        printf("FATAL: Sleep() holding extra lock (potential deadlock).\n");
+        PROC_TRACE("FATAL: Sleep() holding extra lock (potential deadlock).\n");
         print_held_locks();
         panic("Sleep locks.\n");
     }

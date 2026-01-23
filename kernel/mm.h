@@ -3,15 +3,34 @@ struct vm_area_struct;
 struct mm_struct;   //forward declaration
 struct vm_operation_struct;
 
-#define VM_READ  0x1
-#define VM_WRITE 0x2
-#define VM_EXEC  0x4
+// --- 基础权限 (对应 mmap prot) ---
+#define VM_READ         0x01ULL     // 可读
+#define VM_WRITE        0x02ULL     // 可写
+#define VM_EXEC         0x04ULL     // 可执行
+#define VM_SHARED       0x08ULL     // 共享映射 (MAP_SHARED)
+
+// --- 进阶属性 (对应 mmap flags 或内部状态) ---
+#define VM_MAYREAD      0x10ULL     // 允许改为可读
+#define VM_MAYWRITE     0x20ULL     // 允许改为可写
+#define VM_MAYEXEC      0x40ULL     // 允许改为可执行
+#define VM_MAYSHARE     0x80ULL     // 允许改为共享
+
+// --- 特殊区域标识 ---
+#define VM_GROWSDOWN    0x0100ULL   // 栈 (Stack)
+#define VM_GROWSUP      0x0200ULL   // 堆 (Heap)
+#define VM_NOHUGEPAGE   0x0400ULL   // 禁止巨页
+#define VM_DONTEXPAND   0x0800ULL   // 禁止扩展
+#define VM_LOCKED       0x1000ULL   // 内存锁定 (mlock)
+#define VM_IO           0x2000ULL   // 内存映射IO (MMIO)
+
+// --- 常用组合 ---
+#define VM_R_W_X        (VM_READ | VM_WRITE | VM_EXEC)
 struct vm_area_struct{  //Virtual Memory Area
     uint64 vm_start, vm_end;
     uint64 vm_filesz;    //check if .bss segment 
     struct file *vm_file;    //can't store file * directly
     uint64 vm_page_prot; //hardware page table entry prototype
-    uint64 vm_flags; //Logical Permission indenpedent of hareware
+    uint64 vm_flags; //Logical Permission independent of hareware
     uint64 vm_pgoff;
     struct mm_struct *vm_mm;    //pointer back tp the process's main memory descriptor
     union{  //Multiplex memory for mutually exclusive data.
@@ -46,7 +65,10 @@ struct mm_struct{
     vm_area_struct_t *stack_vma; //tell us the start address of main block
     uint64 arg_start, arg_end;
     uint64 env_start, env_end;  
+    int ref_count;
 };   //one process must have one tree
+#define REF_SATURATION      0XC0000000
+
 
 struct vm_operation_struct{
     void (*open)(vm_area_struct_t *vma);
@@ -57,7 +79,7 @@ struct vm_operation_struct{
 #ifdef DEBUG_MM
 #define MM_TRACE(fmt, ...) \
     do { \
-        printf("[KALLOC:%s] " fmt, __func__, ##__VA_ARGS__); \
+        printf("[MM:%s] " fmt, __func__, ##__VA_ARGS__); \
     } while (0)
 #else
 #define MM_TRACE(fmt, ...) \

@@ -9,13 +9,22 @@
 #include "fs.h"
 #include "sleeplock.h"
 #include "file.h"
-
+#include "rbtree.h"
+#include "mm.h"
+#include "colors.h"
 // Fetch the uint64 at addr from the current process.
 int fetchaddr(uint64 addr, uint64 *ip) {
     struct proc *p = myproc();
     int tmp_ret=0;
     acquire(&p->uvm_lock);
-    if (addr >= p->sz || addr + sizeof(uint64) > p->sz)
+    if(p->mm==NULL){
+        pr_warn("Process lack of mm_struct_t");
+        release(&p->uvm_lock);
+        return -1;
+    }
+    acquire(&p->mm->mm_lock);
+    vm_area_struct_t *found=find_vma(p->mm, addr);
+    if (found==NULL || found->vm_end < addr + sizeof(uint64))
         // both tests needed, in case of overflow
         tmp_ret=-1;
     else if (copyin(p->pagetable, (char *)ip, addr, sizeof(*ip)) != 0)

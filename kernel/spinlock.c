@@ -7,6 +7,7 @@
 #include "riscv.h"
 #include "proc.h"
 #include "defs.h"
+#include "colors.h"
 
 void initlock(struct spinlock *lk, char *name) {
     lk->name = name;
@@ -57,7 +58,7 @@ void acquire(struct spinlock *lk) {
             }
             continue;   //Keep wating(no deadlock exist)
 deadlock:
-            printf("DEADLOCK DETECHED!LOCK name is %s held by cpu: %d\n",
+            pr_err("DEADLOCK DETECHED!LOCK name is %s held by cpu: %d\n",
                 lk->name, (int)(lk->cpu-cpus));
             //At this point, interrupts are masked(disabled) on the cpu,
             //So we must trigger a non-maskable exception to bring the cpu to a halt.
@@ -80,6 +81,9 @@ deadlock:
     lk->cpu=cur_cpu;
     if(cur_cpu->noff < MAX_LOCK_DEPTH){
         cur_cpu->held_lock[cur_cpu->noff-1]=lk;
+        uint64 cur_s0=r_fp(), ret_addr=0;
+
+        cur_cpu->held_lock_info[cur_cpu->noff-1]= FIXME: 
     }
 
 }

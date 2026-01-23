@@ -57,9 +57,23 @@ struct debug_header_t{
     uint32 line_cnt;
 };
 
+struct print_ctx{
+    char *buf;      //output to console if NULL
+    int size;
+    int pos;        //next position to assign
+};
+static void emit_char(struct print_ctx *p_ctx, int c){
+    if(p_ctx->buf==NULL)     consputc(c);
+    else{
+        if(p_ctx->pos>=p_ctx->size-1)     return;     //do nothing
+        p_ctx->buf[p_ctx->pos++]=c;
+        //leave one position to termiator.
+    }
+}
+
 static char digits[] = "0123456789abcdef";
 
-static void printint(long long xx, int base, int sign) {
+static void printint(struct print_ctx *p_ctx, long long xx, int base, int sign) {
     char buf[20];
     int i;
     unsigned long long x;
@@ -75,25 +89,25 @@ static void printint(long long xx, int base, int sign) {
 
     if (sign) buf[i++] = '-';
 
-    while (--i >= 0) consputc(buf[i]);
+    while (--i >= 0) emit_char(p_ctx, buf[i]);
 }
 
-static void printptr(uint64 x) {
+static void printptr(struct print_ctx *p_ctx, uint64 x) {
     int i;
-    consputc('0');
-    consputc('x');
+    emit_char(p_ctx, '0');
+    emit_char(p_ctx, 'x');
     for (i = 0; i < (sizeof(uint64) * 2); i++, x <<= 4)
-        consputc(digits[x >> (sizeof(uint64) * 8 - 4)]);
+        emit_char(p_ctx, digits[x >> (sizeof(uint64) * 8 - 4)]);
 }
 
 // Print to the console.
-int vprintf(char *fmt, va_list ap) {
+int vprintf(struct print_ctx *p_ctx, char *fmt, va_list ap) {
     int i, cx, c0, c1, c2;
     char *s;
     //for panicking, bypass lock verification to ensure emergency diagnostics are printed.
     for (i = 0; (cx = fmt[i] & 0xff) != 0; i++) {
         if (cx != '%') {
-            consputc(cx);
+            emit_char(p_ctx, cx);
             continue;
         }
         i++;
@@ -102,59 +116,86 @@ int vprintf(char *fmt, va_list ap) {
         if (c0) c1 = fmt[i + 1] & 0xff;
         if (c1) c2 = fmt[i + 2] & 0xff;
         if (c0 == 'd') {
-            printint(va_arg(ap, int), 10, 1);
+            printint(p_ctx, va_arg(ap, int), 10, 1);
         } else if (c0 == 'l' && c1 == 'd') {
-            printint(va_arg(ap, uint64), 10, 1);
+            printint(p_ctx, va_arg(ap, uint64), 10, 1);
             i += 1;
         } else if (c0 == 'l' && c1 == 'l' && c2 == 'd') {
-            printint(va_arg(ap, uint64), 10, 1);
+            printint(p_ctx, va_arg(ap, uint64), 10, 1);
             i += 2;
         } else if (c0 == 'u') {
-            printint(va_arg(ap, uint32), 10, 0);
+            printint(p_ctx, va_arg(ap, uint32), 10, 0);
         } else if (c0 == 'l' && c1 == 'u') {
-            printint(va_arg(ap, uint64), 10, 0);
+            printint(p_ctx, va_arg(ap, uint64), 10, 0);
             i += 1;
         } else if (c0 == 'l' && c1 == 'l' && c2 == 'u') {
-            printint(va_arg(ap, uint64), 10, 0);
+            printint(p_ctx, va_arg(ap, uint64), 10, 0);
             i += 2;
         } else if (c0 == 'x') {
-            printint(va_arg(ap, uint32), 16, 0);
+            printint(p_ctx, va_arg(ap, uint32), 16, 0);
         } else if (c0 == 'l' && c1 == 'x') {
-            printint(va_arg(ap, uint64), 16, 0);
+            printint(p_ctx, va_arg(ap, uint64), 16, 0);
             i += 1;
         } else if (c0 == 'l' && c1 == 'l' && c2 == 'x') {
-            printint(va_arg(ap, uint64), 16, 0);
+            printint(p_ctx, va_arg(ap, uint64), 16, 0);
             i += 2;
         } else if (c0 == 'p') {
-            printptr(va_arg(ap, uint64));
+            printptr(p_ctx, va_arg(ap, uint64));
         } else if (c0 == 'c') {
-            consputc(va_arg(ap, uint));
+            emit_char(p_ctx, va_arg(ap, uint));
         } else if (c0 == 's') {
             if ((s = va_arg(ap, char *)) == 0) s = "(null)";
-            for (; *s; s++) consputc(*s);
+            for (; *s; s++) emit_char(p_ctx, *s);
         } else if (c0 == '%') {
-            consputc('%');
+            emit_char(p_ctx, '%');
         } else if (c0 == 0) {
             break;
         } else {
             // Print unknown % sequence to draw attention.
-            consputc('%');
-            consputc(c0);
+            emit_char(p_ctx, '%');
+            emit_char(p_ctx, c0);
         }
     }
-
+    if(p_ctx->buf!=NULL)
+        p_ctx->buf[p_ctx->size-1]='\0';
     return 0;
 }
 
-int printf(char *fmt, ...){
-    va_list ap;
-    if(panicking==0)    acquire(&pr.lock);
-    va_start(ap, fmt);
-    int ret=vprintf(fmt, ap);
-    va_end(ap);
-    if(panicking==0)    release(&pr.lock);
-    return ret;
+int vsnprintf(char *buf, int size, char *fmt, va_list ap) {
+    struct print_ctx ctx;
+    ctx.buf = buf;
+    ctx.size = size;
+    ctx.pos = 0;
+
+    return vprintf_gen(&ctx, fmt, ap);
 }
+
+int snprintf(char *buf, int size, char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    int res = vsnprintf(buf, size, fmt, ap);
+    va_end(ap);
+    return res;
+}
+
+int printf(char *fmt, ...) {
+    struct print_ctx ctx;
+    ctx.buf = 0; // 标记为控制台输出
+    ctx.size = 0;
+    ctx.pos = 0;
+
+    va_list ap;
+    if(panicking == 0) acquire(&pr.lock);
+    
+    va_start(ap, fmt);
+    vprintf_gen(&ctx, fmt, ap);
+    va_end(ap);
+    
+    if(panicking == 0) release(&pr.lock);
+    
+    return ctx.pos;
+}
+
 
 //Another method: vmalloc(virtual Contiguous Mapping)
 //Allocates multiple non-contiguous physical pages and modifies the
@@ -233,7 +274,7 @@ int load_debug_sym_vm(){
     ret=0;
     printf("Now load_debug_sym(vm version) succeed.\n");
 cleanup:
-    iunlock(data_ip);
+    iunlockput(data_ip);
     return ret;
 }
 
@@ -324,7 +365,7 @@ int load_debug_sym(){
     is_debug_sym_loaded=1;
     ret=0;
 cleanup:
-    iunlock(data_ip);
+    iunlockput(data_ip);
     return ret;
 }
 

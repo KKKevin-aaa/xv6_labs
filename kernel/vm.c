@@ -694,8 +694,7 @@ void freewalk(pagetable_t pagetable, int do_free, int level) {
 #endif
     pte_t pte;// there are 2^9 = 512 PTEs in a page table.
     uint64 pa, num_4k_page, page_per_slot, step;
-    uint64 standard_stride=get_step_size(level), va_step;
-    uint64 cur_order;
+    uint64 va_step, cur_order;
     int idx=0;
     while(idx<512){
         pte = pagetable[idx];
@@ -955,6 +954,7 @@ void uvmclear(pagetable_t pagetable, uint64 va) {
 }
 
 //-----NOTE:the following three function are build upon kernel page, user pa is treated as kernel va.--------
+
 // Copy from kernel to user.
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
@@ -1173,7 +1173,7 @@ uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
                 tmp_ret=0;
             }
 file_close:
-            iunlock(vma->vm_file->ip);
+            iunlockput(vma->vm_file->ip);
             end_op();
         }
     }

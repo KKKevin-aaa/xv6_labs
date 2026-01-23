@@ -11,6 +11,7 @@
 #include "kvm.h"
 #include "slab.h"
 #include "mm.h"
+#include "colors.h"
 #define DEBUG_MM
 
 
@@ -18,16 +19,56 @@
 // create a seperate cache object for each CPU entry.
 slab_cache_t *vma_cache=NULL;
 slab_cache_t *mm_cache=NULL;
+//Some basic function declerations.
+static int reclaim_vma_node(vm_area_struct_t *);
+int remove_mm(mm_struct_t *mm);
+
+uint64 gene_page_prot(uint64 vm_flags) {    //VMA->PTE
+    //As a hardware-agnostic kernel structure, it implements the translation
+    //from logical abstraction to physical hardware via the following functions.
+    uint64 page_prot = 0;
+    if (vm_flags & VM_READ)     page_prot |= PTE_R;
+    if (vm_flags & VM_WRITE)    page_prot |= PTE_W;
+    if (vm_flags & VM_EXEC)     page_prot |= PTE_X;
+    if(vm_flags & PROT_USER)    page_prot |= PTE_U;
+    page_prot |= PTE_V;
+
+    if (vm_flags & VM_IO) {
+        page_prot |= (PTE_A | PTE_D);
+    }
+
+    return page_prot;
+}
+uint64 gene_flags(uint64 vm_page_prot) {    //PTE->VMA
+    uint64 vm_flags = 0;
+    if (vm_page_prot & PTE_R)   vm_flags |= VM_READ;
+    if (vm_page_prot & PTE_W)   vm_flags |= VM_WRITE;
+    if (vm_page_prot & PTE_X)   vm_flags |= VM_EXEC;
+    if(vm_page_prot & PTE_U)    vm_flags |= PROT_USER;
+    // 2. 关键逻辑：推断 COW 状态
+    // 如果物理页表显示“只读”(无 PTE_W)，但同时标记了软件位 COW (PTE_COW)，
+    // 说明这个页面在逻辑上其实是“可写”的 (VM_WRITE)，只是暂时被内核锁住了。
+    // 在恢复 vm_flags 时，必须把 VM_WRITE 加回去。
+    if ((vm_page_prot & PTE_COW) && !(vm_page_prot & PTE_W)) {
+        vm_flags |= VM_WRITE;
+    }
+    // 3. 辅助位处理
+    // PTE_A, PTE_D, PTE_U 通常不直接对应 VMA 的 flag，
+    // 而是用于页面置换算法或权限检查，此处不需要映射回去。
+    return vm_flags;
+}
+
 
 void vma_get(vm_area_struct_t *vma){    //Acquire one reference
     if(vma==NULL)   return;
-    __sync_fetch_and_add(&vma->ref_count, 1);
+    __sync_fetch_and_add(&vma->ref_count, 1);   //Atomic operations(lock-free)
     #ifdef DEBUG_REF
         printf("VMA %p get:ref=%d\n", vma, vma.ref_count);
     #endif
 }
 
 int vma_put(vm_area_struct_t *vma){    //Drop one reference
+    //If I am the last one decrease ref_count return 1, otherwise return 0.
     if(vma==NULL)   return 0;
     int new_ref=__sync_sub_and_fetch(&vma->ref_count, 1);
     #ifdef DEBUG_REF
@@ -38,14 +79,14 @@ int vma_put(vm_area_struct_t *vma){    //Drop one reference
             vma->vm_ops->close(vma);
         if(vma->vm_file!=NULL)
             fileclose(vma->vm_file);
-        return reclaim_vma_node(vma);
+        reclaim_vma_node(vma);
+        return 1;
     }
     else if(new_ref<0){
-        panic("VMA Ref-count underflow!Double free deteched!");
-    }
-    else if(vma->vm_mm==NULL){   //new_ref > 0
-        printf("[Warning] VMA %p is detached but ref=%d\n", vma, new_ref);
-        printf("Double check this usage, make sure free after use.\n");
+        MM_TRACE("VMA Ref-count underflow!Double free deteched!");
+        pr_err("Extermely! dangerous in free %llx\n", (uint64)vma);
+        __sync_lock_test_and_set(&vma->ref_count, REF_SATURATION);
+        return 0;
     }
     return 0;
 }
@@ -61,15 +102,57 @@ static int vma_ctor(void *ptr){
     }
 }
 
+void mm_get(mm_struct_t *mm){    //Acquire one reference
+    if(mm==NULL)   return;
+    __sync_fetch_and_add(&mm->ref_count, 1);
+    #ifdef DEBUG_REF
+        printf("VMA %p get:ref=%d\n", mm, mm.ref_count);
+    #endif
+}
+
+int mm_put(mm_struct_t *mm){    //Drop one reference
+    // return 1 If I am the last one decrease ref_count, otherwise return 0.
+    if(mm==NULL)   return 0;
+    int new_ref=__sync_sub_and_fetch(&mm->ref_count, 1);
+    #ifdef DEBUG_REF
+        printf("VMA %p put:ref=%d\n", mm, new_ref);
+    #endif
+    if(new_ref==0){
+        if(remove_mm(mm)!=0)
+            pr_warn("remove_mm fail, Check the reclaim logic.\n");
+        return 1;
+    }
+    else if(new_ref<0){
+        pr_warn("VMA Ref-count underflow!Double free deteched!");
+        __sync_lock_test_and_set(&mm->ref_count, REF_SATURATION);
+    }
+    return 0;
+}
+
+static int mm_ctor(void *ptr){
+    //treat as vma,initialize ref_count
+    mm_struct_t *mm=(mm_struct_t *)ptr;
+    if(mm==NULL)
+        return -1;
+    else{   //do some additional initialization.
+        mm->ref_count=1;
+        initlock(&mm->mm_lock, "mm_struct's lock.");
+        return 0;
+    }
+}
+
+
 void init_mm(void){ //Init the system(alloc prepare, )
+    //Deferred reclaimation of slab object,typicall occuring long after their lifecycle.
+    //And the slab destructor is predominatly a nop in standard configuration.
     vma_cache=create_slab_cache("vma_pool", sizeof(vm_area_struct_t), 8, vma_ctor, NULL);
     if(vma_cache==NULL){
         panic("init vma_cache fail.\n");
         return;
     }
     else    MM_TRACE("init vma_cache succeed.\n");
-    mm_cache=create_slab_cache("mm_pool", sizeof(mm_struct_t), 8, NULL, NULL);
-    if(vma_cache==NULL){
+    mm_cache=create_slab_cache("mm_pool", sizeof(mm_struct_t), 8, mm_ctor, NULL);
+    if(mm_cache==NULL){
         panic("init mm_cache fail.\n");
         return;
     }
@@ -93,10 +176,8 @@ vm_area_struct_t *insert_vma_helper(mm_struct_t *mm, uint64 va, uint64 sz, int p
     tmp_vma->ref_count=1;   //Held by mm_struct
     //Omit values for unused arguments.
     if(insert_vma(mm, tmp_vma)!=0){
-        MM_TRACE("insert va=%llx, size=%llx fail.\n", va, sz);
-        memset((void *)tmp_vma, 0, sizeof(vm_area_struct_t));
-        if(remove_vma(mm, tmp_vma)!=0)
-            panic("Fail to remove temporary vma.\n");
+        pr_warn("insert va=%llx, size=%llx fail.\n", va, sz);
+        vma_put(tmp_vma);
         return NULL;
     }
     return tmp_vma;
@@ -112,20 +193,16 @@ __attribute__((warn_unused_result)) mm_struct_t *mm_create() {
     return (mm_struct_t *)slab_alloc(mm_cache);
 }
 
-int reclaim_vma_node(vm_area_struct_t *node){
+static int reclaim_vma_node(vm_area_struct_t *node){
     if(node->vm_file!=NULL)     fileclose(node->vm_file);
-    if(node->vm_ops->close!=NULL)
+    if(node->vm_ops!=NULL && node->vm_ops->close!=NULL)
         node->vm_ops->close(node);
     return slab_free((void *)node);
 }
 
-void clear_mm_internal(mm_struct_t *mm){
-    //Ensure the pagetable and associated resource have cleared before this function.
-    //And this remove the vma from mm tree only. Maybe some process still hold some vmas
-    // but turst ref_count and don't bypass vma_put and call reclaim_vma_node directly
-    if(mm==NULL)    return;
-    if(!holding(&mm->mm_lock))
-        panic("called without mm_lock.\n");
+int remove_mm(mm_struct_t *mm){
+    if(mm==NULL)    return 0;
+    acquire(&mm->mm_lock);
     vm_area_struct_t *clear_vma=mm->mmap, *tmp_next;
     while(clear_vma!=NULL){
         tmp_next=clear_vma->vm_next;
@@ -133,20 +210,7 @@ void clear_mm_internal(mm_struct_t *mm){
             panic("remove vma %p fail.\n", clear_vma);
         clear_vma=tmp_next;
     }
-    // struct spinlock mmlock_copy=mm->mm_lock;
-    // memset((void *)mm, 0, sizeof(mm_struct_t));
-    // mm->mm_lock=mmlock_copy;    //Value-copy
-    // NOTE: if mm_lock is the first member for mm_struct,some offset trick can be used.
-    void *clear_start=(void *)((uint64)mm+sizeof(struct spinlock));
-    uint64 clear_len=sizeof(mm_struct_t)-sizeof(struct spinlock);
-    memset(clear_start, 0, clear_len);
-}
-
-int remove_mm(mm_struct_t *mm){
-    if(mm==NULL)    return 0;
-    acquire(&mm->mm_lock);
-    clear_mm_internal(mm);
-    release(&mm->mm_lock);      //Freeing 'mm' while holding its lock it fatal
+    release(&mm->mm_lock);
     //The cpu cannot unlock a memory area that has already been deallocated
     return slab_free((void *)mm);
 }
@@ -304,15 +368,15 @@ int insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont)
     //Check if cont qualifies for the fast path,
     //if not;fallback to the generic insetions.
     if(vma==NULL){
-        printf("Insert an empty entry into vma_struct!\n");
+        pr_err("Insert an empty entry into vma_struct!\n");
         return -1;
     }
     if(vma->vm_start%PGSIZE!=0 || vma->vm_end%PGSIZE!=0){
-        printf("insert_vma: pass an invalid argument!\n");
+        pr_err("insert_vma: pass an invalid argument!\n");
         return -1;
     }
     if(vma->vm_mm!=mm){     //Initialize this member explicitly before enter this function.
-        printf("try to insert vma to another new tree(maybe the tree have already replaced.\n)");
+        pr_err("try to insert vma to another new tree(maybe the tree have already replaced.\n)");
         return -1;
     }
     if(cont==NULL || (cont->prev==NULL && cont->next==NULL))
@@ -357,27 +421,29 @@ int insert_vma(mm_struct_t *mm, vm_area_struct_t *vma){
     //Builds the structure by linking the new VMA into both 
     //the RB-Tree and the linked list after checking for overlaps
     if(vma->vm_mm!=mm){
-        printf("try to insert vma to another new tree(maybe the tree have already replaced.\n)");
+        pr_warn("try to insert vma to another new tree(maybe the tree have already replaced.\n)");
         return -1;
     }
-    if(mm==NULL || vma==NULL || vma->vm_start%PGSIZE!=0 || vma->vm_end%PGSIZE!=0)
-        panic("insert_vma: pass an invalid argument!\n");
+    if(mm==NULL || vma==NULL || vma->vm_start%PGSIZE!=0 || vma->vm_end%PGSIZE!=0){
+        pr_err("pass an invalid argument!\n");
+        return -1;
+    }
     if(!holding(&mm->mm_lock))
-        panic("[Insert_vma]Race Condtions: access mm_struct without lock\n");
+        panic("Race Condtions: access mm_struct without lock\n");
     rb_node_t *vma_node=&vma->vm_rb_node;
     rb_node_t **link=NULL;
     vm_area_struct_t *vm_prev, *vm_next;
     rb_node_t *parent_node=rb_search(vma_node, &vm_prev, &vm_next, &mm->rb_root);
     if(parent_node==vma_node){
-        printf("Attempt to insert duplicate node!\n");
+        pr_err("Attempt to insert duplicate node!\n");
         return -1;
     }
     if(vm_prev && vm_prev->vm_end > vma->vm_start){
-        printf("Got the wrong predecessor node\n");
+        pr_err("Got the wrong predecessor node\n");
         return -1;
     }
     if(vm_next && vm_next->vm_start < vma->vm_end){
-        printf("Got the wrong successor node\n");
+        pr_err("Got the wrong successor node\n");
         return -1;
     }
     //Insert to the RB tree
@@ -412,7 +478,7 @@ int remove_vma(mm_struct_t *mm, vm_area_struct_t *vma){
     if(!holding(&mm->mm_lock))
         panic("[remove_vma]Race Conditions: access mm without lock!");
     if(vma->vm_mm!=mm){
-        printf("try to insert vma to another new tree(maybe the tree have already replaced.\n)");
+        pr_warn("try to remove vma from another tree(Dismatch mm_struct_t.\n)");
         return -1;
     }
     //Remove from the list,maintain mmap,also need to free the associated resource
@@ -437,14 +503,14 @@ uint64 get_unmapped_area(mm_struct_t *mm, uint64 len,
     KVM_TRACE("mm=%p len=%llx low_limit=%llx high_limit=%llx cont=%p\n", (void *)mm, len, low_limit, high_limit, (void *)cont);
 #endif
     if(mm==NULL || high_limit<=low_limit || len==0 || len%PGSIZE!=0){
-        printf("get_unmapped_area:get invalid para!\n");
+        pr_err("get_unmapped_area:get invalid para!\n");
         return -1;
     }
     if(!holding(&mm->mm_lock))
         panic("[get_unmapped_area]Race Conditions: access mm without lock!");
     uint64 avail_len=high_limit-low_limit;
     if(avail_len<len){
-        printf("Required size even larger than given range!\n");
+        pr_err("Required size even larger than given range!\n");
         return -1;
     }
     //Size requirements met.

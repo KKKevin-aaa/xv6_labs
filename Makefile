@@ -170,7 +170,7 @@ BUILD_ROOT_DIR := build
 
 DEBUG := 0
 ifeq ($(DEBUG), 2)
-  CFLAGS += -DDEBUG_FORK -DDEBUG_VM -DDEBUG_KALLOC -DDEBUG_EXEC -O0 -ggdb3 -gdwarf-4
+  CFLAGS += -DDEBUG_FORK -DDEBUG_VM -DDEBUG_KALLOC -DDEBUG_EXEC -DDEBUG_PROC -O0 -ggdb3 -gdwarf-4
   CFLAGS += -fno-omit-frame-pointer
   CFLAGS += -fno-partial-inlining -fno-ipa-cp -fno-ipa-sra
   CFLAGS += -fno-optimize-sibling-calls

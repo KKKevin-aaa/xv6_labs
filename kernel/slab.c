@@ -312,18 +312,18 @@ pick_from_array:
 int slab_free(void *obj){      //Also accept Destructor function pointer
     if(obj==NULL){
         SLAB_TRACE("free NULL.Invalid parameter\n");
-        return -1;
+        return 0;
     }
     slab_page_t *obj_page=PADDR2SLAB(obj);
     if(obj_page->cache->dtor!=NULL && obj_page->cache->dtor(obj)!=0){
-        SLAB_TRACE("destructor object fail.\n");
-        return -1;
+        SLAB_TRACE("object destruction failed.\n");
+        SLAB_TRACE("Forcing memory reclaimation to ensure system safety.\n");
     }
     return slab_dealloc(obj);
 }
 
 int slab_dealloc(void *del_obj){
-    if(del_obj==NULL)  return -1;
+    if(del_obj==NULL)  return 0;
     slab_page_t *obj_page=PADDR2SLAB(del_obj);
     if(obj_page->magic!=SLAB_PAGE_MAGIC){
         SLAB_TRACE("Reclaim an invalid slab_node, that allocator unrecognized\n");

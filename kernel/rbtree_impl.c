@@ -120,7 +120,7 @@ static void check_order(vm_area_struct_t **array, int idx){
     // uint64 lowerbound=KHEAP_START;
     uint64 lowerbound=0;
     for(int i=0;i<idx;i++){
-        if(array[i]->vm_start >= array[i]->vm_end)
+        if(array[i]->vm_start > array[i]->vm_end)
             panic("wrong vma, invalid range.\n");
         if(array[i]->vm_start < lowerbound)
             panic("wrong vma, overlap with prev vma.\n");

@@ -20,11 +20,13 @@ struct context {
 
 // Per-CPU state.
 #define MAX_LOCK_DEPTH 10
+#define MAX_NAME_LEN 32
 enum cpustate {CPU_SPINNING, CPU_RUNNING, CPU_HALTED, CPU_PANIC};
 struct cpu {
     struct proc *proc;       // The process running on this cpu, or null.
     struct context context;  // swtch() here to enter scheduler().
     struct spinlock *held_lock[MAX_LOCK_DEPTH]; //Record the currently held locks.
+    char held_lock_info[MAX_LOCK_DEPTH][MAX_NAME_LEN];;
     volatile enum cpustate state;       //Flags, while corresponding payload is wait_lock
     struct spinlock * volatile wait_lock;//Track locks that exceed the maximum wait duration.
     //NOTE: Optimize to fit within a CPU register to enable lock-free access and reduce cache line footprint.
@@ -154,3 +156,13 @@ struct vm_whole_copy_ctx{
     uint64 level;
     res_block *rblocks;
 };
+#ifdef DEBUG_PROC
+#define PROC_TRACE(fmt, ...) \
+    do { \
+        printf("[PROC:%s] " fmt, __func__, ##__VA_ARGS__); \
+    } while (0)
+#else
+#define PROC_TRACE(fmt, ...) \
+    do { \
+    } while (0)
+#endif
