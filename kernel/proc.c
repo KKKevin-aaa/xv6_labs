@@ -18,6 +18,8 @@ struct cpu cpus[NCPU];
 struct proc proc[NPROC];
 
 struct proc *initproc;
+struct proc *swap_kthread=NULL;
+
 
 int nextpid = 1;
 struct spinlock pid_lock;
@@ -59,6 +61,10 @@ void procinit(void) {
         p->state = PROC_UNUSED;
         p->kstack = KSTACK((int)(p - proc));
     }
+    swap_kthread=kthread_create("swap_worker", swap_out);
+    #ifdef DEBUG_KALLOC
+        KALLOC_TRACE("initialization complete\n");
+    #endif
 }
 
 // Must be called with interrupts disabled,
@@ -157,7 +163,6 @@ static void freeproc(struct proc *p) {
 #ifdef PROC_DEBUG
     PROC_TRACE("in freeproc oldpagetbale is %p\n", p->pagetable);
 #endif
-    mm_put(p->mm);//Execute the mm_struct reclaim first,
     if (p->pagetable)   proc_freepagetable(p->pagetable);
 #ifdef PROC_DEBUG
     PROC_TRACE("Done free this process's memory!\n");
@@ -194,8 +199,7 @@ pagetable_t proc_pagetable(struct proc *p) {
         return 0;
     }
 
-    // map the trapframe page just below the trampoline page, for
-    // trampoline.S.
+    // map the trapframe page just below the trampoline page, for trampoline.S.
     if (mappages(pagetable, TRAPFRAME, PGSIZE, (uint64)(p->trapframe), PTE_R | PTE_W) < 0) {
         uvmunmap(pagetable, TRAMPOLINE, 1, 0);
         freewalk(pagetable, 1, 2);
@@ -292,7 +296,8 @@ int kfork(void) {
         return -1;
     }
     // Copy user memory from parent to child.
-    memmove(new_child->rb_array, cur_parent->rb_array, sizeof(struct Reservation)*MAX_RES_BLOCK);   //copy the rb_array first
+    memmove(new_child->rb_array, cur_parent->rb_array, sizeof(struct Reservation)*MAX_RES_BLOCK);
+    //copy the rb_array first
     acquire(&cur_parent->uvm_lock);
     acquire(&new_child->uvm_lock);      //Locks required for pagetable cloning
     acquire(&cur_parent->mm->mm_lock);
@@ -333,7 +338,6 @@ int kfork(void) {
         }
         prev_vma=new_vma;
         copy_vma=tmp_next;
-
     }
     release(&new_child->mm->mm_lock);
     release(&cur_parent->mm->mm_lock);
@@ -361,7 +365,8 @@ int kfork(void) {
     // Wait_lock is used to modify parent-child relationship between processes.
     // A potential deadlock scenario exists: 
     //  CPU A holds p->lock and waits for wait_lock, while CPU B holds wait_lock and waits for p->lock
-    //Principle:the global wait_lock must be acquired before the specific p->lock.So we must first release the process lock.
+    //Principle:the global wait_lock must be acquired 
+    //          before the specific p->lock.So we must first release the process lock.
 
     release(&new_child->lock);
     acquire(&wait_lock);
@@ -381,6 +386,7 @@ error_on_copy:
 
     freeproc(new_child);        //remove complete pagetable and mm_struct
     release(&new_child->lock);
+    pr_err("Error in kfrok.");
     return -1;
 }
 
@@ -413,11 +419,15 @@ void kexit(int status) {
             p->ofile[fd] = 0;
         }
     }
-
     begin_op();
     iput(p->cwd);
     end_op();
     p->cwd = 0;
+
+    //handle teardown involving potential file operations.
+    mm_put(p->mm);      //Private variant.Immutable for external processes.
+    //Use the lock from mm_struct_t itself. 
+    p->mm=NULL; //Critical!Reset state explicitly.Pervent double-free or Use-after-free.
 
     acquire(&wait_lock);
 
@@ -455,7 +465,8 @@ int kwait(uint64 addr) {
             if (tmp_p->parent == p) {
                 // make sure the child isn't still in exit() or swtch().
                 // e.g. for kfork(): child must release its process lock 
-                // and acquire wait_lock to update the relationship,so now the child's private lock can acquire.
+                // and acquire wait_lock to update the relationship,
+                // so now the child's private lock can acquire.
                 acquire(&tmp_p->lock);
                 havekids = 1;
                 if (tmp_p->state == PROC_ZOMBIE) {
@@ -521,7 +532,8 @@ void scheduler(void) {
                 // Save my context(include ra,sp and all callee-save register:s0-s11)to c->context,
                 // and then load the registers from p->context(where we going to)
                 // While finishing switching, we will execute p->context(a new process)
-                // While finishing this new process, we will resuming execution at this point(using ra and ret).
+                // While finishing this new process, 
+                // we will resuming execution at this point(using ra and ret).
                 swtch(&c->context, &p->context);
 
                 // Process is done running for now.
@@ -583,20 +595,17 @@ void yield(void) {
 // will swtch to forkret.
 void forkret(void) {
     extern char userret[];
-    static int first = 1;
+    static int first = 1;   //Located in Data Segment, shared by all process.
     struct proc *p = myproc();
 
     // Still holding p->lock from scheduler.
     release(&p->lock);
-
-    if (first) {
+    // ensure other cores see first=0.
+    if(__sync_lock_test_and_set(&first, 0)==1){
         // File system initialization must be run in the context of a
         // regular process (e.g., because it calls sleep), and thus cannot
         // be run from main().
         fsinit(ROOTDEV);
-
-        first = 0;
-        // ensure other cores see first=0.
         __sync_synchronize();
 
         // We can invoke kexec() now that file system is initialized.
@@ -607,6 +616,9 @@ void forkret(void) {
         if (p->trapframe->a0 == -1) {
             panic("exec");
         }
+        //Initialization must be deferred until the scheduler is operational,
+        // as it relies on sleeeplocks and requires process-specific metadata.
+        debugsym_init();     // debug sym info(for backtrace)
     }
 
     // return to user space, mimicing usertrap()'s return.

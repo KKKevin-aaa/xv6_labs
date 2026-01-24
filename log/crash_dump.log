@@ -1,46 +1,47 @@
 ++echo log reset to ./logs/crash_dump.log
-log reset to ./logs/crash_dump.log+c
-Continuing.
-
-Thread 1 received signal SIGINT, Interrupt.
-acquire (lk=0x8002a3c8 <proc>) at kernel/spinlock.c:36
-+info threads
+log reset to ./logs/crash_dump.log+info threads
   Id   Target Id                    Frame 
-* 1    Thread 1.1 (CPU#0 [running]) acquire (
-    lk=0x8002a3c8 <proc>) at kernel/spinlock.c:36
-  2    Thread 1.2 (CPU#1 [running]) acquire (
-    lk=0x8002a3c8 <proc>) at kernel/spinlock.c:36
-  3    Thread 1.3 (CPU#2 [running]) acquire (
-    lk=0x8002a3c8 <proc>) at kernel/spinlock.c:36
-  4    Thread 1.4 (CPU#3 [running]) __panic (
-    file_name=0x80020c30 "kernel/proc.c", 
-    line_no=0x280, 
-    func_name=0x80020028 <__func__.2> "sleep", 
-    s=0x80020ea8 "Sleep locks.\n")
-    at kernel/printf.c:466
-+thread 4
-[Switching to thread 4 (Thread 1.4)]
-#0  __panic (file_name=0x80020c30 "kernel/proc.c", 
-    line_no=0x280, 
-    func_name=0x80020028 <__func__.2> "sleep", 
-    s=0x80020ea8 "Sleep locks.\n")
-    at kernel/printf.c:466
+* 1    Thread 1.1 (CPU#0 [running]) acquire (lk=0x80034780 <proc+36352>)
+    at kernel/spinlock.c:39
+  2    Thread 1.2 (CPU#1 [running]) acquire (lk=0x80034780 <proc+36352>)
+    at kernel/spinlock.c:38
+  3    Thread 1.3 (CPU#2 [running]) __panic (
+    file_name=0x800210e0 "kernel/kalloc.h", line_no=0x2e, 
+    func_name=0x800214a8 <__func__.0> "ensure_pfn_valid", 
+    s=0x80021100 "pfn invalid!") at kernel/printf.c:534
+  4    Thread 1.4 (CPU#3 [running]) acquire (lk=0x80034780 <proc+36352>)
+    at kernel/spinlock.c:39
++thread 3
+[Switching to thread 3 (Thread 1.3)]
+#0  __panic (file_name=0x800210e0 "kernel/kalloc.h", line_no=0x2e, 
+    func_name=0x800214a8 <__func__.0> "ensure_pfn_valid", 
+    s=0x80021100 "pfn invalid!") at kernel/printf.c:534
 +bt
-#0  __panic (file_name=0x80020c30 "kernel/proc.c", 
-    line_no=0x280, 
-    func_name=0x80020028 <__func__.2> "sleep", 
-    s=0x80020ea8 "Sleep locks.\n")
-    at kernel/printf.c:466
-#1  0x0000000080009d38 in sleep (
-    waitChannel=0x8002a3c8 <proc>, 
-    lk=0x801463e0 <wait_lock>) at kernel/proc.c:640
-#2  0x0000000080009936 in kwait (addr=0x0)
-    at kernel/proc.c:488
-#3  0x000000008000b650 in sys_wait ()
-    at kernel/sysproc.c:30
-#4  0x000000008000b4e8 in syscall ()
-    at kernel/syscall.c:225
-#5  0x000000008000a998 in usertrap ()
-    at kernel/trap.c:56
-#6  0x0000003ffffff09c in ?? ()
+#0  __panic (file_name=0x800210e0 "kernel/kalloc.h", line_no=0x2e, 
+    func_name=0x800214a8 <__func__.0> "ensure_pfn_valid", 
+    s=0x80021100 "pfn invalid!") at kernel/printf.c:534
+#1  0x00000000800001a6 in ensure_pfn_valid (pfn=0x20) at kernel/kalloc.h:46
+#2  0x0000000080000458 in get_page_desc_assert (pfn=0x20)
+    at kernel/kalloc.c:90
+#3  0x0000000080000ab0 in get_order (pa=0x80020000) at kernel/kalloc.c:187
+#4  0x0000000080005536 in freewalk_limit (pagetable=0x87d2b000, do_free=0x1, 
+    base_va=0x7fffdfb000, max_sz=0xffffffc000005000, level=0x0)
+    at kernel/vm.c:761
+#5  0x000000008000550e in freewalk_limit (pagetable=0x87d2a000, do_free=0x1, 
+    base_va=0x7fbfffb000, max_sz=0xffffffc000005000, level=0x1)
+    at kernel/vm.c:756
+#6  0x000000008000550e in freewalk_limit (pagetable=0x87d29000, do_free=0x1, 
+    base_va=0x3fffffb000, max_sz=0xffffffc000005000, level=0x2)
+    at kernel/vm.c:756
+#7  0x0000000080005e42 in uvmfree_range (rblocks=0x80034978 <proc+36856>, 
+    pagetable=0x87d29000, start_va=0x3fffffb000, sz=0xffffffc000005000)
+    at kernel/vm.c:919
+#8  0x0000000080005f82 in uvmcopy_range (rblocks=0x80034978 <proc+36856>, 
+    old_pg=0x87d0f000, new_pg=0x87d29000, start_va=0x3fffffb000, sz=0x1000)
+    at kernel/vm.c:937
+#9  0x00000000800094bc in kfork () at kernel/proc.c:336
+#10 0x000000008000bb04 in sys_fork () at kernel/sysproc.c:26
+#11 0x000000008000b9f4 in syscall () at kernel/syscall.c:225
+#12 0x000000008000abd6 in usertrap () at kernel/trap.c:56
+#13 0x0000003ffffff09c in ?? ()
 +q

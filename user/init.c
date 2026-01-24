@@ -13,7 +13,6 @@ char *argv[] = {"sh", 0};
 
 int main(void) {
     int pid, wpid;
-    load_debug_sym();   //Only executed by one cpu.(share the same info)
     if (open("console", O_RDWR) < 0) {
         mknod("console", CONSOLE, 0);
         open("console", O_RDWR);
@@ -24,6 +23,7 @@ int main(void) {
     for (;;) {
         printf("init: starting sh\n");
         pid = fork();
+        printf("1\n");
         if (pid < 0) {
             printf("init: fork failed\n");
             exit(1);

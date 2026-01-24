@@ -24,7 +24,10 @@ void acquire(struct spinlock *lk) {
     //by the interrupt and cannot release the lock,the ISR will spin indefinitely on the same
     //CPU, leading th a system deadlock.
 
-    if (holding(lk)) panic("acquire");
+    if (holding(lk)){
+        print_held_locks();
+        panic("acquire");
+    }
 
     //NOTE: (New added)Panic on timeout
     // On RISC-V, sync_lock_test_and_set turns into an atomic swap:
@@ -41,15 +44,15 @@ void acquire(struct spinlock *lk) {
                 mycpu()->wait_lock=lk;
                 __sync_synchronize();
                 __sync_lock_test_and_set(&cur_cpu->state, CPU_SPINNING);
-                //Seperate intent and fact.
+                //Seperate intent and fact.(Payload and then statement)
                 lock_updated=1;
             }
             //Cycle detection(e.g. AB-BA)starting with lk(try to hold)
             struct spinlock *test_lk=lk;
             while(1){
                 struct cpu *snapshot=test_lk->cpu;  //Load to local
-                if(snapshot==NULL || snapshot->state==CPU_RUNNING)  break;      //Maybe not cycle or some CPU's release lock
-                __sync_synchronize();
+                if(snapshot==NULL || snapshot->state==CPU_RUNNING)  break;
+                __sync_synchronize();       //Check and then read
                 //Multi-Core concurrency + lock-free + Ordering matters(Explicit Memory barriers)
                 struct spinlock *ss_lock=snapshot->wait_lock;
                 if(ss_lock==NULL)   break;
@@ -61,7 +64,7 @@ deadlock:
             pr_err("DEADLOCK DETECHED!LOCK name is %s held by cpu: %d\n",
                 lk->name, (int)(lk->cpu-cpus));
             //At this point, interrupts are masked(disabled) on the cpu,
-            //So we must trigger a non-maskable exception to bring the cpu to a halt.
+            //So we must trigger a non-maskable exception to bring the cpu to halt.
             asm volatile("ebreak");
         }
     }
@@ -70,22 +73,29 @@ deadlock:
         __sync_synchronize();
         mycpu()->wait_lock=NULL;    //Reverse the sequence used during CPU deactivation.
     }
-    // Tell the C compiler and the processor to not move loads or stores
-    // past this point, to ensure that the critical section's memory
-    // references happen strictly after the lock is acquired.
-    // On RISC-V, this emits a fence instruction.
+    // Tell the C compiler and the processor to not move loads or stores past this point,
+    // to ensure that the critical section's memory references happen strictly 
+    // after the lock is acquired. On RISC-V, this emits a fence instruction.
     __sync_synchronize();   //Prohibit Out-of-order Execution.
 
     // Record info about lock acquisition for holding() and debugging.
     struct cpu *cur_cpu=mycpu();
     lk->cpu=cur_cpu;
     if(cur_cpu->noff < MAX_LOCK_DEPTH){
-        cur_cpu->held_lock[cur_cpu->noff-1]=lk;
-        uint64 cur_s0=r_fp(), ret_addr=0;
-
-        cur_cpu->held_lock_info[cur_cpu->noff-1]= FIXME: 
+        cur_cpu->lock_lists[cur_cpu->noff-1].held_lock=lk;
+        if(lk==NULL || (strncmp(lk->name, "pr", 2)==0 && strlen(lk->name)==2))   return;
+        //Stop while acquiring print's lock(Non-reentrant function)
+        uint64 cur_s0=r_fp(), ra_ptr=cur_s0-8;
+        uint64 stack_end=PGROUNDUP(cur_s0), stack_start=stack_end-PGSIZE;
+        if(safe_load_data(ra_ptr, &cur_cpu->lock_lists[cur_cpu->noff-1].ret_addr, 
+            stack_start, stack_end)!=1){
+            cur_cpu->lock_lists[cur_cpu->noff-1].ret_addr=0x1000000000;    //Invalid addr;
+            pr_warn("Invalid address");
+            return;
+        }
+        if(cur_cpu->lock_lists[cur_cpu->noff-1].ret_addr==0)
+            panic("henish pheon.\n");
     }
-
 }
 
 // Release the lock.
@@ -100,10 +110,11 @@ void release(struct spinlock *lk) {
         panic("Current no lock recorded at all(Dismatch).\n");
     int end_idx=MIN(cur_cpu->noff-1, MAX_LOCK_DEPTH-1);
     for(int found_idx=end_idx;found_idx>=0;found_idx--){
-        if(cur_cpu->held_lock[found_idx]==lk){
-            //Move last element to held_lock[found_idx]
-            cur_cpu->held_lock[found_idx]=cur_cpu->held_lock[end_idx];
-            cur_cpu->held_lock[end_idx]=NULL;
+        if(cur_cpu->lock_lists[found_idx].held_lock==lk){
+            for(int j=found_idx;j<end_idx;j++){
+                cur_cpu->lock_lists[j]=cur_cpu->lock_lists[j+1];
+            }
+            memset((void *)&cur_cpu->lock_lists[end_idx], 0, sizeof(struct lock_debug_info));
         }
     }
     // Tell the C compiler and the CPU to not move loads or stores
@@ -165,10 +176,14 @@ void print_held_locks(void){
             printf("Exceed the record lock depths.\n");
             return;
         }
-        struct spinlock *lk=cur_cpu->held_lock[i];
-        if(lk!=NULL)
+        struct spinlock *lk=cur_cpu->lock_lists[i].held_lock;
+        if(lk!=NULL){
             printf(" [%d]: \"%s\" (ptr 0x%llx)\n", i, lk->name, (uint64)lk);
-        else
+            find_debug_info(cur_cpu->lock_lists[i].ret_addr, NULL, 0);
+        }
+        else{
             printf(" [%d]: ??? (unknown)\n", i);
+            pr_info("NULL");
+        }
     }
 }

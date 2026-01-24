@@ -21,6 +21,8 @@ void __cyg_profile_func_exit(void *this_fn, void *call_site){
 void free_initmem();
 
 // start() jumps here in supervisor mode on all CPUs.
+// And we block another CPUs except CPU0 by software,
+//  Establish uniprocess initialization.
 void main() {
     if (cpuid() == 0) { //Bootstrap Processor:Global/System-wide Initialization
         consoleinit();

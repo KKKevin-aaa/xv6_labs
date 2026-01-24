@@ -65,6 +65,7 @@ uint64 usertrap(void) {
         printf("            sepc=0x%llx stval=0x%llx\n", r_sepc(), r_stval());
         printf("            pagetable is %p, name is %s\n",p->pagetable, p->name);
         setkilled(p);
+        panic("1");
     }
 
     if (killed(p)) kexit(-1);

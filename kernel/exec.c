@@ -126,35 +126,19 @@ int kexec(char *path, char **argv) {
     src_file=NULL;
     acquire(&shadow_mm->mm_lock);       //Acquire after finishing disk loading
     sz = PGROUNDUP(sz);
-    //Create heap VMA before stack VMA
-    vm_area_struct_t *heap_vma = alloc_vma_node();
-    if (!heap_vma) goto bad;
-    heap_vma->vm_start = sz;        //New program break
-    heap_vma->vm_end = sz; 
-    heap_vma->vm_flags = VM_READ | VM_WRITE;
-    heap_vma->vm_page_prot = PTE_R | PTE_W | PTE_U;
-    heap_vma->vm_mm = shadow_mm;
-    heap_vma->vm_ops = NULL;
-    heap_vma->vm_file = NULL;     //Anonymous VMA
-    if(insert_vma_fast(shadow_mm, heap_vma, &(vma_context_t){.prev=prev_vma, .next=NULL})==-1){
-        vma_put(heap_vma);
-        goto bad;
-    }
-    shadow_mm->heap_vma = heap_vma;
-    prev_vma=heap_vma;
 
     //Do some preparation work.
-    stackbase=USERSTACK_END- (USERSTACK + 1)*PGSIZE;    //Top-guard + bottom-guard
-    if (uvmalloc(new_pagetable, stackbase-PGSIZE, USERSTACK_END, PTE_W) == 0) goto bad;
-    uvmclear(new_pagetable, USERSTACK_END-PGSIZE);
+    stackbase=sz+PGSIZE;    //Top-guard + bottom-guard(stack only one-page.)
+    if (uvmalloc(new_pagetable, stackbase-PGSIZE, stackbase+2*PGSIZE, PTE_W) == 0) goto bad;
     uvmclear(new_pagetable, stackbase-PGSIZE);
+    uvmclear(new_pagetable, stackbase+PGSIZE);
     // --- 创建 Stack VMA ---
     vm_area_struct_t *stack_vma = alloc_vma_node();
     if (!stack_vma) goto bad;
     stack_vma->vm_start = stackbase;     //Skip the guard pages.
     //This represents the static ownership of the memory region,
     // which remains constant regradless of stack utilization.
-    stack_vma->vm_end = USERSTACK_END-PGSIZE; 
+    stack_vma->vm_end = stackbase+PGSIZE; 
     stack_vma->vm_flags = VM_READ | VM_WRITE; 
     stack_vma->vm_page_prot = PTE_R | PTE_W | PTE_U;
     stack_vma->vm_mm = shadow_mm;
@@ -165,8 +149,25 @@ int kexec(char *path, char **argv) {
         goto bad;
     }
     shadow_mm->stack_vma = stack_vma;
+    prev_vma=stack_vma;
 
-    sp=USERSTACK_END-PGSIZE;
+    //Create heap VMA before stack VMA
+    vm_area_struct_t *heap_vma = alloc_vma_node();
+    if (!heap_vma) goto bad;
+    heap_vma->vm_start = stackbase+2*PGSIZE;        //New program break
+    heap_vma->vm_end = stackbase+2*PGSIZE; 
+    heap_vma->vm_flags = VM_READ | VM_WRITE;
+    heap_vma->vm_page_prot = PTE_R | PTE_W | PTE_U;
+    heap_vma->vm_mm = shadow_mm;
+    heap_vma->vm_ops = NULL;
+    heap_vma->vm_file = NULL;     //Anonymous VMA
+    if(insert_vma_fast(shadow_mm, heap_vma, &(vma_context_t){.prev=prev_vma, .next=NULL})==-1){
+        vma_put(heap_vma);
+        goto bad;
+    }
+    shadow_mm->heap_vma = heap_vma;
+
+    sp=stackbase+PGSIZE;
     //Pass arguments on the stack;no heap involvement.
     for (argc = 0; argv[argc]; argc++) {
         if (argc >= MAXARG) goto bad;

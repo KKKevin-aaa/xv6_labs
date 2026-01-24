@@ -20,7 +20,6 @@
 slab_cache_t *vma_cache=NULL;
 slab_cache_t *mm_cache=NULL;
 //Some basic function declerations.
-static int reclaim_vma_node(vm_area_struct_t *);
 int remove_mm(mm_struct_t *mm);
 
 uint64 gene_page_prot(uint64 vm_flags) {    //VMA->PTE
@@ -79,8 +78,7 @@ int vma_put(vm_area_struct_t *vma){    //Drop one reference
             vma->vm_ops->close(vma);
         if(vma->vm_file!=NULL)
             fileclose(vma->vm_file);
-        reclaim_vma_node(vma);
-        return 1;
+        return slab_free((void *)vma);
     }
     else if(new_ref<0){
         MM_TRACE("VMA Ref-count underflow!Double free deteched!");
@@ -193,21 +191,13 @@ __attribute__((warn_unused_result)) mm_struct_t *mm_create() {
     return (mm_struct_t *)slab_alloc(mm_cache);
 }
 
-static int reclaim_vma_node(vm_area_struct_t *node){
-    if(node->vm_file!=NULL)     fileclose(node->vm_file);
-    if(node->vm_ops!=NULL && node->vm_ops->close!=NULL)
-        node->vm_ops->close(node);
-    return slab_free((void *)node);
-}
-
 int remove_mm(mm_struct_t *mm){
     if(mm==NULL)    return 0;
     acquire(&mm->mm_lock);
     vm_area_struct_t *clear_vma=mm->mmap, *tmp_next;
     while(clear_vma!=NULL){
         tmp_next=clear_vma->vm_next;
-        if(remove_vma(mm, clear_vma)!=0)   //remove from the existing mm completely
-            panic("remove vma %p fail.\n", clear_vma);
+        remove_vma(mm, clear_vma);   //remove from the existing mm completely
         clear_vma=tmp_next;
     }
     release(&mm->mm_lock);

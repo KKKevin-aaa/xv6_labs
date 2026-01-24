@@ -62,14 +62,13 @@
 //   fixed-size stack
 //   expandable heap
 //   ...
-//   all processes's kernel stack and one invalid guard page.(2*NPROCS)
 //   one invliad GUARD_page
 //   USYSCALL (shared with kernel)
 //   TRAPFRAME (p->trapframe, used by the trampoline)
 //   TRAMPOLINE (the same page as in the kernel)
 #define TRAPFRAME (TRAMPOLINE - PGSIZE)
 #define USYSCALL (TRAPFRAME - PGSIZE)
-#define USERSTACK_END   USYSCALL
+#define UPPER_LIMIT   USYSCALL
 
 
 #ifndef __ASSEMBLER__

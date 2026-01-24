@@ -684,7 +684,6 @@ static void *kvmalloc_range_locked(pagetable_t Kpagetable, uint64 start_va,
     }
     return (void *)start_va;
 error:
-    vma_put(new_vma);
     pr_err("Kvmalloc_range_locked fail");
     return NULL;
 }

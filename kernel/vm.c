@@ -13,7 +13,7 @@
 #include "rbtree.h"
 #include "mm.h"
 #include "vm.h"
-
+#include "colors.h"
 // #define DEBUG_VM
 #ifdef DEBUG_VM
 #define VM_TRACE(fmt, ...) \
@@ -797,7 +797,7 @@ int copywalk(struct vm_dupl_ctx v1){
     char *mem;
     int idx=0;
     while(idx < 512) {
-        if(cur_va >= v1.max_sz) break;
+        if(cur_va >= v1.end_va) break;
         pte = v1.old_pg[idx];
         pa = PTE2PA(pte);    // child pagetable or physical address.
         flags = PTE_FLAGS(pte);
@@ -807,12 +807,13 @@ int copywalk(struct vm_dupl_ctx v1){
             memset(mem, 0, PGSIZE);
             new_pte = PA2PTE((uint64)mem) | flags | PTE_V;
             v1.new_pg[idx] = new_pte;
-            if(v1.level==1 && cur_va>=v1.rblocks[0].va){   //enter heap region(Recursion Short-circuiting)
+            if(v1.level==1 && cur_va>=v1.rblocks[0].va){
+                 //enter heap region(Recursion Short-circuiting)
                 // promote==0 must be true upon entering this block.
                 // Use one huge page to manager all data, and for pte keep the same as parent.
                 if(cur_va>=v1.rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE) return -1;
                 uint64 rb_idx=(cur_va-v1.rblocks[0].va)/SUPERPGSIZE;   //Alignment satisfied
-                if(cur_va + SUPERPGSIZE < v1.max_sz && v1.rblocks[rb_idx].is_scattered==0
+                if(cur_va + SUPERPGSIZE < v1.end_va && v1.rblocks[rb_idx].is_scattered==0
                         && v1.rblocks[rb_idx].pa!=0){  //have allocated hugepage
                     uint64 new_superpage=(uint64)alloc_memory(SUPERPGSIZE);
                     if(new_superpage==0)    return -1;
@@ -839,15 +840,15 @@ int copywalk(struct vm_dupl_ctx v1){
                     v1.rblocks[rb_idx].pa=0;
                     v1.rblocks[rb_idx].is_scattered=1;
                     v1.rblocks[rb_idx].promoted=0;
-                    if(cur_va + SUPERPGSIZE >=v1.max_sz){  //Synchronisz data within size limits
+                    if(cur_va + SUPERPGSIZE >=v1.end_va){  //Synchronisz data within size limits
                         v1.rblocks[rb_idx].pop_count=0;
                         uint64 bp_idx=0, cur_order, bp_step;
                         pte_t *src_leaf_pte=(pte_t *)pa;
-                        while(bp_idx<512 && cur_va+PGSIZE * bp_idx < v1.max_sz){
+                        while(bp_idx<512 && cur_va+PGSIZE * bp_idx < v1.end_va){
                             if(v1.rblocks[rb_idx].bitmap[bp_idx]!=0){
                                 cur_order=get_order(PTE2PA(src_leaf_pte[bp_idx]));
                                 bp_step=1ull<<cur_order;
-                                if(cur_va+PGSIZE * bp_idx +(1ull<<(ORDER_BASE+cur_order))>=v1.max_sz)
+                                if(cur_va+PGSIZE * bp_idx +(1ull<<(ORDER_BASE+cur_order))>=v1.end_va)
                                     panic("copywalk: cannot handle partial copy!");
                                 v1.rblocks[rb_idx].pop_count+=bp_step;
                             }
@@ -857,14 +858,14 @@ int copywalk(struct vm_dupl_ctx v1){
                         memset((void *)(v1.rblocks[rb_idx].bitmap + bp_idx), 0, 512-bp_idx);
                     }
                     struct vm_dupl_ctx sub_v={.old_pg=(pagetable_t)pa, .new_pg=(pagetable_t)mem,
-                        .base_va=cur_va, .ret_va=v1.ret_va, .max_sz=v1.max_sz, 
+                        .base_va=cur_va, .ret_va=v1.ret_va, .end_va=v1.end_va, 
                         .level=v1.level-1, .rblocks=v1.rblocks};
                     if(copywalk(sub_v) < 0) return -1;
                 }
             }
             else{   //Normal area(treat as Stardard Page Directory)
                 struct vm_dupl_ctx sub_v={.old_pg=(pagetable_t)pa, .new_pg=(pagetable_t)mem,
-                    .base_va=cur_va, .ret_va=v1.ret_va, .max_sz=v1.max_sz, 
+                    .base_va=cur_va, .ret_va=v1.ret_va, .end_va=v1.end_va, 
                     .level=v1.level-1, .rblocks=v1.rblocks};
                 if(copywalk(sub_v) < 0) return -1;
             }
@@ -873,7 +874,7 @@ int copywalk(struct vm_dupl_ctx v1){
         } 
         else if (pte & PTE_V) {   // Case 2: Leaf Node(and can be upgraded to hugepage,remember check!)
             uint64 chunk_size=1ull<<(get_order(pa) + ORDER_BASE);
-            uint64 remain_size=v1.max_sz - cur_va;
+            uint64 remain_size=v1.end_va - cur_va;
             int ret=0;
             if(chunk_size > remain_size){
                 struct vm_partial_copy_ctx p1={.dst_pt=(pte_t *)&v1.new_pg[idx], 
@@ -928,13 +929,15 @@ int uvmcopy_range(res_block *rblocks, pagetable_t old_pg, pagetable_t new_pg,
 #ifdef DEBUG_VM
     VM_TRACE("old_pg=%p new_pg=%p sz=0x%llx\n", (void *)old_pg, (void *)new_pg, sz);
 #endif
+    pr_err("old_pg=%p new_pg=%p sz=0x%llx\n", (void *)old_pg, (void *)new_pg, sz);
     uint64 ret_va=0;
     sz=PGROUNDUP(sz);   //Aligned firstly
     struct vm_dupl_ctx v1={.old_pg=old_pg, new_pg=new_pg, .base_va=start_va, .ret_va=&ret_va,
-        .max_sz=sz, .level=2, .rblocks=rblocks};
+        .end_va=start_va+sz, .level=2, .rblocks=rblocks};
     if(copywalk(v1)<0){//prevent resources leaks and waste
         uvmfree_range(rblocks, new_pg, start_va ,ret_va-start_va);
         //Error occurs, size are guaranteed not to exceed the original size
+        pr_err("copywalk failed.");
         return -1;
     }
 #ifdef DEBUG_VM

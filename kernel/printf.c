@@ -2,8 +2,6 @@
 // formatted console output -- printf, panic.
 //
 
-#include <stdarg.h>
-
 #include "types.h"
 #include "param.h"
 #include "spinlock.h"
@@ -14,6 +12,7 @@
 #include "riscv.h"
 #include "defs.h"
 #include "proc.h"
+#include "colors.h"
 
 void test_vma_slab_allocator();
 void test_vma_rbtree_and_list();
@@ -28,7 +27,7 @@ volatile int panicked = 0;   // spinning forever at end of a panic
 
 volatile int panic_cpu_lock=0;   //Define a dedicated lock variable specifically for computing for "Panic right"
 
-static uint8 is_debug_sym_loaded=0;
+static volatile uint8 is_debug_sym_loaded=0;
 extern uint64 next_vmalloc_addr;
 // lock to avoid interleaving concurrent printf's.
 static struct {
@@ -42,6 +41,7 @@ struct {    //Save Memory bandwidth(Structure of Array)
     uint16 *file_id;
     uint16 *line_number;
     uint64 entry_cnt;
+    struct sleeplock load_lock;
 }kernel_addr_map;
 struct {
     char *filename_map;
@@ -62,6 +62,7 @@ struct print_ctx{
     int size;
     int pos;        //next position to assign
 };
+//A flexible structure for specifying output methods and destinations.
 static void emit_char(struct print_ctx *p_ctx, int c){
     if(p_ctx->buf==NULL)     consputc(c);
     else{
@@ -101,7 +102,7 @@ static void printptr(struct print_ctx *p_ctx, uint64 x) {
 }
 
 // Print to the console.
-int vprintf(struct print_ctx *p_ctx, char *fmt, va_list ap) {
+static int vprintf_gen(struct print_ctx *p_ctx, char *fmt, va_list ap) {
     int i, cx, c0, c1, c2;
     char *s;
     //for panicking, bypass lock verification to ensure emergency diagnostics are printed.
@@ -157,7 +158,7 @@ int vprintf(struct print_ctx *p_ctx, char *fmt, va_list ap) {
         }
     }
     if(p_ctx->buf!=NULL)
-        p_ctx->buf[p_ctx->size-1]='\0';
+        p_ctx->buf[p_ctx->pos]='\0';
     return 0;
 }
 
@@ -180,7 +181,7 @@ int snprintf(char *buf, int size, char *fmt, ...) {
 
 int printf(char *fmt, ...) {
     struct print_ctx ctx;
-    ctx.buf = 0; // 标记为控制台输出
+    ctx.buf = NULL; // 标记为控制台输出
     ctx.size = 0;
     ctx.pos = 0;
 
@@ -196,19 +197,20 @@ int printf(char *fmt, ...) {
     return ctx.pos;
 }
 
-
 //Another method: vmalloc(virtual Contiguous Mapping)
 //Allocates multiple non-contiguous physical pages and modifies the
 //kernel page tables to map them into a contiguous virtual address range.
 int load_debug_sym_vm(){
-    if(is_debug_sym_loaded){
-        printf("Reinit the addrline table!\n");
-        return -1;
+    if(__atomic_load_n(&is_debug_sym_loaded, __ATOMIC_ACQUIRE))     return 0;
+    acquiresleep(&kernel_addr_map.load_lock);
+    if(is_debug_sym_loaded){    //double check
+        releasesleep(&kernel_addr_map.load_lock);
+        return 0;       //Another process have executed well.
     }
     //fd --> struct file*f ->ip --> struct inode*
     struct inode *data_ip;
     if((data_ip=namei("kernel.tbl"))==0){
-        printf("Kernel: kernel.tbl not found!\n");  //Ensure kernerl.tbl in filesystem
+        pr_err("Kernel: kernel.tbl not found!\n");  //Ensure kernerl.tbl in filesystem
         return -1;
     }
     ilock(data_ip); //Load data and Guarantee only one process can manipulate it at the same time.
@@ -220,13 +222,13 @@ int load_debug_sym_vm(){
     // int n=0;    //Indicate the actual read data len.
     uint32 cur_offset=0;
     if(readi(data_ip, 0, (uint64)&header, 0, sizeof(header))!=sizeof(header)){
-        printf("Kernel: kernel.tbl cannot read header data correctly!\n");
+        pr_err("Kernel: kernel.tbl cannot read header data correctly!\n");
         goto cleanup;
     }
     cur_offset+=sizeof(header);
 
     if(header.addr_cnt!=header.fileid_cnt || header.fileid_cnt!=header.line_cnt){
-        printf("Kernel :kernel.tbl contain inconsisent data!\n");
+        pr_err("Kernel :kernel.tbl contain inconsisent data!\n");
         goto cleanup;
     }
     //Permanent Allocation, persists until system shutdown.
@@ -235,13 +237,13 @@ int load_debug_sym_vm(){
     void *mem0=NULL;
     mem0=kvmalloc((pagetable_t)r_satp(), alloc_str_len, PTE_R | PTE_W);
     if(mem0==NULL){
-        printf("Kernel: OOM!\n");
+        pr_err("Kernel: OOM!\n");
         goto cleanup;
     }
     memset(mem0, 0, alloc_str_len);
     if(readi(data_ip, 0, (uint64)mem0, cur_offset, str_len)!=str_len){
         kvmdealloc((pagetable_t)r_satp(), (uint64)mem0, alloc_str_len);
-        printf("Kernel: read wrong data!\n");
+        pr_err("Kernel: read wrong data!\n");
         goto cleanup;
     }
     cur_offset+=str_len;
@@ -270,11 +272,14 @@ int load_debug_sym_vm(){
     kernel_addr_map.start_addr=(uint32 *)mem1;
     kernel_addr_map.file_id=(uint16 *)(kernel_addr_map.start_addr + kernel_addr_map.entry_cnt);
     kernel_addr_map.line_number=(uint16 *)(kernel_addr_map.file_id+kernel_addr_map.entry_cnt);
-    is_debug_sym_loaded=1;
     ret=0;
+    __sync_synchronize();       //Apply necessary memory barriers.
+    if(__sync_lock_test_and_set(&is_debug_sym_loaded, 1)!=0)
+        panic("Unexpected flags modifications.\n");
     printf("Now load_debug_sym(vm version) succeed.\n");
 cleanup:
     iunlockput(data_ip);
+    releasesleep(&kernel_addr_map.load_lock);
     return ret;
 }
 
@@ -285,9 +290,11 @@ int load_debug_sym(){
      * This function loads the 'kernel.tbl' generated by offline scripts.
      * It parses the binary format and populates the global debug structures.
      */
+    if(__atomic_load_n(&is_debug_sym_loaded, __ATOMIC_ACQUIRE))     return 0;
+    acquiresleep(&kernel_addr_map.load_lock);
     if(is_debug_sym_loaded){
-        printf("Reinit the addrline table!\n");
-        return -1;
+        releasesleep(&kernel_addr_map.load_lock);
+        return 0;
     }
     //fd --> struct file*f ->ip --> struct inode*
     struct inode *data_ip;
@@ -362,10 +369,14 @@ int load_debug_sym(){
     kernel_addr_map.start_addr=(uint32 *)mem1;
     kernel_addr_map.file_id=(uint16 *)(kernel_addr_map.start_addr + kernel_addr_map.entry_cnt);
     kernel_addr_map.line_number=(uint16 *)(kernel_addr_map.file_id+kernel_addr_map.entry_cnt);
-    is_debug_sym_loaded=1;
+    __sync_synchronize();       //Apply necessary memory barriers.
+    if(__sync_lock_test_and_set(&is_debug_sym_loaded, 1)!=0)
+        panic("Unexpected flags modifications.\n");
+    printf("Now load_debug_sym succeed.\n");
     ret=0;
 cleanup:
     iunlockput(data_ip);
+    releasesleep(&kernel_addr_map.load_lock);
     return ret;
 }
 
@@ -378,15 +389,16 @@ uint64 sys_load_debug_sym(void){
     return load_debug_sym_vm();
 }
 
-void find_debug_info(uint64 pa){
+void find_debug_info(uint64 pa, char *buf, uint16 buf_size){
+    if(is_debug_sym_loaded==0)  return;     // For is_debug_sym_loaded ==0 
     if(pa<KERNBASE || pa>=PHYSTOP){
         //Can be virtual address
         // printf("Invalid physical address!\n");
-        printf("Unable convert into kernel address:0x%llx\n", pa);
+        pr_err("Unable convert into kernel address:0x%llx", pa);
         return;
     }
     if(kernel_addr_map.entry_cnt==0){
-        printf("Empty table!\n");
+        pr_err("Empty table!");
         return;
     }
     //Sorted(Increasing order), Binary search
@@ -402,8 +414,14 @@ void find_debug_info(uint64 pa){
             uint16 filename_id=kernel_addr_map.file_id[mid];
             uint64 start_idx=filename_id*src_file_table.filename_stride;
             //Ensure each string is NULL-terminated.
-            printf("%s:%u(0x%llx)\n", &src_file_table.filename_map[start_idx], 
-                (unsigned int)kernel_addr_map.line_number[mid], pa);
+            if(buf==NULL){
+                printf("%s:%u(0x%llx)\n", &src_file_table.filename_map[start_idx], 
+                    (unsigned int)kernel_addr_map.line_number[mid], pa);
+            }
+            else{
+                snprintf(buf, buf_size, "%s:%u(0x%llx)\n", &src_file_table.filename_map[start_idx], 
+                    (unsigned int)kernel_addr_map.line_number[mid], pa);
+            }
             return;
         }
     }   //End with 'left==right'
@@ -414,16 +432,25 @@ void find_debug_info(uint64 pa){
         uint64 filename_id=kernel_addr_map.file_id[ret_idx];
         uint64 start_idx=filename_id*src_file_table.filename_stride;
         //Ensure each string is NULL-terminated.
-        printf("%s:%u(0x%llx)\n", &src_file_table.filename_map[start_idx], 
-            (unsigned int)kernel_addr_map.line_number[ret_idx], pa);
+        if(buf==NULL){
+            printf("%s:%u(0x%llx)\n", &src_file_table.filename_map[start_idx], 
+                (unsigned int)kernel_addr_map.line_number[ret_idx], pa);
+        }
+        else{
+            snprintf(buf, buf_size, "%s:%u(0x%llx)\n", &src_file_table.filename_map[start_idx], 
+                (unsigned int)kernel_addr_map.line_number[ret_idx], pa);
+        }
     }
-    else    printf("Cannot find 0x%llx\n", pa);
+    else{
+        if(buf==NULL)   printf("Cannot find 0x%llx\n", pa);
+        else    snprintf(buf, buf_size, "Cannot find 0x%llx\n", pa);
+    }
 }
 
 //Helper function for safe data access.Return 1 while success, return 0 while fail
 //Use kernel_paegtable to translate address.
 int safe_load_data(uint64 pa, uint64 *val, uint64 stack_start, uint64 stack_end){
-    if(pa% sizeof(uint64) !=0)    return 0;
+    if(pa==0 || pa% sizeof(uint64) !=0)    return 0;
     if(pa >=stack_start && pa<stack_end){
         *val=*(uint64 *)pa;
         return 1;
@@ -444,7 +471,7 @@ void backtrace(){
     // Kernel stack is mapped into the top of virtual address space
     //See memlayout.h for more detail, and if initial cur_s0 is not within the valid range.stop and return.
     if(cur_s0 >=KSTACK(NPROC) && cur_s0 <= KSTACK(0)){
-        uint64 ra_addr, fp_addr, next_s0;
+        uint64 ra_ptr, fp_ptr, next_s0;
         int depth=0;
         printf("(Kernel stack range from 0x%llx to 0x%llx)\n", stack_start, stack_end);
         while(1){
@@ -452,9 +479,9 @@ void backtrace(){
                 printf("[Reach the stack bottom!]\n");
                 return;
             }
-            ra_addr=cur_s0-8, fp_addr=cur_s0-16;
-            if(safe_load_data(ra_addr, &cur_func_ra, stack_start, stack_end)!=1){
-                printf("[Corrupted Stack frame](0x%llx)\n", cur_s0-8);
+            ra_ptr=cur_s0-8, fp_ptr=cur_s0-16;
+            if(safe_load_data(ra_ptr, &cur_func_ra, stack_start, stack_end)!=1){
+                printf("[Corrupted Stack frame](0x%llx)\n", ra_ptr);
                 return;
             }
             if(cur_func_ra >=TRAMPOLINE)
@@ -462,9 +489,9 @@ void backtrace(){
             if(is_debug_sym_loaded==0){ // For is_debug_sym_loaded ==0 
                 printf("(0x%llx)\n", cur_func_ra);
             }
-            else    find_debug_info(cur_func_ra);
+            else    find_debug_info(cur_func_ra, NULL, 0);
             //rewind to previous frame 
-            if(safe_load_data(fp_addr, &next_s0, stack_start, stack_end)!=1){
+            if(safe_load_data(fp_ptr, &next_s0, stack_start, stack_end)!=1){
                 break;  //end
             }
             cur_s0=next_s0;
@@ -500,7 +527,7 @@ void __panic(const char *file_name, int line_no, const char * func_name, char *s
     printf("\nPANIC at address %p in %s at %s:%d\n", caller_addr, func_name, file_name, line_no);
     va_list ap;
     va_start(ap, s);
-    vprintf(s, ap);
+    vprintf_gen(&(struct print_ctx){.buf=NULL}, s, ap);
     va_end(ap);
     printf("\n");
     panicked = 1;  // freeze uart output from other CPUs
@@ -508,3 +535,8 @@ void __panic(const char *file_name, int line_no, const char * func_name, char *s
 }
 
 void printfinit(void) { initlock(&pr.lock, "pr"); }
+
+void debugsym_init(void){
+    initsleeplock(&kernel_addr_map.load_lock, "debug sym sleeplock");
+    load_debug_sym_vm();
+}

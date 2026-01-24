@@ -16,12 +16,10 @@
 #include "kalloc.h"
 
 void dump_memory_map();     //Called with OOM error panic.
-void swap_out(void);
-void *swap_in(void);
 struct spinlock swap_lock;  //A logic lock protecting the "need_swap" signal 
 // and sleep/wake automicity for brief duration.Seperate from "kmem.lock" to avoid scheduling latency.
 extern struct spinlock rmap_lock;
-static struct proc *swap_kthread=NULL;
+extern struct proc *swap_kthread;      //Defined in proc.c
 
 static uint64 _hidden_total_pages;
 static uint64 free_start_addr;
@@ -507,10 +505,6 @@ void kinit() {
     initlock(&swap_lock, "kmem_swap");
     initlock(&rmap_lock, "rmap");
     init_whole_area((uint64)end, PHYSTOP);
-    swap_kthread=kthread_create("swap_worker", swap_out);
-#ifdef DEBUG_KALLOC
-    KALLOC_TRACE("initialization complete\n");
-#endif
     init_slab_system();
 }
 //return 1 while pa at [free_start_addr, PHYstop) --RAM region

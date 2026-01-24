@@ -14,3 +14,4 @@ typedef long long int int64;
 
 typedef uint64 pde_t;
 #define NULL ((void *)0)
+#include <stdarg.h>
