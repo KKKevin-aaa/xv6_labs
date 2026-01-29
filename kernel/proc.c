@@ -307,22 +307,9 @@ int kfork(void) {
     vm_area_struct_t *new_vma=NULL;
     while(copy_vma!=NULL){
         tmp_next=copy_vma->vm_next;
-        new_vma=alloc_vma_node();
-        if(new_vma==NULL){
-            PROC_TRACE("create new_vma fail.\n");
-            goto error_on_copy;
-        }
-        memset(new_vma, 0, sizeof(vm_area_struct_t));
-        memmove((void *)new_vma, copy_vma, sizeof(vm_area_struct_t));
-        if(new_vma->vm_file!=NULL)
-            filedup(new_vma->vm_file);
-        if(new_vma->vm_ops!=NULL && new_vma->vm_ops->open!=NULL)
-            new_vma->vm_ops->open(new_vma);
+        new_vma=vma_dup(copy_vma);
         //Integrating the new VMA into the Address space.
         new_vma->vm_mm=new_child->mm;
-        new_vma->vm_next=NULL;
-        new_vma->vm_prev=NULL;
-        memset((void *)&new_vma->vm_rb_node, 0, sizeof(rb_node_t));
         if(insert_vma_fast(new_child->mm, new_vma, &(vma_context_t){.prev=prev_vma, .next=NULL})!=0){
             if(new_vma->vm_file!=NULL)
                 fileclose(new_vma->vm_file);

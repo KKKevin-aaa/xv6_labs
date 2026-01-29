@@ -4,6 +4,7 @@
 #include "defs.h"
 #include "memlayout.h"
 #include "spinlock.h"
+#include "file.h"
 #include "proc.h"
 #ifdef PGTBL_SOL
 #include "riscv.h"
@@ -13,6 +14,7 @@
 #include "slab.h"
 #include "mm.h"
 #include "vm.h"
+#include "fcntl.h"
 #include "colors.h"
 uint64 sys_exit(void) {
     int n;
@@ -48,23 +50,37 @@ uint64 sys_sbrk(void) {
         PROC_TRACE("Current process lack heap_vma, unable to get necessary info.\n");
         goto release_and_ret;
     }
-?????
     //FIXME: // FIXME: 内存布局已改为 [Text->BSS->Stack->Heap]，需修正 exec 初始 SP 位置及 sbrk 起始基址(不再紧接BSS)。
     // 重点检查：uvmcopy 需兼容地址空间空洞(非连续)；栈底需加 Guard Page 防止溢出覆盖全局变量(BSS)。
     // 调试陷阱：以前栈溢出报 PageFault，现在可能静默修改数据，务必警惕！
     addr = cur_proc->mm->heap_vma->vm_end;
-    vm_area_struct_t *next_vma=cur_proc->mm->heap_vma->vm_next;
+    if(n==0)    goto release_and_ret;   //No need to grow explicity
     uint64 limit=0;
-    if(next_vma==NULL)
-        limit=UPPER_LIMIT;
-    else
-        limit=next_vma->vm_start;       //Mmap vma
-    if(addr +n > limit){
-        //Prevent excessive n from overwriting kernel memory
-        pr_warn("No space to grow, remain space is %llx\n.\n", limit-addr);
-        tmp_ret=-1;
-        goto release_and_ret;
+    if(n>0){
+        vm_area_struct_t *next_vma=cur_proc->mm->heap_vma->vm_next;
+        if(next_vma==NULL)
+            limit=UPPER_LIMIT;
+        else
+            limit=next_vma->vm_start;       //Mmap vma
+        if(addr +n > limit){
+            //Prevent excessive n from overwriting kernel memory
+            pr_warn("No space to grow, remain space is %llx\n.\n", limit-addr);
+            tmp_ret=-1;
+            goto release_and_ret;
+        }
     }
+    else{   //The case where n==0 has been explicitly excluded.
+        vm_area_struct_t *prev_vma=cur_proc->mm->heap_vma->vm_prev;
+        if(prev_vma==NULL)
+            limit=cur_proc->mm->heap_vma->vm_start;     //Only one heap_vma???
+        else    limit=prev_vma->vm_end;
+        if(addr + n < limit){
+            pr_warn("Reached the prev_vma boundary, can't shrink to that position.");
+            tmp_ret=-1;
+            goto release_and_ret;
+        }
+    }
+    //Pass defined position verfication.
     if (t == SBRK_EAGER) {
         if (growproc(n) < 0) {      //Update heap_vma boundary in growproc already
             tmp_ret=-1;
@@ -191,4 +207,56 @@ uint64 sys_interpose(void) {
     }
     p->syscall_mask |= mask;  // make sure don't affect other restricted syscalls
     return 0;
+}
+
+//POSIX: void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
+//And return (void *)-1 while failed, return mampped area's start address.
+uint64 sys_mmap(void ){
+    struct proc *p=myproc();
+    uint64 sugg_addr;   //Suggestied address
+    uint64 length, offset;
+    int prot, flags, fd;
+    argaddr(0, &sugg_addr);
+    argaddr(1, &length);
+    argint(2, &prot);
+    argint(3, &flags);
+    argint(4, &fd);
+    argaddr(5, &offset);
+    //Implement front-end parameter validation to fast-fail and return immediately.
+    if(flags & MAP_FIXED){
+        if(sugg_addr==NULL || ((uint64)sugg_addr & (PGSIZE-1)) || 
+            ((uint64)sugg_addr +length >= UPPER_LIMIT)){
+            pr_warn("Invalid suggest_address while flags seted as MAP_FIXED.");
+            return -1;
+        }
+    }
+    if(length==0 || (offset & (PGSIZE-1))){
+        pr_warn("invalid length or offset, zero or unaligned.");
+        return -1;      //EINVAL
+    }
+    if(!((flags & MAP_SHARED) ^ (flags & MAP_PRIVATE))){
+        pr_warn("invalid flags, must select between MAP_SHARED and MAP_PRIVATE.\n");
+        return -1;
+    }
+    if(!(flags & MAP_ANONYMOUS)){
+        struct file *f=p->ofile[fd];
+        if(f==NULL)     return -1;  //EBADF
+        if(f->type!=FD_INODE)   return -1;      //EACCES OR ENODEV
+        if(f->readable==0)  return -1;      //EACCES (any operation should readable)
+        if((flags & MAP_SHARED) && (prot & PROT_WRITE) && f->writable==0)
+            return -1;      //EACCES
+    }
+    acquire(&p->mm->mm_lock);
+    uint64 ret=(uint64)do_mmap(&(mmap_context_t){
+        .pagetable=p->pagetable,
+        .rb_array=p->rb_array,
+        .mm=p->mm, 
+        .sugg_addr=sugg_addr, 
+        .length=length, 
+        .prot=prot, 
+        .flags=flags, 
+        .f=(flags & MAP_ANONYMOUS)?NULL:p->ofile[fd], 
+        .offset=offset});
+    release(&p->mm->mm_lock);
+    return ret;
 }

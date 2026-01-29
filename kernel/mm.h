@@ -3,6 +3,7 @@ struct vm_area_struct;
 struct mm_struct;   //forward declaration
 struct vm_operation_struct;
 
+//Kernel macro, different from user_macro
 // --- 基础权限 (对应 mmap prot) ---
 #define VM_READ         0x01ULL     // 可读
 #define VM_WRITE        0x02ULL     // 可写
@@ -69,9 +70,30 @@ struct mm_struct{
 };   //one process must have one tree
 #define REF_SATURATION      0XC0000000
 
+struct mmap_context{
+    pagetable_t pagetable;  //Used for all operations involved pte.
+    res_block *rb_array;     //Used for potential adjustment for heap reserve.
+    mm_struct_t *mm;
+    void *sugg_addr;
+    uint64 length;
+    struct file* f;
+    uint64 offset;
+    int prot;
+    int flags;
+};
+
+
+struct munmap_context{
+    pagetable_t pagetable;
+    res_block *rb_array;
+    mm_struct_t *mm;
+    void *addr;
+    uint64 length;
+};
 
 struct vm_operation_struct{
     void (*open)(vm_area_struct_t *vma);
+    //.e.g. Maintain a record of count of VMAs currently in use.
     void (*close)(vm_area_struct_t *vma);
     vm_fault_t (*fault)(vm_area_struct_t *vma, uint64 fault_addr);
 };

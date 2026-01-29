@@ -20,6 +20,8 @@ typedef struct vm_area_struct vm_area_struct_t;
 typedef struct vma_context  vma_context_t;
 typedef struct mm_struct mm_struct_t;
 typedef struct vm_operation_struct vm_operation_struct_t;
+typedef struct mmap_context mmap_context_t;
+typedef struct munmap_context munmap_context_t;
 
 typedef struct slab_cache slab_cache_t;
 
@@ -284,6 +286,7 @@ vm_area_struct_t *find_vma_and_get(mm_struct_t *mm, uint64 vaddr);
 vm_area_struct_t *find_upper_vma_and_get(mm_struct_t *mm, uint64 vaddr);
 mm_struct_t     *mm_create(void);
 vm_area_struct_t *alloc_vma_node(void);
+vm_area_struct_t *vma_dup(vm_area_struct_t *vma);
 vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr);
 int             insert_vma(mm_struct_t *mm, vm_area_struct_t *vma);
 int             insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont);
@@ -295,7 +298,8 @@ uint64          gene_flags(uint64 vm_page_prot);
 //Detailed implemation of rb_node,should defined and finined in here, not in rbtree.h
 rb_node_t*      rb_search(rb_node_t *node, vm_area_struct_t **predecessor, 
                         vm_area_struct_t ** successor, const rb_root_t *root);
-
+void *          do_mmap(mmap_context_t *ctx1);
+int             do_munmap(munmap_context_t *ctx1);
 
 //kvm.c
 void            kvminit(void);

@@ -39,6 +39,7 @@ struct file *filealloc(void) {
 
 // Increment ref count for file f.
 struct file *filedup(struct file *f) {
+    if(f==NULL)     return NULL;
     acquire(&ftable.lock);
     if (f->ref < 1) panic("filedup");
     f->ref++;

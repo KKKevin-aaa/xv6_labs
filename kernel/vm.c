@@ -1164,16 +1164,21 @@ uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
             memset((void *)tmp_ret, 0, PGSIZE);
             begin_op();
             ilock(vma->vm_file->ip);
-            if (readi(vma->vm_file->ip, 0, tmp_ret, offset, len) != len){
-                VM_TRACE("load from %llx fail(Expected is %lx)", va, len);
-                kfree_page((void *)tmp_ret);
-                tmp_ret=0;
-                goto file_close;
-            }
-            if (mappages(p->pagetable, va, PGSIZE, tmp_ret, gene_page_prot(vma->vm_flags)) != 0) {
-                VM_TRACE("Mappage %llx fail", va);
-                kfree_page((void *)tmp_ret);
-                tmp_ret=0;
+            uint64 file_offset=vma->vm_pgoff + offset;
+            if(file_offset < vma->vm_file->ip->size){
+                len=(vma->vm_file->ip->size - file_offset < PGSIZE)?
+                        (vma->vm_file->ip->size-file_offset):PGSIZE;
+                if (readi(vma->vm_file->ip, 0, tmp_ret, offset, len) != len){
+                    VM_TRACE("load from %llx fail(Expected is %lx)", va, len);
+                    kfree_page((void *)tmp_ret);
+                    tmp_ret=0;
+                    goto file_close;
+                }
+                if (mappages(p->pagetable, va, PGSIZE, tmp_ret, gene_page_prot(vma->vm_flags)) != 0) {
+                    VM_TRACE("Mappage %llx fail", va);
+                    kfree_page((void *)tmp_ret);
+                    tmp_ret=0;
+                }
             }
 file_close:
             iunlockput(vma->vm_file->ip);
