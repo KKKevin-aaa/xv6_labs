@@ -26,7 +26,7 @@ void acquire(struct spinlock *lk) {
 
     if (holding(lk)){
         print_held_locks();
-        panic("acquire");
+        panic("Re-acquiring a lock while already holding it.");
     }
 
     //NOTE: (New added)Panic on timeout

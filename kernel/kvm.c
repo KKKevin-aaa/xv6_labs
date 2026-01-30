@@ -10,6 +10,7 @@
 #include "rbtree.h"
 #include "kvm.h"
 #include "slab.h"
+#include "fcntl.h"
 #include "mm.h"
 #include "colors.h"
 // #define DEBUG_KVM // 默认开启调试
@@ -208,19 +209,21 @@ void __init_code kvminit(void) {
     init_mm();
     initlock(&kvm_lock, "kvm_pagetable lock");
     global_mm=mm_create();
-    memset(global_mm, 0, sizeof(global_mm));
     initlock(&global_mm->mm_lock, "kernel's mm_lock");
     // initlock(&rmap_lock, )
     acquire(&global_mm->mm_lock);
     kernel_pagetable = kvmmake();
     //Init lock
     global_mm->rb_root.rb_parent=NULL;
-    insert_vma_helper(global_mm, UART0, PGSIZE, PTE_R | PTE_W);
-    insert_vma_helper(global_mm, VIRTIO0, PGSIZE, PTE_R | PTE_W);
-    insert_vma_helper(global_mm, PLIC, 0x4000000, PTE_R | PTE_W);
-    insert_vma_helper(global_mm, KERNBASE, (uint64)etext - KERNBASE, PTE_R | PTE_X);
-    insert_vma_helper(global_mm, (uint64)etext, PHYSTOP - (uint64)etext, PTE_R | PTE_W);
-    insert_vma_helper(global_mm, TRAMPOLINE, PGSIZE, PTE_R | PTE_X);
+    vm_area_struct_t *tmp_vma=kernel_insert_vma_helper(global_mm, UART0, PGSIZE, PTE_R | PTE_W);
+    tmp_vma->vm_flags |= VM_IO;
+    tmp_vma=kernel_insert_vma_helper(global_mm, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+    tmp_vma->vm_flags |= VM_IO;
+    tmp_vma=kernel_insert_vma_helper(global_mm, PLIC, 0x4000000, PTE_R | PTE_W);
+    tmp_vma->vm_flags |= VM_IO;
+    kernel_insert_vma_helper(global_mm, KERNBASE, (uint64)etext - KERNBASE, PTE_R | PTE_X);
+    kernel_insert_vma_helper(global_mm, (uint64)etext, PHYSTOP - (uint64)etext, PTE_R | PTE_W);
+    kernel_insert_vma_helper(global_mm, TRAMPOLINE, PGSIZE, PTE_R | PTE_X);
     release(&global_mm->mm_lock);
 }
 
@@ -475,7 +478,7 @@ uint64 kvmdealloc_range(pagetable_t Kpagetable, uint64 va_start, uint64 va_end){
         new_vma->vm_start=align_end;
         new_vma->vm_end=prev_bound;
         new_vma->vm_page_prot=find_ret->vm_page_prot;
-        new_vma->vm_flags=gene_flags(find_ret->vm_page_prot);
+        new_vma->vm_flags=find_ret->vm_flags;
         new_vma->vm_mm=global_mm;
         new_vma->ref_count=1;   //Held by mm_struct
         //Omit values for unused arguments.
@@ -563,7 +566,7 @@ uint64 kvmdealloc_range2(pagetable_t Kpagetable, uint64 va_start, uint64 va_end)
         new_vma->vm_start=align_end;
         new_vma->vm_end=prev_bound;
         new_vma->vm_page_prot=find_ret->vm_page_prot;
-        new_vma->vm_flags=gene_flags(find_ret->vm_page_prot);
+        new_vma->vm_flags=find_ret->vm_flags;
         new_vma->vm_mm=global_mm;
         new_vma->ref_count=1;   //Held by mm_struct
         //Omit values for unused arguments.
@@ -668,7 +671,7 @@ static void *kvmalloc_range_locked(pagetable_t Kpagetable, uint64 start_va,
     new_vma->vm_start=start_va;
     new_vma->vm_end=start_va+sz;
     new_vma->vm_page_prot=PTE_R | PTE_W;
-    new_vma->vm_flags=gene_flags(new_vma->vm_page_prot);
+    new_vma->vm_flags=VM_READ | VM_WRITE | VM_KERN;
     new_vma->vm_mm=global_mm;
     //Omit values for unused arguments.
     if(insert_vma_fast(global_mm, new_vma, &cont)==-1){

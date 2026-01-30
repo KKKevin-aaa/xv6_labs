@@ -5,12 +5,15 @@
 #define O_TRUNC   0x400
 
 // kernel/mman.h
-
+//flags for vm_flags, paired with vm_page_prot(In vm_area_struct)
+//prot parameter macros(simulating <sys/mman.h>)
 // 1. 内存保护权限 (Protection) - 对应页表项的 R/W/X
 #define PROT_NONE       0x0     // 页不可访问
 #define PROT_READ       0x1     // 页可读
 #define PROT_WRITE      0x2     // 页可写
 #define PROT_EXEC       0x4     // 页可执行
+#define PROT_USER       0x8
+
 
 // 2. 映射标志 (Flags) - 决定 VMA 的行为
 #define MAP_SHARED      0x01    // 共享映射 (写回文件，其他进程可见)
@@ -23,6 +26,9 @@
 #ifndef MAP_ANON
 #define MAP_ANON        MAP_ANONYMOUS
 #endif
-
+#define MAP_LOCKED      0x0200          // 映射后立即锁定内存
+#define MAP_GROWSDOWN   0x0100          // 用于栈
+#define MAP_POPULATE    0x8000          // 映射时预读缺页 (Pre-fault)
 // 4. 错误码
 #define MAP_FAILED      ((void *)-1)
+

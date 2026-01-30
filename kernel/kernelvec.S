@@ -21,7 +21,7 @@ kernelvec:
         # make room to save registers.
         addi sp, sp, -256
         # Update gdb on the new Canonical Frame Address offset
-        # Critical: tell gdb: the cfa(baseline SP before call) is now "current" sp + (+256)
+        # Critical: tell gdb: the cfa(baseline SP before call) is "current" sp + (+256)
         .cfi_def_cfa_offset 256
 
         # save caller-saved registers.

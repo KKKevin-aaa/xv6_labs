@@ -9,6 +9,7 @@
 #include "fs.h"
 #include "sleeplock.h"
 #include "file.h"
+#include "fcntl.h"
 #include "rbtree.h"
 #include "mm.h"
 #include "colors.h"
@@ -16,19 +17,21 @@
 int fetchaddr(uint64 addr, uint64 *ip) {
     struct proc *p = myproc();
     int tmp_ret=0;
-    acquire(&p->uvm_lock);
+    acquire(&p->uvm_lock);  //current page wouldn't been changed.
     if(p->mm==NULL){
         pr_warn("Process lack of mm_struct_t");
         release(&p->uvm_lock);
         return -1;
     }
     acquire(&p->mm->mm_lock);
-    vm_area_struct_t *found=find_vma(p->mm, addr);
+    vm_area_struct_t *found=find_vma_and_get(p->mm, addr);
     if (found==NULL || found->vm_end < addr + sizeof(uint64))
-        // both tests needed, in case of overflow
+        // both tests needed, in case overflow
         tmp_ret=-1;
     else if (copyin(p->pagetable, (char *)ip, addr, sizeof(*ip)) != 0)
         tmp_ret=-1;
+    vma_put(found);
+    release(&p->mm->mm_lock);
     release(&p->uvm_lock);
     return tmp_ret;
 }

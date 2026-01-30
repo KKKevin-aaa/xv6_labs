@@ -6,14 +6,16 @@
 #include "riscv.h"
 #include "defs.h"
 #include "spinlock.h"
+#include "sleeplock.h"
+#include "fs.h"
 #include "file.h"
 #include "proc.h"
 #include "rbtree.h"
 #include "kvm.h"
 #include "slab.h"
 #include "vm.h"
-#include "mm.h"
 #include "fcntl.h"
+#include "mm.h"
 #include "colors.h"
 #define DEBUG_MM
 
@@ -36,43 +38,6 @@ static inline int in_range(uint64 addr, uint64 start, uint64 end){
     }
     return (addr >= start) && (addr < end);
 }
-
-
-uint64 gene_page_prot(uint64 vm_flags) {    //VMA->PTE
-    //As a hardware-agnostic kernel structure, it implements the translation
-    //from logical abstraction to physical hardware via the following functions.
-    uint64 page_prot = 0;
-    if (vm_flags & VM_READ)     page_prot |= PTE_R;
-    if (vm_flags & VM_WRITE)    page_prot |= PTE_W;
-    if (vm_flags & VM_EXEC)     page_prot |= PTE_X;
-    if(vm_flags & PROT_USER)    page_prot |= PTE_U;
-    page_prot |= PTE_V;
-
-    if (vm_flags & VM_IO) {
-        page_prot |= (PTE_A | PTE_D);
-    }
-
-    return page_prot;
-}
-uint64 gene_flags(uint64 vm_page_prot) {    //PTE->VMA
-    uint64 vm_flags = 0;
-    if (vm_page_prot & PTE_R)   vm_flags |= VM_READ;
-    if (vm_page_prot & PTE_W)   vm_flags |= VM_WRITE;
-    if (vm_page_prot & PTE_X)   vm_flags |= VM_EXEC;
-    if(vm_page_prot & PTE_U)    vm_flags |= PROT_USER;
-    // 2. 关键逻辑：推断 COW 状态
-    // 如果物理页表显示“只读”(无 PTE_W)，但同时标记了软件位 COW (PTE_COW)，
-    // 说明这个页面在逻辑上其实是“可写”的 (VM_WRITE)，只是暂时被内核锁住了。
-    // 在恢复 vm_flags 时，必须把 VM_WRITE 加回去。
-    if ((vm_page_prot & PTE_COW) && !(vm_page_prot & PTE_W)) {
-        vm_flags |= VM_WRITE;
-    }
-    // 3. 辅助位处理
-    // PTE_A, PTE_D, PTE_U 通常不直接对应 VMA 的 flag，
-    // 而是用于页面置换算法或权限检查，此处不需要映射回去。
-    return vm_flags;
-}
-
 
 void vma_get(vm_area_struct_t *vma){    //Acquire one reference
     if(vma==NULL)   return;
@@ -173,7 +138,7 @@ void init_mm(void){ //Init the system(alloc prepare, )
     else    MM_TRACE("init mm_cache succeed.\n");
 }
 
-vm_area_struct_t *insert_vma_helper(mm_struct_t *mm, uint64 va, uint64 sz, int perm){
+vm_area_struct_t *kernel_insert_vma_helper(mm_struct_t *mm, uint64 va, uint64 sz, int perm){
 #ifdef DEBUG_KVM
     KVM_TRACE("va=%llx sz=%llx perm=%d\n", va, sz, perm);
 #endif
@@ -184,8 +149,12 @@ vm_area_struct_t *insert_vma_helper(mm_struct_t *mm, uint64 va, uint64 sz, int p
     memset(tmp_vma, 0, sizeof(vm_area_struct_t));
     tmp_vma->vm_start=va;
     tmp_vma->vm_end=va+sz;
-    tmp_vma->vm_page_prot=perm;
-    tmp_vma->vm_flags=gene_flags(tmp_vma->vm_page_prot);
+    tmp_vma->vm_page_prot=perm | PTE_V;     //get the hareware permission directly.
+    uint64 flags = VM_KERN | VM_LOCKED | VM_DONTEXPAND | VM_DONTDUMP;
+    if (perm & PTE_R) flags |= VM_READ;
+    if (perm & PTE_W) flags |= VM_WRITE;
+    if (perm & PTE_X) flags |= VM_EXEC;
+    tmp_vma->vm_flags=flags;
     tmp_vma->vm_mm=mm;
     tmp_vma->ref_count=1;   //Held by mm_struct
     //Omit values for unused arguments.
@@ -582,11 +551,15 @@ int do_munmap(munmap_context_t *ctx1){
         pr_warn("Invalid parameter.\n");
         return -1;
     }
+    if((uint64)ctx1->addr + ctx1->length < (uint64)ctx1->addr || 
+        (uint64)ctx1->addr + ctx1->length > UPPER_LIMIT){
+        pr_err("Invalid length or reach immutable region.");
+        return -1;
+    }
     //Locate all affected VMAs and sequentially unmap them based on the extent of overlap.
     vm_area_struct_t *tmp=ctx1->mm->mmap, *tmp_next=NULL;
     uint64 cur_addr=(uint64)ctx1->addr, end_addr=(uint64)ctx1->addr+ctx1->length;
     cur_addr=(uint64)ctx1->addr;      //reset
-    int inc_head=0, inc_tail=0;
     while(tmp!=NULL){
         tmp_next=tmp->vm_next;
         if(tmp->vm_start < end_addr && tmp->vm_end > cur_addr){
@@ -607,20 +580,15 @@ int do_munmap(munmap_context_t *ctx1){
                 cur_addr=tmp_swap;
             }
             else{   //Middle Split
-                vm_area_struct_t *new_vma=alloc_vma_node();
+                vm_area_struct_t *new_vma=vma_dup(tmp);
                 if(new_vma==NULL){      //must be the first involoved VMA, no additional work to rollback.
                     pr_err("split into two vmas fail.\n");
                     return -1;
                 }
+                //Fine-grained adjustment.
                 new_vma->vm_start=end_addr;
                 new_vma->vm_end=tmp->vm_end;
-                new_vma->vm_filesz=tmp->vm_filesz;
-                new_vma->vm_file=filedup(tmp->vm_file);
-                new_vma->vm_page_prot=tmp->vm_page_prot;
-                new_vma->vm_flags=tmp->vm_flags;
                 new_vma->vm_pgoff=tmp->vm_pgoff + ((end_addr -tmp->vm_start) >> PGSHIFT);
-                new_vma->vm_mm=tmp->vm_mm;
-                new_vma->vm_ops=tmp->vm_ops;
                 //Perform selective copying based on specific criteria.
                 if(insert_vma(ctx1->mm, new_vma)!=0){
                     pr_err("split into two vmas failed.\n");
@@ -637,100 +605,95 @@ int do_munmap(munmap_context_t *ctx1){
     return 0;
 }
 
+uint64 find_first_suit_hole(mm_struct_t *mm, uint64 req_len){
+    if(mm==NULL || !holding(&mm->mm_lock)){
+        pr_err("Access invalid mm_struct or without necessary lock.");
+        return -1;
+    }
+    vm_area_struct_t *tmp_vma=mm->mmap;
+    uint64 prev_end=0;
+    int found_suff=0;
+    while(tmp_vma!=NULL){
+        prev_end=(tmp_vma->vm_prev!=NULL)?(tmp_vma->vm_prev->vm_end):0;
+        if(tmp_vma->vm_start-prev_end >= req_len){
+            found_suff=1;
+            break;
+        }
+        prev_end=tmp_vma->vm_end;   //record for possible use while can't find sufficient VMA.
+        tmp_vma=tmp_vma->vm_next;
+    }
+    //Failing to find a suitable gap between existing VMAs
+    //So the new region is appended to the end of address space.
+    if(found_suff==0){
+        //check if last_gap is enough
+        if(UPPER_LIMIT < prev_end + req_len){
+            pr_err("No gap of sufficient size exists bwtween VMAs;mmap failed.");
+            return -1;
+        }
+    }
+    return prev_end;
+}
+
 void *do_mmap(mmap_context_t *ctx1){
     if(ctx1==NULL){
         pr_err("Empty mmap_context_t.");
         return (void *)-1;
     }
     if(ctx1->mm==NULL || !holding(&ctx1->mm->mm_lock)){
-        pr_err("Empty mm_struct or unlocking.");
+        pr_err("Access invalid mm_struct or without necessary lock.");
         return (void *)-1;
     }
-    uint64 vm_flags=0, vm_page_prot=PTE_U;
-    // prot->vm_flags
-    //(A broad abstraction that encompasses much more than just the init flags parameter.)
-    if (ctx1->prot & PROT_READ){
-        vm_flags |= VM_READ;
-        vm_page_prot |= PTE_R;
-    }
-    if (ctx1->prot & PROT_WRITE){
-        vm_flags |= VM_WRITE;
-        if(ctx1->flags & MAP_SHARED)    vm_page_prot |= PTE_W;
-        //for MAP_PRIVATE, Don't assign pte_W. 
-        //Use as a indicator to raise page_fault and turn to cow.
-    }
-    if (ctx1->prot & PROT_EXEC){
-        vm_flags |= VM_EXEC;
-        vm_page_prot |= PTE_X;
-    }
-
-    // flags -> vm_flags
-    if (ctx1->flags & MAP_SHARED) {
-        vm_flags |= VM_SHARED;
-        vm_flags |= VM_MAYSHARE | VM_MAYWRITE | VM_MAYREAD; 
-    } else {
-        vm_flags |= VM_MAYWRITE | VM_MAYREAD | VM_MAYEXEC;
-    }
+    uint64 vm_flags=0, vm_page_prot=PTE_U, final_start=(uint64)ctx1->sugg_addr;
     vm_area_struct_t *new_vma=alloc_vma_node();
     if(new_vma==NULL){
         pr_err("Sys_mmap failed, unable to create a new vma.\n");
-        return -1;
+        return (void *)-1;
     }
+    new_vma->vm_flags=calc_vm_flags(ctx1->prot, ctx1->flags);
+    new_vma->vm_page_prot=flags2page_prot(new_vma->vm_flags);
     new_vma->vm_flags=vm_flags;
     new_vma->vm_page_prot=vm_page_prot;
     if(ctx1->length & (PGSIZE-1))      ctx1->length=PGROUNDUP(ctx1->length);
+    if(final_start + ctx1->length > UPPER_LIMIT){
+        pr_err("No gap of sufficient size exists bwtween VMAs;mmap failed.");
+        vma_put(new_vma);
+        return (void *)-1;
+    }
     if(ctx1->sugg_addr!=NULL){
         vm_area_struct_t *tmp_vma=NULL;
         if((tmp_vma=find_upper_vma(ctx1->mm, (uint64)ctx1->sugg_addr))!=NULL){
             uint64 avai_start=(tmp_vma->vm_prev!=NULL)?(tmp_vma->vm_prev->vm_end):0;
-            if(in_range((uint64)ctx1->sugg_addr, avai_start, tmp_vma->vm_start) &&
-                in_range((uint64)ctx1->sugg_addr+ctx1->length, avai_start, tmp_vma->vm_start)){
-                new_vma->vm_start=avai_start;
-                new_vma->vm_end=new_vma->vm_start+ctx1->length;
-            }
-            else{
+            if(!((uint64)ctx1->sugg_addr >= avai_start && 
+                (uint64)ctx1->sugg_addr +ctx1->length <=tmp_vma->vm_start)){
                 if(!(ctx1->flags & MAP_FIXED)){
-                    pr_warn("Not map_fixed and exist one vma at this address.");
-                    goto first_fit;
+                    pr_warn("Not map_fixed and no matching gap at this address.");
+                    final_start=find_first_suit_hole(ctx1->mm, ctx1->length);
+                    if(final_start==(uint64)-1){
+                        vma_put(new_vma);
+                        return (void *)-1;
+                    }
                 }
                 //MAP_FIXED, discussing various scenarios.
-                else    do_munmap(&(munmap_context_t){.pagetable=ctx1->pagetable,
-                                                        .rb_array=ctx1->rb_array,
-                                                        .mm=ctx1->mm,
-                                                        .addr=ctx1->sugg_addr, 
-                                                        .length=ctx1->length});
+                else{
+                    do_munmap(&(munmap_context_t)
+                        {.pagetable=ctx1->pagetable,
+                        .rb_array=ctx1->rb_array,
+                        .mm=ctx1->mm,
+                        .addr=ctx1->sugg_addr, 
+                        .length=ctx1->length});
+                }
             }
         }
-        new_vma->vm_start=(uint64)ctx1->sugg_addr;
-        new_vma->vm_end=(uint64)ctx1->sugg_addr+ctx1->length;
     }
-    else{      //First-fit
-first_fit:
-        vm_area_struct_t *tmp_vma=ctx1->mm->mmap, *last_vma=NULL;
-        uint64 prev_end=0;
-        int found_suff=0;
-        while(tmp_vma!=NULL){
-            prev_end=(tmp_vma->vm_prev!=NULL)?(tmp_vma->vm_prev->vm_end):0;
-            if(tmp_vma->vm_start-prev_end > ctx1->length){
-                found_suff=1;
-                break;
-            }
-            last_vma=tmp_vma;
-            prev_end=tmp_vma->vm_end;   //record for possible use while can't find sufficient VMA.
-            tmp_vma=tmp_vma->vm_next;
+    else{
+        final_start=find_first_suit_hole(ctx1->mm, ctx1->length);   //First-fit
+        if(final_start==(uint64)-1){
+            vma_put(new_vma);
+            return (void *)-1;
         }
-        if(found_suff==0){
-            //check if last_gap is enough
-            if(UPPER_LIMIT < prev_end + ctx1->length){
-                pr_err("No gap of sufficient size exists bwtween VMAs;mmap failed.");
-                return (void *)-1;
-            }
-        }
-        //Failing to find a suitable gap between existing VMAs
-        //So the new region is appended to the end of address space.
-        new_vma->vm_start=prev_end;
-        new_vma->vm_end=new_vma->vm_start+ctx1->length;
     }
+    new_vma->vm_start=(uint64)final_start;
+    new_vma->vm_end=new_vma->vm_start+ctx1->length;
     new_vma->vm_file=filedup(ctx1->f);
     new_vma->vm_pgoff=ctx1->offset;
     new_vma->vm_mm=ctx1->mm;

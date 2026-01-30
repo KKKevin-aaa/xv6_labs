@@ -4,17 +4,19 @@
 #include "defs.h"
 #include "memlayout.h"
 #include "spinlock.h"
-#include "file.h"
+#include "sleeplock.h"
 #include "proc.h"
 #ifdef PGTBL_SOL
 #include "riscv.h"
 #endif
+#include "fcntl.h"
+#include "fs.h"
+#include "file.h"
 #include "rbtree.h"
 #include "kvm.h"
 #include "slab.h"
 #include "mm.h"
 #include "vm.h"
-#include "fcntl.h"
 #include "colors.h"
 uint64 sys_exit(void) {
     int n;
@@ -224,8 +226,8 @@ uint64 sys_mmap(void ){
     argaddr(5, &offset);
     //Implement front-end parameter validation to fast-fail and return immediately.
     if(flags & MAP_FIXED){
-        if(sugg_addr==NULL || ((uint64)sugg_addr & (PGSIZE-1)) || 
-            ((uint64)sugg_addr +length >= UPPER_LIMIT)){
+        if(sugg_addr==0 || (sugg_addr & (PGSIZE-1)) || (sugg_addr +length < sugg_addr) ||
+            (sugg_addr +length >= UPPER_LIMIT)){
             pr_warn("Invalid suggest_address while flags seted as MAP_FIXED.");
             return -1;
         }
@@ -239,6 +241,7 @@ uint64 sys_mmap(void ){
         return -1;
     }
     if(!(flags & MAP_ANONYMOUS)){
+        if(fd>= NOFILE || fd<0 ) return -1;      //Exceeds the limit of opened_file list.
         struct file *f=p->ofile[fd];
         if(f==NULL)     return -1;  //EBADF
         if(f->type!=FD_INODE)   return -1;      //EACCES OR ENODEV
@@ -251,7 +254,7 @@ uint64 sys_mmap(void ){
         .pagetable=p->pagetable,
         .rb_array=p->rb_array,
         .mm=p->mm, 
-        .sugg_addr=sugg_addr, 
+        .sugg_addr=(void *)sugg_addr, 
         .length=length, 
         .prot=prot, 
         .flags=flags, 

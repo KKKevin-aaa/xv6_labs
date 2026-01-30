@@ -12,6 +12,7 @@
 #include "rbtree.h"
 #include "kvm.h"
 #include "slab.h"
+#include "fcntl.h"
 #include "mm.h"
 #include "colors.h"
 
@@ -35,6 +36,19 @@ int flags2perm(int flags) {
     if (flags & 0x1) perm = PTE_X;
     if (flags & 0x2) perm |= PTE_W;
     return perm;
+}
+int elf_flags2vm_flags(int elf_flags){
+    unsigned long vm_flags = 0;
+
+    if (elf_flags & 0x4)
+        vm_flags |= VM_READ;
+    if (elf_flags & 0x2)
+        vm_flags |= VM_WRITE;
+    if (elf_flags & 0x1)
+        vm_flags |= VM_EXEC;
+    // 此外，VMA 还会根据文件属性自动加上其他标志
+    vm_flags |= VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC; // 允许未来通过 mprotect 修改
+    return vm_flags;
 }
 
 // the implementation of the exec() system call
@@ -83,24 +97,25 @@ int kexec(char *path, char **argv) {
         if (ph.vaddr + ph.memsz < ph.vaddr) goto bad;
         if (ph.vaddr % PGSIZE != 0) goto bad;
         uint64 sz1;
-        if ((sz1 = uvmalloc(new_pagetable, sz, ph.vaddr + ph.memsz, flags2perm(ph.flags))) == 0) goto bad;
-        if (loadseg(new_pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0) goto bad;
+
         vm_area_struct_t *vma = alloc_vma_node();
         if (!vma) goto bad;
-
         vma->vm_start = ph.vaddr; 
         vma->vm_end = PGROUNDUP(ph.vaddr + ph.memsz); 
         
         vma->vm_filesz = ph.filesz; 
         vma->vm_pgoff = ph.off;     //file-backed VMA.
-        vma->vm_file = src_file;
-        filedup(src_file);         //Increase file's ref_count.
+        vma->vm_file = filedup(src_file);         //Increase file's ref_count.
         
-        vma->vm_flags = gene_flags(ph.flags);
-        vma->vm_page_prot = gene_page_prot(ph.flags);
+        vma->vm_flags = elf_flags2vm_flags(ph.flags);
+        vma->vm_page_prot = flags2page_prot(vma->vm_flags);
         
         vma->vm_mm = shadow_mm;
         vma->vm_ops = NULL; // 这是一个匿名加载段（虽然来自文件，但不是 shared mmap）
+
+        if ((sz1 = uvmalloc(new_pagetable, sz, ph.vaddr + ph.memsz, vma->vm_page_prot)) == 0) goto bad;
+        if (loadseg(new_pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0) goto bad;
+        pr_info("current sz1 is %llx and ph.vaddr is %llx and pg.filesz is %llx", sz1, ph.vaddr, ph.filesz);
         acquire(&shadow_mm->mm_lock);
         if(insert_vma_fast(shadow_mm, vma, &(vma_context_t){.prev=prev_vma, .next=NULL})==-1){
             vma_put(vma);

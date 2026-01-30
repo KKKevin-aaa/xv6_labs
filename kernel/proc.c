@@ -8,6 +8,7 @@
 #include "rbtree.h"
 #include "kvm.h"
 #include "slab.h"
+#include "fcntl.h"
 #include "mm.h"
 #include "colors.h"
 

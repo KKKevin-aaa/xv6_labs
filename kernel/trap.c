@@ -31,9 +31,8 @@ uint64 usertrap(void) {
 
     if ((r_sstatus() & SSTATUS_SPP) != 0) panic("usertrap: not from user mode");
 
-  // send interrupts and exceptions to kerneltrap(),
-  // since we're now in the kernel.
-  w_stvec((uint64)kernelvec);  //DOC: kernelvec
+    // send interrupts and exceptions to kerneltrap(), since we're now in the kernel.
+    w_stvec((uint64)kernelvec);  //DOC: kernelvec
 
     struct proc *p = myproc();
 
@@ -61,9 +60,11 @@ uint64 usertrap(void) {
         // page fault on lazily-allocated page
     } else {
         // Unhandle Trap
+        pte_t *invalid_pte=walk(p->pagetable, r_stval(), 0, 0);
         printf("usertrap(): unexpected scause 0x%llx pid=%d\n", r_scause(), p->pid);
         printf("            sepc=0x%llx stval=0x%llx\n", r_sepc(), r_stval());
-        printf("            pagetable is %p, name is %s\n",p->pagetable, p->name);
+        printf("            pagetable is %p, name is %s, pte is %llx, and pa is %llx\n", 
+            p->pagetable, p->name, *invalid_pte, PTE2PA(*invalid_pte));
         setkilled(p);
         panic("1");
     }
@@ -135,16 +136,27 @@ void kerneltrap() {
     if ((sstatus & SSTATUS_SPP) == 0) panic("kerneltrap: not from supervisor mode");
     if (intr_get() != 0) panic("kerneltrap: interrupts enabled");
 
-    if ((which_dev = devintr()) == 0) {
+    if((which_dev = devintr()) != 0){
+        // give up the CPU if this is a timer interrupt.
+        if(which_dev==2 && myproc()!=0)     yield();
+    }????FIXME:
+    else{
+        //handle page fault and check if restore.
+        if(scause == 13 || scause ==15){
+            struct proc *p=myproc();
+            uint64 stval=r_stval();
+            if(stval<MAXVA && p!=NULL && p->mm!=NULL){
+                int is_write=(scause ==13)?1:0;
+                if(vmfault(p->rb_array, p->pagetable, r_stval(), is_write) != 0)
+                    goto restore;
+            }
+        }
         // interrupt or trap from an unknown source
         printf("scause=0x%llx sepc=0x%llx stval=0x%llx\n", scause, r_sepc(), r_stval());
         panic("kerneltrap");
     }
-
-    // give up the CPU if this is a timer interrupt.
-    if (which_dev == 2 && myproc() != 0) yield();
-
-    // the yield() may have caused some traps to occur,
+restore:
+    // the yield() may have caused some traps.
     // so restore trap registers for use by kernelvec.S's sepc instruction.
     w_sepc(sepc);
     w_sstatus(sstatus);

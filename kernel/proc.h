@@ -142,24 +142,15 @@ struct vm_dupl_ctx {
 };
 
 //Used for copywalk, store the basic info about two pagetable and e.t.c
-struct vm_partial_copy_ctx{
+struct vm_sub_copy_ctx{
     pte_t *dst_pt;  //Dest Page table
     pte_t *src_pt;  //Source Page table
-    uint64 src_pa;
     uint64 base_va;
     uint64 size;
     int level;
     res_block *rblocks;
 };
 
-struct vm_whole_copy_ctx{
-    pte_t *dst_pt;
-    pte_t *src_pt;
-    uint64 base_va;
-    uint64 size;
-    uint64 level;
-    res_block *rblocks;
-};
 #ifdef DEBUG_PROC
 #define PROC_TRACE(fmt, ...) \
     do { \

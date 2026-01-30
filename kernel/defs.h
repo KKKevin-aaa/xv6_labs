@@ -273,28 +273,23 @@ void            rb_insert_color(rb_node_t *node, rb_root_t*root);
 void            rb_erase(rb_node_t *node, rb_root_t*root);
 
 //mm.c
-uint64          gene_page_prot(uint64 vm_flags);
-uint64          gene_flags(uint64 vm_page_prot);
 void            vma_get(vm_area_struct_t *vma);
 int             vma_put(vm_area_struct_t *vma);
 void            mm_get(mm_struct_t *mm);
 int             mm_put(mm_struct_t *mm);
 void            init_mm(void);
-vm_area_struct_t *insert_vma_helper(mm_struct_t *mm, uint64 va, uint64 sz, int perm);
+vm_area_struct_t *kernel_insert_vma_helper(mm_struct_t *mm, uint64 va, uint64 sz, int perm);
 vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr);
 vm_area_struct_t *find_vma_and_get(mm_struct_t *mm, uint64 vaddr);
 vm_area_struct_t *find_upper_vma_and_get(mm_struct_t *mm, uint64 vaddr);
 mm_struct_t     *mm_create(void);
 vm_area_struct_t *alloc_vma_node(void);
-vm_area_struct_t *vma_dup(vm_area_struct_t *vma);
-vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr);
+vm_area_struct_t *vma_dup(const vm_area_struct_t *vma);
 int             insert_vma(mm_struct_t *mm, vm_area_struct_t *vma);
 int             insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont);
 int             remove_vma(mm_struct_t *mm, vm_area_struct_t *vma);
 uint64          get_unmapped_area(mm_struct_t *mm, uint64 len, uint64 low_limit, 
                     uint64 high_limit, vma_context_t *cont);
-uint64          gene_page_prot(uint64 vm_flags);
-uint64          gene_flags(uint64 vm_page_prot);
 //Detailed implemation of rb_node,should defined and finined in here, not in rbtree.h
 rb_node_t*      rb_search(rb_node_t *node, vm_area_struct_t **predecessor, 
                         vm_area_struct_t ** successor, const rb_root_t *root);
