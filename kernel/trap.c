@@ -139,13 +139,14 @@ void kerneltrap() {
     if((which_dev = devintr()) != 0){
         // give up the CPU if this is a timer interrupt.
         if(which_dev==2 && myproc()!=0)     yield();
-    }????FIXME:
+    }
     else{
         //handle page fault and check if restore.
         if(scause == 13 || scause ==15){
             struct proc *p=myproc();
             uint64 stval=r_stval();
             if(stval<MAXVA && p!=NULL && p->mm!=NULL){
+                //Perform pre-checks to avoid unnecessary page fault handling
                 int is_write=(scause ==13)?1:0;
                 if(vmfault(p->rb_array, p->pagetable, r_stval(), is_write) != 0)
                     goto restore;

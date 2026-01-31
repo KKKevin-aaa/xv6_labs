@@ -17,22 +17,24 @@
 int fetchaddr(uint64 addr, uint64 *ip) {
     struct proc *p = myproc();
     int tmp_ret=0;
-    acquire(&p->uvm_lock);  //current page wouldn't been changed.
+    //No need and can't hold spinlock while executing some operatrions will goto sleep.
     if(p->mm==NULL){
         pr_warn("Process lack of mm_struct_t");
-        release(&p->uvm_lock);
         return -1;
     }
-    acquire(&p->mm->mm_lock);
+    acquiresleep(&p->mm->mm_lock);      //Protect finding.
     vm_area_struct_t *found=find_vma_and_get(p->mm, addr);
-    if (found==NULL || found->vm_end < addr + sizeof(uint64))
+    releasesleep(&p->mm->mm_lock);
+    if (found==NULL || found->vm_end < addr + sizeof(uint64) || p->mm==NULL)
         // both tests needed, in case overflow
         tmp_ret=-1;
-    else if (copyin(p->pagetable, (char *)ip, addr, sizeof(*ip)) != 0)
-        tmp_ret=-1;
+    else{
+        acquiresleep(&p->mm->mm_lock);
+        if (copyin(p->pagetable, (char *)ip, addr, sizeof(*ip)) != 0)
+            tmp_ret=-1;
+        releasesleep(&p->mm->mm_lock);
+    }
     vma_put(found);
-    release(&p->mm->mm_lock);
-    release(&p->uvm_lock);
     return tmp_ret;
 }
 

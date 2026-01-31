@@ -997,21 +997,57 @@ void uvmclear(pagetable_t pagetable, uint64 va) {
 }
 
 //-----NOTE:the following three function are build upon kernel page, user pa is treated as kernel va.--------
+#define PROACTIVE_CHECK
+
+//handle file-backend page fault, support arbitrary size
+int vmfile_load(vm_area_struct_t *vma, uint64 va, uint64 dst_pa, uint64 size){
+    uint64 offset=vma->vm_pgoff + (va-vma->vm_start);
+    uint len=(va+size > vma->vm_end)?(vma->vm_end-va):size;
+    begin_op();
+    ilock(vma->vm_file->ip);
+    uint64 file_offset=vma->vm_pgoff + offset;
+    if(file_offset < vma->vm_file->ip->size){
+        len=(vma->vm_file->ip->size - file_offset < size)?
+                (vma->vm_file->ip->size-file_offset):size;
+        if (readi(vma->vm_file->ip, 0, dst_pa, offset, len) != len)
+            pr_err("load from %llx fail(Expected is %lx)", va, len);
+    }
+    iunlockput(vma->vm_file->ip);
+    end_op();
+    return 0;
+}
+
+uint64 scan_contigous_map(pagetable_t pagetable, uint64 va, uint64 limit){
+    // Traverse the page table entries to determine the maximum length 
+    // of physically contiguous memory mapped by the current PTE range
+    int level, src_level;
+    if(limit >= 4096 && limit <512*4096)    level=0;
+    else if(limit >=512*4096 && limit<512*512*4096) level=1;
+    else    level=2;        //Highest level.
+    pte_t *src_pte=walk_internal(pagetable, va, 0, 0, &src_level), *l_pte=*src_pte;
+    if(src_pte==NULL || (*src_pte & PTE_V)==0)   return 0;
+    if(src_level!=level){
+        pr_warn("level dismatch.");
+        return 0;
+    }
+    uint64 cur_chunk_len=0, next_va=va;
+    while(cur_chunk_len < limit){
+        next_va=va+cur_chunk_len;
+        next_pte=
+    }
+}
 
 // Copy from kernel to user.
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
 int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
-// #ifdef DEBUG_VM
-//     VM_TRACE("dstva=%p len=0x%llx\n", (void *)dstva, len);
-// #endif
+    //Proactive check, instead of raise page fault frequently.
     uint64 aligned_dstva=PGROUNDDOWN(dstva);
     uint8 cur_order=i_log2(aligned_dstva & -aligned_dstva);
     cur_order=(cur_order==0 || cur_order>MAX_ORDER+ORDER_BASE)
         ?(MAX_ORDER+ORDER_BASE):cur_order;
     uint64 cur_max_size=1ull << cur_order;
-    uint64 alloc_size=cur_max_size, copy_size;
-    void *mem;
+    uint64 alloc_size=cur_max_size, copy_size, mem;
     uint64 cur_va=dstva, basepage_va=aligned_dstva, cur_pa;
     pte_t *pte;
     while(len>0){
@@ -1022,15 +1058,11 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
             while(len < alloc_size && alloc_size>PGSIZE)
                 alloc_size/= 2;
             // VM_TRACE("copyout needs alloc for basepage_va=0x%llx size=0x%llx\n", basepage_va, alloc_size);
-            mem=alloc_memory(alloc_size);
-            if(mem==0){
-                uvmdealloc(pagetable, cur_va, dstva);
-                return -1;
-            }
-            memset(mem, 0, alloc_size);
+            mem=(uint64)alloc_memory(alloc_size);
+            if(mem==0)  return -1;
+            memset((void *)mem, 0, alloc_size);
             if(mappages(pagetable, basepage_va, alloc_size, (uint64)mem, PTE_U | PTE_W | PTE_R)!=0){
                 free_pages(mem, alloc_size);
-                uvmdealloc(pagetable, cur_va, dstva);
                 return -1;
             }
             cur_pa=walkaddr(pagetable, basepage_va);
@@ -1059,53 +1091,74 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
 // Copy len bytes to dst from virtual address srcva in a given page table.
 // Return 0 on success, -1 on error.
 int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
-// #ifdef DEBUG_VM
-//     VM_TRACE("srcva=%p len=0x%llx\n", (void *)srcva, len);
-// #endif
+    //Considering when user's page is missing.
     uint64 aligned_srcva=PGROUNDDOWN(srcva);
     uint8 cur_order=i_log2(aligned_srcva & -aligned_srcva);
     cur_order=(cur_order==0 || cur_order>MAX_ORDER+ORDER_BASE)
-        ?(MAX_ORDER+ORDER_BASE):cur_order;
-    uint64 alloc_size, copy_size;
+        ? (MAX_ORDER+ORDER_BASE):cur_order;
+    uint64 block_size, copy_size, cur_va=srcva, basepage_va=aligned_srcva, cur_pa;
     void *mem;
-    uint64 cur_va=srcva, basepage_va=aligned_srcva, cur_pa;
-    pte_t *pte;
+    int perm=0;
+    struct proc *cur_proc=myproc();
+    pte_t *pte=NULL;
+    if(cur_proc==NULL)  panic("Empty proc.");
     while(len>0){
-        cur_pa=walkaddr(pagetable, basepage_va);
-        if(cur_pa==0){  
-            //Trigger a page fault due to the missing page and finish allocations.
+        if(basepage_va>=MAXVA)      return -1;
+        int found_level=0;  //Consider hugeleaf
+        pte = walk_internal(pagetable, basepage_va, 0, 0, &found_level);
+        if(pte==NULL){
             cur_order=i_log2(basepage_va & -basepage_va);
             cur_order=(cur_order>MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):cur_order;
-            alloc_size=1ull<<cur_order;
-            while(len < alloc_size && alloc_size>PGSIZE)
-                alloc_size/=2;
+            block_size=1ull<<cur_order;
+            while(len < block_size && block_size>PGSIZE)
+                block_size/=2;
             // VM_TRACE("copyin needs alloc for basepage_va=0x%llx size=0x%llx\n", basepage_va, alloc_size);
-            mem=alloc_memory(alloc_size);
-            if(mem==0){
-                uvmdealloc(pagetable, basepage_va, srcva);
+            mem=alloc_memory(block_size);
+            if(mem==0)  return -1;
+            memset(mem, 0, block_size);
+            //check if belong to file-backend and initiate a batch disk read request.
+            if(cur_proc->mm==NULL || !holdingsleep(&cur_proc->mm->mm_lock))
+                pr_warn("lack necessary mm_struct, can't get more info.Treat as anonymous VMA.");
+            else{
+                vm_area_struct_t *cur_vma=find_vma(cur_proc->mm, cur_va);
+                if(cur_vma==NULL || cur_vma->vm_file==NULL){
+                    pr_info("Treat as anonymous VMA.");
+                    perm = PTE_R | PTE_U | PTE_W;
+                }
+                else if(vmfile_load(cur_vma, basepage_va, mem, block_size)!=0){
+                    pr_err("Corrputed file, unable to continue.");
+                    free_pages(mem, block_size);
+                    return -1;
+                }
+                else    perm = cur_vma->vm_page_prot;
+            }
+            acquire(&cur_proc->uvm_lock);
+            if(mappages(pagetable, basepage_va, block_size, (uint64)mem, perm)!=0){
+                release(&cur_proc->uvm_lock);
+                free_pages(mem, block_size);
                 return -1;
             }
-            memset(mem, 0, alloc_size);
-            if(mappages(pagetable, basepage_va, alloc_size, (uint64)mem, PTE_U | PTE_W | PTE_R)!=0){
-                free_pages(mem, alloc_size);
-                uvmdealloc(pagetable, basepage_va, srcva);
-                return -1;
-            }
-            cur_pa=walkaddr(pagetable, basepage_va);    //update 
+            release(&cur_proc->uvm_lock);
+            cur_pa=walkaddr(pagetable, basepage_va);    //update
         }
-        else{
-            alloc_size=1ull<<(get_order(cur_pa)+ORDER_BASE); 
-            //exist the mapping, check the bitmap for more info.
-            pte=walk(pagetable, basepage_va, 0, 0);
-            if(pte==0 || (*pte & PTE_R)==0) return -1;
+        else if ((*pte & PTE_V) == 0){   //Swap in fault.
+            //extrace info(Swap_id) from the pte.
+            //FIXME: 
         }
-        copy_size=alloc_size-(cur_va-basepage_va);
+        else if ((*pte & PTE_U) == 0)    return -1;
+        else{   //pte is valid now.
+            cur_pa = PTE2PA(*pte);
+            if(found_level!=0)  cur_pa+=(basepage_va % get_step_size(found_level));
+
+        }
+        //block_size=1ull<<(get_order(cur_pa)+ORDER_BASE); 
+        copy_size=block_size-(cur_va-basepage_va);
         if(copy_size>len)   copy_size=len;  
         //modified the size to reflect the actual amount successfully copied!
         memmove(dst, (void *)(cur_pa+(cur_va-basepage_va)), copy_size);
         len-=copy_size;
         dst+=copy_size;
-        cur_va=basepage_va+alloc_size;
+        cur_va=basepage_va+block_size;
         basepage_va=PGROUNDDOWN(cur_va);
     }
     return 0;
@@ -1116,20 +1169,65 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
 // until a '\0', or max.
 // Return 0 on success, -1 on error.
 int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max) {
-    uint64 cur_pa, basepage_va;
-    uint64 support_size, copy_size;
-    int got_null=0;
+    uint64 cur_pa, basepage_va, copy_size;
+    uint64 cur_order, block_size, mem;
+    int got_null=0, perm;
     pte_t *pte;
+    struct proc *cur_proc=myproc();
     while(got_null==0 && max>0){
         basepage_va=PGROUNDDOWN(srcva);
-        cur_pa=walkaddr(pagetable, basepage_va);
-        if(cur_pa==0)   return -1;  //Invalid page
+        if(basepage_va>=MAXVA)      return -1;
+        int found_level=0;  //Consider hugeleaf
+        pte = walk_internal(pagetable, basepage_va, 0, 0, &found_level);
+        if(pte==NULL){
+            cur_order=i_log2(basepage_va & -basepage_va);
+            cur_order=(cur_order>MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):cur_order;
+            block_size=1ull<<cur_order;
+            while(max < block_size && block_size>PGSIZE)
+                block_size/=2;
+            // VM_TRACE("copyin needs alloc for basepage_va=0x%llx size=0x%llx\n", basepage_va, alloc_size);
+            mem=(uint64)alloc_memory(block_size);
+            if(mem==0)  return -1;
+            memset(mem, 0, block_size);
+            //check if belong to file-backend and initiate a batch disk read request.
+            if(cur_proc->mm==NULL || !holdingsleep(&cur_proc->mm->mm_lock)){
+                pr_warn("lack necessary mm_struct, can't get more info.Treat as anonymous VMA.");
+                return -1;
+            }
+            vm_area_struct_t *cur_vma=find_vma(cur_proc->mm, srcva);
+            if(cur_vma==NULL || cur_vma->vm_file==NULL)
+                return -1;
+            if(vmfile_load(cur_vma, basepage_va, mem, block_size)!=0){
+                pr_err("Corrputed file, unable to continue.");
+                free_pages(mem, block_size);
+                return -1;
+            }
+            perm = cur_vma->vm_page_prot;
+            acquire(&cur_proc->uvm_lock);
+            if(mappages(pagetable, basepage_va, block_size, (uint64)mem, perm)!=0){
+                release(&cur_proc->uvm_lock);
+                free_pages(mem, block_size);
+                return -1;
+            }
+            release(&cur_proc->uvm_lock);
+            cur_pa=walkaddr(pagetable, basepage_va);    //update
+        }
+        else if ((*pte & PTE_V) == 0){   //Swap in fault.
+            //extrace info(Swap_id) from the pte.
+            //FIXME: 
+        }
+        else if ((*pte & PTE_U) == 0)    return -1;
+        else{   //pte is valid now.
+            cur_pa = PTE2PA(*pte);
+            if(found_level!=0)  cur_pa+=(basepage_va % get_step_size(found_level));
+        }
         pte=walk(pagetable, basepage_va, 0, 0);
         if(pte==0 || (*pte & PTE_R)==0) return -1;
-        support_size=1ull<<(get_order(cur_pa)+ORDER_BASE);
-        copy_size=support_size-(srcva-basepage_va);
+        block_size=1ull<<(get_order(cur_pa)+ORDER_BASE);
+        copy_size=block_size-(srcva-basepage_va);
         if(copy_size>max)   copy_size=max;  
-        //modified the size to reflect the actual amount successfully copied!
+        //modified the size according to the actual amount successfully copied!
+
         char *ptr=(char *)(cur_pa + (srcva-basepage_va));
         while (copy_size > 0) {
             if (*ptr == '\0') {
@@ -1142,7 +1240,7 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max) {
             --copy_size;--max;
             ptr++;dst++;
         }
-        srcva=basepage_va+support_size;
+        srcva=basepage_va+block_size;
     }
     if (got_null)   return 0;
     else    return -1;
@@ -1154,17 +1252,16 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max) {
 uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
     struct proc *p = myproc();
     uint64 tmp_ret=0;
-    acquire(&p->uvm_lock);
 
     //Pass arugment rblocks etc explicitly instead of implicitly retriving them via myproc()
     if(p->mm==NULL){
         VM_TRACE("Fatal error: proc's mm is NULL.\n");
-        release(&p->uvm_lock);
         return 0;
     }
-    acquire(&p->mm->mm_lock);
+    acquiresleep(&p->mm->mm_lock);  //acquire sleeplock firstly
     va = PGROUNDDOWN(va);
     vm_area_struct_t *vma=find_vma_and_get(p->mm, va);
+    releasesleep(&p->mm->mm_lock);
     if(vma==NULL){
         VM_TRACE("Cannot find the corresponding vma.\n");
         goto release_and_ret;
@@ -1173,6 +1270,7 @@ uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
         VM_TRACE("Inconsisent permission.\n");
         goto release_and_ret;
     }
+    acquire(&p->uvm_lock);      //Acquiring, for modifying PTE absolutely
     //Valid vma, categorization and dispatching.
     pte_t *pte=walk(p->pagetable, va, 0, 0);
     if(pte==NULL){      //Lazy allocation.
@@ -1202,27 +1300,29 @@ uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
                 goto release_and_ret;
             }
             memset((void *)tmp_ret, 0, PGSIZE);
-            begin_op();
-            ilock(vma->vm_file->ip);
-            uint64 file_offset=vma->vm_pgoff + offset;
-            if(file_offset < vma->vm_file->ip->size){
-                len=(vma->vm_file->ip->size - file_offset < PGSIZE)?
-                        (vma->vm_file->ip->size-file_offset):PGSIZE;
-                if (readi(vma->vm_file->ip, 0, tmp_ret, offset, len) != len){
-                    VM_TRACE("load from %llx fail(Expected is %lx)", va, len);
-                    kfree_page((void *)tmp_ret);
-                    tmp_ret=0;
-                    goto file_close;
+            release(&p->uvm_lock);
+            if(vmfile_load(vma, va, tmp_ret, PGSIZE)!=0){
+                free_pages((void *)tmp_ret, PGSIZE);
+                pr_err("error when loading file.");
+                tmp_ret=0;
+            }
+            else{
+                acquiresleep(&p->mm->mm_lock);
+                acquire(&p->uvm_lock);
+                pte=walk(pagetable, va, 0, 0);
+                if((*pte & PTE_V) || vma->vm_mm!=p->mm){
+                    //Current page fault has already been handled,Release original resources.
+                    free_pages(tmp_ret, PGSIZE);
+                    pr_info("Other concurrent process have resolved.");
+                    tmp_ret=PTE2PA(*pte);
                 }
-                if (mappages(p->pagetable, va, PGSIZE, tmp_ret, vma->vm_page_prot) != 0) {
+                else if (mappages(p->pagetable, va, PGSIZE, tmp_ret, vma->vm_page_prot) != 0) {
                     VM_TRACE("Mappage %llx fail", va);
                     kfree_page((void *)tmp_ret);
                     tmp_ret=0;
                 }
+                releasesleep(&p->mm->mm_lock);
             }
-file_close:
-            iunlockput(vma->vm_file->ip);
-            end_op();
         }
     }
     else if(pte!=NULL && (*pte & PTE_V)==0){        //Swap in Fault
@@ -1233,20 +1333,16 @@ file_close:
         if(vma->vm_flags & VM_WRITE){   //COW(copy on write)
             tmp_ret=(uint64)alloc_memory(PGSIZE);
             if(tmp_ret==0){
-                printf("[vmfault] COW:alloc memory fail.\n");
+                pr_warn("COW:alloc memory fail.\n");
                 goto release_and_ret;
             }
             //FIXME: 
         }
-        else{
-            VM_TRACE("Try to write constant area.\n");
-            goto release_and_ret;
-        }
+        else    pr_warn("Try to write constant area.\n");
     }
 release_and_ret:
     if(vma!=NULL)   vma_put(vma);
-    release(&p->mm->mm_lock);
-    release(&p->uvm_lock);
+    if(holding(&p->uvm_lock))    release(&p->uvm_lock);
     return tmp_ret;
 }
 

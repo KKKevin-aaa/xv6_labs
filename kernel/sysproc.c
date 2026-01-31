@@ -46,8 +46,7 @@ uint64 sys_sbrk(void) {
     argint(1, &t);
     if(cur_proc->mm==NULL)
         panic("Fatal Error: sbrk invoked on a process lacking an mm_struct.\n");
-    acquire(&cur_proc->uvm_lock);       //blocks operations like Page fault, exec, exit ...
-    acquire(&cur_proc->mm->mm_lock);
+    acquiresleep(&cur_proc->mm->mm_lock);
     if(cur_proc->mm->heap_vma==NULL){
         PROC_TRACE("Current process lack heap_vma, unable to get necessary info.\n");
         goto release_and_ret;
@@ -84,16 +83,18 @@ uint64 sys_sbrk(void) {
     }
     //Pass defined position verfication.
     if (t == SBRK_EAGER) {
+        acquire(&cur_proc->uvm_lock);       //blocks operations like Page fault, exec, exit ...
         if (growproc(n) < 0) {      //Update heap_vma boundary in growproc already
             tmp_ret=-1;
-            goto release_and_ret;
         }
+        release(&cur_proc->uvm_lock);
     } 
     else {
         // Lazily allocate memory for this process: increase its memory
         // size but don't allocate memory. If the processes uses the
         // memory, vmfault() will allocate it.
         if(n<0){
+            acquire(&cur_proc->uvm_lock);
         #ifdef RESERVE
             uint64 start_va=cur_proc->mm->heap_vma->vm_end;
             uint64 end_va=start_va+n;
@@ -106,13 +107,13 @@ uint64 sys_sbrk(void) {
                 goto release_and_ret;
             }  //non-reserve
         #endif
+            release(&cur_proc->uvm_lock);
         }
         else    cur_proc->mm->heap_vma->vm_end += n; //In lazy grow
     }
     tmp_ret=addr;
 release_and_ret:
-    release(&cur_proc->mm->mm_lock);
-    release(&cur_proc->uvm_lock);
+    releasesleep(&cur_proc->mm->mm_lock);
     return tmp_ret;
 }
 
@@ -249,7 +250,7 @@ uint64 sys_mmap(void ){
         if((flags & MAP_SHARED) && (prot & PROT_WRITE) && f->writable==0)
             return -1;      //EACCES
     }
-    acquire(&p->mm->mm_lock);
+    acquiresleep(&p->mm->mm_lock);
     uint64 ret=(uint64)do_mmap(&(mmap_context_t){
         .pagetable=p->pagetable,
         .rb_array=p->rb_array,
@@ -260,6 +261,6 @@ uint64 sys_mmap(void ){
         .flags=flags, 
         .f=(flags & MAP_ANONYMOUS)?NULL:p->ofile[fd], 
         .offset=offset});
-    release(&p->mm->mm_lock);
+    releasesleep(&p->mm->mm_lock);
     return ret;
 }

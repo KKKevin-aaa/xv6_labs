@@ -118,7 +118,7 @@ struct vm_area_struct{  //Virtual Memory Area
         struct vm_area_struct *next_free;
     };
     const struct vm_operation_struct *vm_ops;
-    int ref_count;  //Atomic operations
+    int ref_count;  //Atomic operations(used for non-mm_lock operations)
 };
 
 struct vma_context{ 
@@ -127,7 +127,7 @@ struct vma_context{
     vm_area_struct_t *next;
 };
 struct mm_struct{
-    struct spinlock mm_lock;
+    struct sleeplock mm_lock;
     //Protects concurrent VMA modifications within the same address space.
     //By replacing the lock in mm_struct rather than the process descriptor
     //we reduce contention among threads and decouple memory from process logic.

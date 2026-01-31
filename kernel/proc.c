@@ -3,6 +3,7 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "spinlock.h"
+#include "sleeplock.h"
 #include "proc.h"
 #include "defs.h"
 #include "rbtree.h"
@@ -256,7 +257,7 @@ int growproc(int n) {       //Ensure enter this function holding two locks(uvmlo
         pr_err("Fatal error: proc's mm shouldn't be NULL.\n");
         return -1;
     }
-    if(!holding(&p->mm->mm_lock))
+    if(!holdingsleep(&p->mm->mm_lock))
         pr_err("[Warning]Access process's mm_struct_t without lock(Protected by uvmlock).\n");
     if(p->mm->heap_vma==NULL){      //check the heap vma
         PROC_TRACE("Fatal error: proc's heap_vma shouldn't be NULL.\n");
@@ -301,8 +302,8 @@ int kfork(void) {
     //copy the rb_array first
     acquire(&cur_parent->uvm_lock);
     acquire(&new_child->uvm_lock);      //Locks required for pagetable cloning
-    acquire(&cur_parent->mm->mm_lock);
-    acquire(&new_child->mm->mm_lock);   //Locks required for mm_struct_t cloning
+    acquiresleep(&cur_parent->mm->mm_lock);
+    acquiresleep(&new_child->mm->mm_lock);   //Locks required for mm_struct_t cloning
     //Create a new one mm_struct(value copy/Deep copy)--Metadata
     vm_area_struct_t *copy_vma=cur_parent->mm->mmap , *tmp_next=NULL, *prev_vma=NULL;
     vm_area_struct_t *new_vma=NULL;
@@ -327,8 +328,8 @@ int kfork(void) {
         prev_vma=new_vma;
         copy_vma=tmp_next;
     }
-    release(&new_child->mm->mm_lock);
-    release(&cur_parent->mm->mm_lock);
+    releasesleep(&new_child->mm->mm_lock);
+    releasesleep(&cur_parent->mm->mm_lock);
     release(&new_child->uvm_lock);
     release(&cur_parent->uvm_lock);
     // Copy saved user registers.
@@ -367,8 +368,8 @@ int kfork(void) {
 
     return pid;
 error_on_copy:
-    release(&new_child->mm->mm_lock);
-    release(&cur_parent->mm->mm_lock);
+    releasesleep(&new_child->mm->mm_lock);
+    releasesleep(&cur_parent->mm->mm_lock);
     release(&cur_parent->uvm_lock);
     release(&new_child->uvm_lock);
 

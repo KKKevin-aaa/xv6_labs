@@ -4,6 +4,7 @@
 #include "riscv.h"
 #include "defs.h"
 #include "spinlock.h"
+#include "sleeplock.h"
 #include "proc.h"
 #include "rbtree.h"
 #include "kvm.h"

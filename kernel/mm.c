@@ -115,7 +115,7 @@ static int mm_ctor(void *ptr){
         return -1;
     else{   //do some additional initialization.
         mm->ref_count=1;
-        initlock(&mm->mm_lock, "mm_struct's lock.");
+        initsleeplock(&mm->mm_lock, "mm_struct's lock.");
         return 0;
     }
 }
@@ -142,7 +142,7 @@ vm_area_struct_t *kernel_insert_vma_helper(mm_struct_t *mm, uint64 va, uint64 sz
 #ifdef DEBUG_KVM
     KVM_TRACE("va=%llx sz=%llx perm=%d\n", va, sz, perm);
 #endif
-    if(!holding(&mm->mm_lock))    //Kernel-specific VMA initialization
+    if(!holdingsleep(&mm->mm_lock))    //Kernel-specific VMA initialization
         panic("[Insert_vma_helper]Race Conditions: access global_mm without lock\n");
     vm_area_struct_t *tmp_vma=alloc_kernel_vma();
     if(tmp_vma==NULL)   return NULL;
@@ -197,14 +197,14 @@ __attribute__((warn_unused_result)) mm_struct_t *mm_create() {
 
 int remove_mm(mm_struct_t *mm){
     if(mm==NULL)    return 0;
-    acquire(&mm->mm_lock);
+    acquiresleep(&mm->mm_lock);
     vm_area_struct_t *clear_vma=mm->mmap, *tmp_next;
     while(clear_vma!=NULL){
         tmp_next=clear_vma->vm_next;
         remove_vma(mm, clear_vma);   //remove from the existing mm completely
         clear_vma=tmp_next;
     }
-    release(&mm->mm_lock);
+    releasesleep(&mm->mm_lock);
     //The cpu cannot unlock a memory area that has already been deallocated
     return slab_free((void *)mm);
 }
@@ -215,7 +215,7 @@ vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr){
 #ifdef DEBUG_KVM
     KVM_TRACE("While mm=%p, try to find vaddr %llx\n", (void *)mm, vaddr);
 #endif
-    if(!holding(&mm->mm_lock))
+    if(!holdingsleep(&mm->mm_lock))
         panic("[find_vma]Race Conditions: Accessing mm without lock");
     //Fast lookup using a cache-first,tree fallback strategy to find the vma
     //containg a specific address.
@@ -245,8 +245,8 @@ vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr){
 }
 
 vm_area_struct_t *find_vma_and_get(mm_struct_t *mm, uint64 addr){
-    if(!holding(&mm->mm_lock))
-        panic("[find_vma_and_get]Race Conditions: Accessing mm without lock");
+    if(!holdingsleep(&mm->mm_lock))
+        panic("Race Conditions: Accessing mm without lock");
     vm_area_struct_t *vma=find_vma(mm, addr);
     if(vma!=NULL)   vma_get(vma);
     else    MM_TRACE("Could not locate a node containd addr within vma pool.\n");
@@ -259,7 +259,7 @@ static vm_area_struct_t *find_upper_vma(mm_struct_t *mm, uint64 vaddr){
 #endif
     //Find the first vma statifying vma->vm_end > addr
     //Differ from the find_vma, should exist one vma meet requirement unless empty vma_list
-    if(!holding(&mm->mm_lock))
+    if(!holdingsleep(&mm->mm_lock))
         panic("[find_upper_vma]Race Conditions: access mm without lock!\n");
     vm_area_struct_t *found=NULL;
     if(mm==NULL)    panic("find_vma:pass an invalid argument!\n");
@@ -293,7 +293,7 @@ static vm_area_struct_t *find_upper_vma(mm_struct_t *mm, uint64 vaddr){
 }
 
 vm_area_struct_t *find_upper_vma_and_get(mm_struct_t *mm, uint64 addr){
-    if(!holding(&mm->mm_lock))
+    if(!holdingsleep(&mm->mm_lock))
         panic("[find_vma_and_get]Race Conditions: Accessing mm without lock");
     vm_area_struct_t *vma=find_upper_vma(mm, addr);
     if(vma!=NULL)   vma_get(vma);
@@ -547,7 +547,8 @@ uint64 get_unmapped_area(mm_struct_t *mm, uint64 len,
 }
 
 int do_munmap(munmap_context_t *ctx1){
-    if(ctx1->mm==NULL || ctx1->length==0 || !holding(&ctx1->mm->mm_lock)){
+    //Grarantee holding the process's uvm_lock at the same time.
+    if(ctx1->mm==NULL || ctx1->length==0 || !holdingsleep(&ctx1->mm->mm_lock)){
         pr_warn("Invalid parameter.\n");
         return -1;
     }
@@ -606,7 +607,7 @@ int do_munmap(munmap_context_t *ctx1){
 }
 
 uint64 find_first_suit_hole(mm_struct_t *mm, uint64 req_len){
-    if(mm==NULL || !holding(&mm->mm_lock)){
+    if(mm==NULL || !holdingsleep(&mm->mm_lock)){
         pr_err("Access invalid mm_struct or without necessary lock.");
         return -1;
     }
@@ -639,7 +640,8 @@ void *do_mmap(mmap_context_t *ctx1){
         pr_err("Empty mmap_context_t.");
         return (void *)-1;
     }
-    if(ctx1->mm==NULL || !holding(&ctx1->mm->mm_lock)){
+    //Grarantee holding the process's uvm_lock at the same time.
+    if(ctx1->mm==NULL || !holdingsleep(&ctx1->mm->mm_lock)){
         pr_err("Access invalid mm_struct or without necessary lock.");
         return (void *)-1;
     }

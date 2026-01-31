@@ -116,7 +116,7 @@ struct proc {              // Process control block(PCB)
     // uint64 sz;  // end of .bss segment.(Invariant)
 
     pagetable_t pagetable;   // User page table
-    struct spinlock uvm_lock;       //Address Space Lock(also protect p->mm)
+    struct spinlock uvm_lock;       //NOTE: Protect write operatrions on physical pagetables.
 
     struct trapframe *trapframe;  // data page for trampoline.S(Mode switch)
     //(switch form User to kernel,like syscall) still belong to this process,"what I am doing before

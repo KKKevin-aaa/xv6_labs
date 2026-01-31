@@ -69,7 +69,7 @@ int kexec(char *path, char **argv) {
         return -1;
     }
     memset(shadow_mm, 0, sizeof(mm_struct_t));
-    initlock(&shadow_mm->mm_lock, p->mm->mm_lock.name);
+    initsleeplock(&shadow_mm->mm_lock, p->mm->mm_lock.name);
     begin_op();
     if ((ip = namei(path)) == 0){
         end_op();
@@ -116,13 +116,13 @@ int kexec(char *path, char **argv) {
         if ((sz1 = uvmalloc(new_pagetable, sz, ph.vaddr + ph.memsz, vma->vm_page_prot)) == 0) goto bad;
         if (loadseg(new_pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0) goto bad;
         pr_info("current sz1 is %llx and ph.vaddr is %llx and pg.filesz is %llx", sz1, ph.vaddr, ph.filesz);
-        acquire(&shadow_mm->mm_lock);
+        acquiresleep(&shadow_mm->mm_lock);
         if(insert_vma_fast(shadow_mm, vma, &(vma_context_t){.prev=prev_vma, .next=NULL})==-1){
             vma_put(vma);
             goto bad;
         }
-        release(&shadow_mm->mm_lock);
-        //Thread-private, never contention.(acquire after receive sigal from disk)
+        releasesleep(&shadow_mm->mm_lock);
+        //Thread-private, never contention.(acquire after receive signal from disk)
         prev_vma=vma;       //synchronize prev_vma
 
         if (vma->vm_flags & VM_EXEC) {
@@ -139,7 +139,7 @@ int kexec(char *path, char **argv) {
     ip = NULL;
     fileclose(src_file);
     src_file=NULL;
-    acquire(&shadow_mm->mm_lock);       //Acquire after finishing disk loading
+    acquiresleep(&shadow_mm->mm_lock);       //Acquire after finishing disk loading
     sz = PGROUNDUP(sz);
 
     //Do some preparation work.
@@ -203,20 +203,20 @@ int kexec(char *path, char **argv) {
     safestrcpy(p->name, last, sizeof(p->name));
 
     //Ownership handover(atomic exchange, Nullifying the source)
-    release(&shadow_mm->mm_lock);
+    releasesleep(&shadow_mm->mm_lock);
     acquire(&p->uvm_lock);  //Top-level lock.
-    acquire(&shadow_mm->mm_lock);
+    acquiresleep(&shadow_mm->mm_lock);
     old_pagetable = p->pagetable;
 
     mm_struct_t *old_mm=p->mm;
-    if(old_mm!=NULL)    acquire(&old_mm->mm_lock);  //Lock-Ordering:take the high-level lock first.
+    if(old_mm!=NULL)    acquiresleep(&old_mm->mm_lock);  //Lock-Ordering:take the high-level lock first.
     p->mm=shadow_mm;
     p->pagetable = new_pagetable;
     new_pagetable=0;        //Uint64*(Trivial Type)Invalid this pointer directly.
     p->trapframe->epc = elf.entry;
     p->trapframe->sp = sp;
-    if(old_mm!=NULL)    release(&old_mm->mm_lock);
-    release(&shadow_mm->mm_lock);
+    if(old_mm!=NULL)    releasesleep(&old_mm->mm_lock);
+    releasesleep(&shadow_mm->mm_lock);
     shadow_mm=NULL;
     release(&p->uvm_lock);   //Release locks as early as possible to enhance system concurrency
 
@@ -227,7 +227,7 @@ int kexec(char *path, char **argv) {
 
     return argc;
 bad:
-    if(holding(&shadow_mm->mm_lock))    release(&shadow_mm->mm_lock);
+    if(holdingsleep(&shadow_mm->mm_lock))    releasesleep(&shadow_mm->mm_lock);
     mm_put(shadow_mm);
     if (new_pagetable!=0)
         proc_freepagetable(new_pagetable);

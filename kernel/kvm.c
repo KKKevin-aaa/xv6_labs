@@ -5,6 +5,7 @@
 #include "riscv.h"
 #include "defs.h"
 #include "spinlock.h"
+#include "sleeplock.h"
 #include "proc.h"
 #include "fs.h"
 #include "rbtree.h"
@@ -209,9 +210,9 @@ void __init_code kvminit(void) {
     init_mm();
     initlock(&kvm_lock, "kvm_pagetable lock");
     global_mm=mm_create();
-    initlock(&global_mm->mm_lock, "kernel's mm_lock");
+    initsleeplock(&global_mm->mm_lock, "kernel's mm_lock");
     // initlock(&rmap_lock, )
-    acquire(&global_mm->mm_lock);
+    acquiresleep(&global_mm->mm_lock);
     kernel_pagetable = kvmmake();
     //Init lock
     global_mm->rb_root.rb_parent=NULL;
@@ -224,7 +225,7 @@ void __init_code kvminit(void) {
     kernel_insert_vma_helper(global_mm, KERNBASE, (uint64)etext - KERNBASE, PTE_R | PTE_X);
     kernel_insert_vma_helper(global_mm, (uint64)etext, PHYSTOP - (uint64)etext, PTE_R | PTE_W);
     kernel_insert_vma_helper(global_mm, TRAMPOLINE, PGSIZE, PTE_R | PTE_X);
-    release(&global_mm->mm_lock);
+    releasesleep(&global_mm->mm_lock);
 }
 
 // Switch the current CPU's h/w page table register to
@@ -408,7 +409,7 @@ __attribute__((warn_unused_result)) vm_area_struct_t *alloc_kernel_vma(void){
 #ifdef DEBUG_KVM
     KVM_TRACE("enter alloc_kernel_vma: the mm_struct is fixed as global_mm\n");
 #endif
-    if(!holding(&global_mm->mm_lock))
+    if(!holdingsleep(&global_mm->mm_lock))
         panic("[alloc_kernel_vma]Race Conditions: access global_mm without lock\n");
     vm_area_struct_t *ret=alloc_vma_node();
     if(ret!=NULL){
@@ -447,7 +448,7 @@ uint64 kvmdealloc_range(pagetable_t Kpagetable, uint64 va_start, uint64 va_end){
     uint64 align_end=PGROUNDDOWN(va_end);
     if(align_start==align_end)    return va_start;
     acquire(&kvm_lock); //Only one kernel_tablepage, so only one lock!
-    acquire(&global_mm->mm_lock);
+    acquiresleep(&global_mm->mm_lock);
     vm_area_struct_t *find_ret=find_vma_and_get(global_mm, align_start);
     if(find_ret==NULL || !(find_ret->vm_start>=align_start && align_end<=find_ret->vm_end)){ 
         //Pass the range test firstly
@@ -491,7 +492,7 @@ uint64 kvmdealloc_range(pagetable_t Kpagetable, uint64 va_start, uint64 va_end){
     else if(find_ret->vm_end==align_end){
         find_ret->vm_end=align_end;
     }
-    release(&global_mm->mm_lock);
+    releasesleep(&global_mm->mm_lock);
     kvmunmap_safe(Kpagetable, align_start, align_end-align_start, 1);
     sfence_vma();
 
@@ -508,7 +509,7 @@ error:
     vma_put(find_ret);   //local reference (if any)
     pr_err("kvmdealloc_range fail!");
     if(holding(&kvm_lock)) release(&kvm_lock);
-    if(holding(&global_mm->mm_lock)) release(&global_mm->mm_lock);
+    if(holdingsleep(&global_mm->mm_lock)) releasesleep(&global_mm->mm_lock);
     return -1;
 }
 
@@ -527,7 +528,7 @@ uint64 kvmdealloc_range2(pagetable_t Kpagetable, uint64 va_start, uint64 va_end)
     uint64 align_start=PGROUNDUP(va_start);
     uint64 align_end=PGROUNDDOWN(va_end);
     if(align_start==align_end)    return va_start;
-    acquire(&global_mm->mm_lock);
+    acquiresleep(&global_mm->mm_lock);
     acquire(&kvm_lock); //Only one kernel_tablepage, so only one lock!
     vm_area_struct_t *find_ret=find_vma_and_get(global_mm, align_start);
     if(find_ret==NULL || !(find_ret->vm_start<=align_start && align_end<=find_ret->vm_end)){ 
@@ -579,7 +580,7 @@ uint64 kvmdealloc_range2(pagetable_t Kpagetable, uint64 va_start, uint64 va_end)
     else if(find_ret->vm_end==align_end){
         find_ret->vm_end=align_end;
     }
-    release(&global_mm->mm_lock); //free the lock, so that other cpus can operator vma_tree
+    releasesleep(&global_mm->mm_lock); //free the lock, so that other cpus can operator vma_tree
     if(reclaim_orphan_pages((void *)align_start, del_size)==-1){
         KVM_TRACE("reclaim orphan pages fail, cannot rollback in this version.\n");
         panic("");
@@ -596,7 +597,7 @@ error_exit:
     vma_put(find_ret);    //local reference (if any)
     printf("kvmdealloc_range fail!\n");
     if(holding(&kvm_lock)) release(&kvm_lock);
-    if(holding(&global_mm->mm_lock)) release(&global_mm->mm_lock);
+    if(holdingsleep(&global_mm->mm_lock)) releasesleep(&global_mm->mm_lock);
     return -1;
 }
 
@@ -662,7 +663,7 @@ int Kernel_buddy_alloc_locked(pagetable_t Kpagetable, uint64 va, uint64 size, in
 static void *kvmalloc_range_locked(pagetable_t Kpagetable, uint64 start_va, 
         uint64 sz, int xperm, vma_context_t cont){
     //Alloc reserves metadata then physical resources.
-    if(!holding(&kvm_lock) || !holding(&global_mm->mm_lock)){
+    if(!holding(&kvm_lock) || !holdingsleep(&global_mm->mm_lock)){
         pr_warn("Operate kernel_pagetable and global_mm without lock");
         goto error;
     }
@@ -703,7 +704,7 @@ void *kvmalloc(pagetable_t Kpagetable, uint64 req_sz, int xperm){
     //Given fixed range:[KHEAP_START, KHEAP_END)
     vma_context_t cont;
     memset(&cont, 0, sizeof(vma_context_t));
-    acquire(&global_mm->mm_lock);
+    acquiresleep(&global_mm->mm_lock);
     acquire(&kvm_lock);
     uint64 start_va=get_unmapped_area(global_mm, req_sz, KHEAP_START, KHEAP_END, &cont);
     if(start_va==(uint64)-1){
@@ -713,12 +714,12 @@ void *kvmalloc(pagetable_t Kpagetable, uint64 req_sz, int xperm){
     void *ret=kvmalloc_range_locked(Kpagetable, start_va, req_sz, xperm, cont);
     if(ret!=(void *)start_va)   goto error;
     release(&kvm_lock); //must be held
-    release(&global_mm->mm_lock);
+    releasesleep(&global_mm->mm_lock);
     return (void *)start_va;
 error:
     if(holding(&kvm_lock)) release(&kvm_lock);
     printf("kvmalloc: fail!\n");
-    release(&global_mm->mm_lock);
+    releasesleep(&global_mm->mm_lock);
     return NULL;
     //Address 0 is a unique error indicator because it's guaranteed to be invalid.
 }
@@ -756,7 +757,7 @@ uint64 kvm_test_rb_count_nodes(rb_node_t *node, int *depth_budget){
 
 void kvm_test_assert_mm_invariants_locked(mm_struct_t *mm){
     if(mm == NULL) panic("kvm_test_assert_mm_invariants_locked: mm is NULL");
-    if(!holding(&mm->mm_lock))
+    if(!holdingsleep(&mm->mm_lock))
         panic("kvm_test_assert_mm_invariants_locked: mm_lock not held");
 
     // 1) Linked-list invariants: sorted, non-overlapping, prev/next consistent.
@@ -840,7 +841,7 @@ void test_kvm_stress_worker(int iters, int max_live, int max_pages){
     printf("[kvm_test] stress_worker enter: pid=%d iters=%d max_live=%d max_pages=%d\n",
         myproc()->pid, iters, max_live, max_pages);
 
-    if(holding(&kvm_lock) || holding(&global_mm->mm_lock))
+    if(holding(&kvm_lock) || holdingsleep(&global_mm->mm_lock))
         panic("test_kvm_stress_worker: lock already held");
 
     // Fixed-size tracking; avoid allocator recursion in the test itself.
@@ -902,12 +903,12 @@ void test_kvm_stress_worker(int iters, int max_live, int max_pages){
 
         // Periodic invariant checks. Keep it infrequent to allow contention.
         if((i % 257) == 0){
-            acquire(&global_mm->mm_lock);
+            acquiresleep(&global_mm->mm_lock);
             kvm_test_assert_mm_invariants_locked(global_mm);
-            release(&global_mm->mm_lock);
+            releasesleep(&global_mm->mm_lock);
         }
 
-        if(holding(&kvm_lock) || holding(&global_mm->mm_lock))
+        if(holding(&kvm_lock) || holdingsleep(&global_mm->mm_lock))
             panic("kvm_test: leaked lock");
     }
 
@@ -919,9 +920,9 @@ void test_kvm_stress_worker(int iters, int max_live, int max_pages){
             panic("kvm_test: drain kvmdealloc failed");
     }
 
-    acquire(&global_mm->mm_lock);
+    acquiresleep(&global_mm->mm_lock);
     kvm_test_assert_mm_invariants_locked(global_mm);
-    release(&global_mm->mm_lock);
+    releasesleep(&global_mm->mm_lock);
 
     //free the resource allocated by alloc_memory without mapping.
     free_pages((void *)recs, sizeof(kvm_alloc_rec_t)*KVM_TEST_MAX_LIVE);
@@ -1003,7 +1004,7 @@ void test_vma_slab_allocator() {
     int step = 0;
 
     // [Locking] Slab 分配器必须持有 global_mm 锁
-    acquire(&global_mm->mm_lock);
+    acquiresleep(&global_mm->mm_lock);
     TEST_LOG(++step, "Acquired global_mm->mm_lock");
 
     // --- Step 1: 批量分配 ---
@@ -1013,11 +1014,11 @@ void test_vma_slab_allocator() {
         
         // 详细检查
         if (vma_ptrs[i] == NULL) {
-            release(&global_mm->mm_lock);
+            releasesleep(&global_mm->mm_lock);
             panic("Slab alloc failed prematurely at index!");
         }
         if (vma_ptrs[i]->ref_count != 1) {
-            release(&global_mm->mm_lock);
+            releasesleep(&global_mm->mm_lock);
             panic("Allocated node ref_count, expected 1!");
         }
         if (vma_ptrs[i]->vm_start != 0) panic("Reused slab node not zeroed!");
@@ -1060,7 +1061,7 @@ void test_vma_slab_allocator() {
         }
     }
     
-    release(&global_mm->mm_lock);
+    releasesleep(&global_mm->mm_lock);
     TEST_LOG(++step, "Released lock.");
     TEST_PASS("=== VMA Slab Test Passed ===");
 }
@@ -1084,15 +1085,15 @@ void test_vma_rbtree_and_list() {
     long canary_hot=0xCAFEBABE;
     printf("now the canary_top addr is %p, test_mm is %p, canary_hot is %p\n", &canary_top, &test_mm, &canary_hot);
     memset(&test_mm, 0, sizeof(mm_struct_t));
-    initlock(&test_mm.mm_lock, "test_mm_lock");
+    initsleeplock(&test_mm.mm_lock, "test_mm_lock");
     TEST_LOG(++step, "Initialized local test_mm struct.");
 
 
     // 辅助宏：线程安全地分配一个节点
     #define SAFE_ALLOC() ({ \
-        acquire(&global_mm->mm_lock); \
+        acquiresleep(&global_mm->mm_lock); \
         vm_area_struct_t *n = alloc_kernel_vma(); \
-        release(&global_mm->mm_lock); \
+        releasesleep(&global_mm->mm_lock); \
         if(!n) panic("Safe alloc failed"); \
         n; \
     })
@@ -1119,7 +1120,7 @@ void test_vma_rbtree_and_list() {
 
     // --- 开始插入操作 (必须持有 test_mm 的锁) ---
     TEST_LOG(++step, "Acquiring test_mm.mm_lock for insertion...");
-    acquire(&test_mm.mm_lock);
+    acquiresleep(&test_mm.mm_lock);
 
     // 插入 A
     TEST_LOG(++step, "Inserting VMA A [0x1000-0x2000)...");
@@ -1184,7 +1185,7 @@ void test_vma_rbtree_and_list() {
     if (remove_vma(&test_mm, vma_b) != 1) panic("Remove B failed");
     if (remove_vma(&test_mm, vma_c) != 1) panic("Remove C failed");
     
-    release(&test_mm.mm_lock);
+    releasesleep(&test_mm.mm_lock);
     TEST_LOG(++step, "Released test_mm.mm_lock.");
     
     // 注意：test_mm 本身是在栈上的，不需要 free，但它的 rb_root 是 alloc 出来的
@@ -1228,22 +1229,22 @@ void test_kvmalloc_integrity() {
 
     // Step 3: Verify Metadata (Internal inspection)
     TEST_LOG(++step, "Inspecting VMA metadata (Manual Locking)...");
-    acquire(&global_mm->mm_lock); 
+    acquiresleep(&global_mm->mm_lock); 
     
     vm_area_struct_t *vma = find_vma_and_get(global_mm, (uint64)ptr);
     if (!vma) {
-        release(&global_mm->mm_lock);
+        releasesleep(&global_mm->mm_lock);
         panic("VMA not created for kvmalloc");
     }
     if (vma->vm_start != (uint64)ptr) {
         vma_put(vma);
-        release(&global_mm->mm_lock);
+        releasesleep(&global_mm->mm_lock);
         panic("VMA start address mismatch");
     }
     
     // [重要] 验证完必须归还引用！
     vma_put(vma); 
-    release(&global_mm->mm_lock); 
+    releasesleep(&global_mm->mm_lock); 
     TEST_PASS("Metadata exists and is correct.");
 
     // Step 4: Deallocation
@@ -1253,14 +1254,14 @@ void test_kvmalloc_integrity() {
 
     // Verify Gone
     TEST_LOG(++step, "Verifying removal...");
-    acquire(&global_mm->mm_lock);
+    acquiresleep(&global_mm->mm_lock);
     vma = find_vma_and_get(global_mm, (uint64)ptr);
     if (vma != NULL) {
         vma_put(vma); 
-        release(&global_mm->mm_lock);
+        releasesleep(&global_mm->mm_lock);
         panic("VMA still exists after free");
     }
-    release(&global_mm->mm_lock);
+    releasesleep(&global_mm->mm_lock);
 
     TEST_PASS("=== kvmalloc Test Passed ===");
 }
