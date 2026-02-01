@@ -335,6 +335,12 @@ inline uint8 __attribute__((always_inline)) i_log2(uint64 x){
 #define PXSHIFT(level) (PGSHIFT + (9 * (level)))
 #define PX(level, va) ((((uint64)(va)) >> PXSHIFT(level)) & PXMASK)
 
+#define PTE_ATTR_LOW    ((1ULL<<10)-1)
+#define PTE_ATTR_HIGH   (PTE_ATTR_LOW << 54)
+#define PTE_PPN_MASK    ~(PTE_ATTR_LOW | PTE_ATTR_HIGH)
+#define IGNORE_MASK     (PTE_A | PTE_D)
+#define CMP_PXMASK      (~IGNORE_MASK & (PTE_ATTR_HIGH | PTE_ATTR_LOW))
+
 // one beyond the highest possible virtual address.
 // MAXVA is actually one bit less than the max allowed by
 // Sv39, to avoid having to sign-extend virtual addresses

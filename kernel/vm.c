@@ -82,10 +82,6 @@ static inline uint64 get_step_size(int level){
     return 0;
 }
 
-static inline int get_shift(int level){
-    return (level *9 + 12);
-}
-
 // Look up a virtual address, return the physical address, or 0 if not mapped.
 // Can only be used to look up user pages.
 uint64 walkaddr(pagetable_t pagetable, uint64 va) {
@@ -520,7 +516,7 @@ int recursive_copy_map(pte_t *dst_pg, pte_t *src_pg, uint64 size, int level){
 //make sure the input pagetable is complete and can start with index 0
 int copy_partial_block(struct vm_sub_copy_ctx *p1){   //Reuse ret_va as src
     uint64 basic_stride=get_step_size(p1->level);
-    int i= p1->base_va >> get_shift(p1->level) & 0x1ff;
+    int i= p1->base_va >> PXSHIFT(p1->level) & PXMASK;
     uint64 src_flags=PTE_FLAGS(p1->src_pt[i]), src_pa=PTE2PA(p1->src_pt[i]);
     while(i<512 && p1->size>0){ //start with zero(always)
         if(p1->size >= basic_stride){   //Perfect fit(considering buddy_system)
@@ -611,7 +607,7 @@ int copy_partial_block(struct vm_sub_copy_ctx *p1){   //Reuse ret_va as src
 
 //Copy the whole buddy_block quickly.
 int copy_whole_block(struct vm_sub_copy_ctx *w1){
-    int start_pfn = w1->base_va >> get_shift(w1->level) & 0x1ff;
+    int start_pfn = w1->base_va >> PXSHIFT(w1->level) & PXMASK;
     uint64 src_pa=PTE2PA(w1->src_pt[start_pfn]);  //Extract the start pa
     //Perfect fit(considering buddy_system)
     uint64 num_4k_page=w1->size/PGSIZE, page_per_slot=1ull<<(9*w1->level);
@@ -751,7 +747,7 @@ void freewalk_limit(pagetable_t pagetable, int do_free, uint64 base_va, uint64 m
         uint64 pa, num_4k_page, page_per_slot, step;
         uint64 standard_stride=get_step_size(level), cur_va=base_va, va_step;
         uint64 cur_order;
-        int idx= base_va >> get_shift(level) & 0x1ff;
+        int idx= base_va >> PXSHIFT(level) & PXMASK;
         while(idx<512){
             if(cur_va>=max_sz)   break;
             pte = pagetable[idx];
@@ -803,7 +799,7 @@ int copywalk(struct vm_dupl_ctx *v1){
     uint64 pa, standard_stride=get_step_size(v1->level), cur_va=v1->base_va, va_step;
     uint64 step, flags;
     char *mem;
-    int idx= v1->base_va >> get_shift(v1->level) & 0x1ff;
+    int idx= v1->base_va >> PXSHIFT(v1->level) & PXMASK;
     while(idx < 512) {
         if(cur_va >= v1->end_va) break;
         pte = v1->old_pg[idx];
@@ -1017,24 +1013,77 @@ int vmfile_load(vm_area_struct_t *vma, uint64 va, uint64 dst_pa, uint64 size){
     return 0;
 }
 
-uint64 scan_contigous_map(pagetable_t pagetable, uint64 va, uint64 limit){
+uint64 scan_contigous_map(pagetable_t pagetable, uint64 src_va){
     // Traverse the page table entries to determine the maximum length 
     // of physically contiguous memory mapped by the current PTE range
-    int level, src_level;
-    if(limit >= 4096 && limit <512*4096)    level=0;
-    else if(limit >=512*4096 && limit<512*512*4096) level=1;
-    else    level=2;        //Highest level.
-    pte_t *src_pte=walk_internal(pagetable, va, 0, 0, &src_level), *l_pte=*src_pte;
-    if(src_pte==NULL || (*src_pte & PTE_V)==0)   return 0;
-    if(src_level!=level){
-        pr_warn("level dismatch.");
+    int level=0;
+    pte_t *l_pte=NULL, *pl_pte=NULL;        //Loop pte, and prev Loop pte.
+    uint64 cur_chunk_len=0, cur_va=src_va, offset_inpage, stride;
+    pl_pte=walk_internal(pagetable, src_va, 0, 0, &level);
+    if(pl_pte==NULL || (*pl_pte & PTE_V)==0 || PTE_LEAF(*pl_pte)==0)
         return 0;
+    offset_inpage=cur_va & (get_step_size(level)-1);
+    cur_chunk_len=(get_step_size(level)-offset_inpage);
+    //Prepare the first pte.
+    if(src_va % PGSIZE){
+        pr_warn("Src_va isn't page-aligned, have aligned first.offset ingore");
+        cur_va=PGROUNDDOWN(src_va);
     }
-    uint64 cur_chunk_len=0, next_va=va;
-    while(cur_chunk_len < limit){
-        next_va=va+cur_chunk_len;
-        next_pte=
+    while(1){       //start with one valid pte(pl_pte, and its length has added)
+        //first calculate the stride, move to the next pte.Verfiy then.
+        offset_inpage=cur_va & (get_step_size(level)-1);
+        stride=(get_step_size(level)-offset_inpage);
+        //update
+        cur_va+=stride;
+        l_pte=walk_internal(pagetable, cur_va, 0, 0, &level);
+        if(l_pte==NULL || (*l_pte & PTE_V)==0 || PTE_LEAF(*l_pte)==0)
+            return cur_chunk_len;
+        if(PTE2PA(*l_pte)!=stride+PTE2PA(*pl_pte))
+            return cur_chunk_len;
+        if((*l_pte & CMP_PXMASK)!=(*pl_pte & CMP_PXMASK))
+            return cur_chunk_len;
+        cur_chunk_len+=stride;
+        pl_pte=l_pte;
     }
+    return cur_chunk_len;
+}
+
+int process_empty_pte(struct proc *cur_proc, uint64 basepage_va, uint64 cur_va, uint64 len){
+    uint64 cur_order, block_size;
+    void *mem;
+    int perm;
+    cur_order=i_log2(basepage_va & -basepage_va);
+    cur_order=(cur_order>MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):cur_order;
+    block_size=1ull<<cur_order;
+    while(len < block_size && block_size>PGSIZE)
+        block_size/=2;
+    mem=alloc_memory(block_size);
+    if(mem==0)  return -1;
+    memset(mem, 0, block_size);
+    //check if belong to file-backend and initiate a batch disk read request.
+    if(cur_proc->mm==NULL || !holdingsleep(&cur_proc->mm->mm_lock))
+        pr_warn("lack necessary mm_struct, can't get more info.Treat as anonymous VMA.");
+    else{
+        vm_area_struct_t *cur_vma=find_vma(cur_proc->mm, cur_va);
+        if(cur_vma==NULL || cur_vma->vm_file==NULL){
+            pr_info("Treat as anonymous VMA.");
+            perm = PTE_R | PTE_U | PTE_W;
+        }
+        else if(vmfile_load(cur_vma, basepage_va, mem, block_size)!=0){
+            pr_err("Corrputed file, unable to continue.");
+            free_pages(mem, block_size);
+            return -1;
+        }
+        else    perm = cur_vma->vm_page_prot;
+    }
+    acquire(&cur_proc->uvm_lock);
+    if(mappages(cur_proc->pagetable, basepage_va, block_size, (uint64)mem, perm)!=0){
+        release(&cur_proc->uvm_lock);
+        free_pages(mem, block_size);
+        return -1;
+    }
+    release(&cur_proc->uvm_lock);
+    return 0;
 }
 
 // Copy from kernel to user.
@@ -1046,42 +1095,76 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
     uint8 cur_order=i_log2(aligned_dstva & -aligned_dstva);
     cur_order=(cur_order==0 || cur_order>MAX_ORDER+ORDER_BASE)
         ?(MAX_ORDER+ORDER_BASE):cur_order;
-    uint64 cur_max_size=1ull << cur_order;
-    uint64 alloc_size=cur_max_size, copy_size, mem;
-    uint64 cur_va=dstva, basepage_va=aligned_dstva, cur_pa;
-    pte_t *pte;
+    uint64 block_size, copy_size, cur_va=dstva, basepage_va=aligned_dstva, cur_pa;
+    void *mem;
+    int perm=0;
+    struct proc *cur_proc=myproc();
+    pte_t *pte=NULL;
     while(len>0){
-        if(cur_va>=MAXVA)   return -1;
-        cur_pa=walkaddr(pagetable, basepage_va);
-        if(cur_pa==0){
-            alloc_size=cur_max_size;
-            while(len < alloc_size && alloc_size>PGSIZE)
-                alloc_size/= 2;
-            // VM_TRACE("copyout needs alloc for basepage_va=0x%llx size=0x%llx\n", basepage_va, alloc_size);
-            mem=(uint64)alloc_memory(alloc_size);
+        if(basepage_va>=MAXVA)      return -1;
+        int found_level=0;  //Consider hugeleaf
+        pte = walk_internal(pagetable, basepage_va, 0, 0, &found_level);
+        if(pte==NULL){
+            cur_order=i_log2(basepage_va & -basepage_va);
+            cur_order=(cur_order>MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):cur_order;
+            block_size=1ull<<cur_order;
+            while(len < block_size && block_size>PGSIZE)
+                block_size/=2;
+            mem=alloc_memory(block_size);
             if(mem==0)  return -1;
-            memset((void *)mem, 0, alloc_size);
-            if(mappages(pagetable, basepage_va, alloc_size, (uint64)mem, PTE_U | PTE_W | PTE_R)!=0){
-                free_pages(mem, alloc_size);
+            memset(mem, 0, block_size);
+            //check if belong to file-backend and initiate a batch disk read request.
+            if(cur_proc->mm==NULL || !holdingsleep(&cur_proc->mm->mm_lock))
+                pr_warn("lack necessary mm_struct, can't get more info.Treat as anonymous VMA.");
+            else{
+                vm_area_struct_t *cur_vma=find_vma(cur_proc->mm, cur_va);
+                if(cur_vma==NULL || cur_vma->vm_file==NULL){
+                    pr_info("Treat as anonymous VMA.");
+                    perm = PTE_R | PTE_U | PTE_W;
+                }
+                else if(vmfile_load(cur_vma, basepage_va, mem, block_size)!=0){
+                    pr_err("Corrputed file, unable to continue.");
+                    free_pages(mem, block_size);
+                    return -1;
+                }
+                else    perm = cur_vma->vm_page_prot;
+            }
+            acquire(&cur_proc->uvm_lock);
+            if(mappages(pagetable, basepage_va, block_size, (uint64)mem, perm)!=0){
+                release(&cur_proc->uvm_lock);
+                free_pages(mem, block_size);
                 return -1;
             }
-            cur_pa=walkaddr(pagetable, basepage_va);
+            release(&cur_proc->uvm_lock);
+            cur_pa=walkaddr(pagetable, basepage_va);    //update
+            block_size=get_order(cur_pa);
         }
-        else{
-            alloc_size=1ull<<(get_order(cur_pa)+ORDER_BASE);
-            //exist the mapping, check the bitmap for more info.
-            pte=walk(pagetable, basepage_va, 0, 0);
-            if(pte==0 || (*pte & PTE_W)==0) return -1;  //exist and pte_w is valid.
+        else if ((*pte & PTE_V) == 0){   //Swap in fault.
+            //extrace info(Swap_id) from the pte.
+            //FIXME: 
+            panic("swap pending implementation.");
         }
-        copy_size=alloc_size-(cur_va-basepage_va);
+        else if ((*pte & PTE_U) == 0)    return -1;
+        else if ((*pte & PTE_W)==0){        //Valid but Unwriteable.
+            if(*pte & PTE_COW){
+                panic("COW pending implementation.");
+            }
+            else    return -1;
+            //COW.
+        }
+        else{   //pte is valid now.
+            cur_pa = PTE2PA(*pte);
+            if(found_level!=0)  cur_pa+=(basepage_va % get_step_size(found_level));
+            //find the max contigious pte len instead of get from physical order
+            // (A special case:COW may cause discontinuity)
+            block_size=scan_contigous_map(pagetable, basepage_va);
+        }
+        copy_size=block_size-(cur_va-basepage_va);
         if(copy_size>len)   copy_size=len;
         memmove((void *)cur_pa+(cur_va-basepage_va), src, copy_size);
         len-=copy_size;
         src+=copy_size;
-        cur_va=basepage_va+alloc_size;
-        cur_order=i_log2(basepage_va & -basepage_va);
-        cur_order=(cur_order>MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):cur_order;
-        cur_max_size=1ull<<cur_order;
+        cur_va=basepage_va+block_size;
         basepage_va=PGROUNDDOWN(cur_va);
     }
     return 0;
@@ -1144,14 +1227,16 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
         else if ((*pte & PTE_V) == 0){   //Swap in fault.
             //extrace info(Swap_id) from the pte.
             //FIXME: 
+            panic("swap pending implementation.");
         }
         else if ((*pte & PTE_U) == 0)    return -1;
         else{   //pte is valid now.
             cur_pa = PTE2PA(*pte);
             if(found_level!=0)  cur_pa+=(basepage_va % get_step_size(found_level));
-
+            //find the max contigious pte len instead of get from physical order
+            // (A special case:COW may cause discontinuity)
+            block_size=scan_contigous_map(pagetable, basepage_va);
         }
-        //block_size=1ull<<(get_order(cur_pa)+ORDER_BASE); 
         copy_size=block_size-(cur_va-basepage_va);
         if(copy_size>len)   copy_size=len;  
         //modified the size to reflect the actual amount successfully copied!
@@ -1215,15 +1300,16 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max) {
         else if ((*pte & PTE_V) == 0){   //Swap in fault.
             //extrace info(Swap_id) from the pte.
             //FIXME: 
+            panic("Swap pending implementation.");
         }
         else if ((*pte & PTE_U) == 0)    return -1;
         else{   //pte is valid now.
             cur_pa = PTE2PA(*pte);
             if(found_level!=0)  cur_pa+=(basepage_va % get_step_size(found_level));
+            block_size=scan_contigous_map(pagetable, basepage_va);
         }
         pte=walk(pagetable, basepage_va, 0, 0);
         if(pte==0 || (*pte & PTE_R)==0) return -1;
-        block_size=1ull<<(get_order(cur_pa)+ORDER_BASE);
         copy_size=block_size-(srcva-basepage_va);
         if(copy_size>max)   copy_size=max;  
         //modified the size according to the actual amount successfully copied!
