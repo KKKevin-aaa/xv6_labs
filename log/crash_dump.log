@@ -1,17 +1,39 @@
 ++echo log reset to ./logs/crash_dump.log
-log reset to ./logs/crash_dump.log+print *lk
-No symbol "lk" in current context.
-+frame 1
-#1  0x000000008001f16c in acquire (lk=0x87d40b00)
+log reset to ./logs/crash_dump.log+bt
+#0  __panic (file_name=0x80028960 "kernel/spinlock.c", line_no=0x1d, 
+    func_name=0x800230e0 <__func__.2> "acquire", 
+    s=0x80028930 "Re-acquiring a lock while already holding it.")
+    at kernel/printf.c:534
+#1  0x000000008002018c in acquire (lk=0x80037390 <proc+36352>)
     at kernel/spinlock.c:29
-+print lk
-$2 = (struct spinlock *) 0x87d40b00
+#2  0x000000008000ae84 in wakeup (waitChannel=0x87d5c100)
+    at kernel/proc.c:669
+#3  0x000000008000fe8e in releasesleep (lk=0x87d5c100)
+    at kernel/sleeplock.c:50
+#4  0x000000008000a48e in kfork () at kernel/proc.c:331
+#5  0x000000008000cbc2 in sys_fork () at kernel/sysproc.c:30
+#6  0x000000008000cab2 in syscall () at kernel/syscall.c:230
+#7  0x000000008000bb48 in usertrap () at kernel/trap.c:55
+#8  0x0000003ffffff09c in ?? ()
++frame 1
+#1  0x000000008002018c in acquire (lk=0x80037390 <proc+36352>)
+    at kernel/spinlock.c:29
 +print *lk
-$3 = {
+$1 = {
   locked = 0x1,
-  name = 0x80025ae0 "mm_struct's lock.",
-  cpu = 0x8002c4f0 <cpus>
+  name = 0x800243a0 "proc",
+  cpu = 0x8002dc10 <cpus>
 }
-+print mycpu()
-$4 = (struct cpu *) 0x8002c4f0 <cpus>
++frame
+#1  0x000000008002018c in acquire (lk=0x80037390 <proc+36352>)
+    at kernel/spinlock.c:29
++frame 2
+#2  0x000000008000ae84 in wakeup (waitChannel=0x87d5c100)
+    at kernel/proc.c:669
++print p-proc
+$2 = 0x2
++print myproc()
+$3 = (struct proc *) 0x80032c90 <proc+18176>
++print p
+$4 = (struct proc *) 0x80037390 <proc+36352>
 +q

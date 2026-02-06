@@ -297,6 +297,9 @@ int kfork(void) {
         release(&new_child->lock);
         return -1;
     }
+    release(&new_child->lock);
+    //release this lock firstly, 'Casue it's guaranteed not be used by any other function.
+
     // Copy user memory from parent to child.
     memmove(new_child->rb_array, cur_parent->rb_array, sizeof(struct Reservation)*MAX_RES_BLOCK);
     //copy the rb_array first
@@ -357,7 +360,7 @@ int kfork(void) {
     //Principle:the global wait_lock must be acquired 
     //          before the specific p->lock.So we must first release the process lock.
 
-    release(&new_child->lock);
+    //release(&new_child->lock);
     acquire(&wait_lock);
     new_child->parent = cur_parent;
     release(&wait_lock);
@@ -373,6 +376,8 @@ error_on_copy:
     release(&cur_parent->uvm_lock);
     release(&new_child->uvm_lock);
 
+    if(!holding(&new_child->lock))
+        acquire(&new_child->lock);
     freeproc(new_child);        //remove complete pagetable and mm_struct
     release(&new_child->lock);
     pr_err("Error in kfrok.");

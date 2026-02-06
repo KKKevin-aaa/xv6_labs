@@ -203,6 +203,8 @@ pagetable_t kvmmake(void) {
 
 
 // Initialize the kernel_pagetable, shared by all CPUs.
+// This function will be called by bootstraping,process has not yet been 
+// associated with the concept of a CPU, so myproc() will raise fault. 
 void __init_code kvminit(void) { 
 #ifdef DEBUG_KVM
     KVM_TRACE("void\n");

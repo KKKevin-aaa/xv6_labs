@@ -381,7 +381,7 @@ int insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont)
     if((cont->prev && cont->prev->vm_next != cont->next) ||
         (cont->next && cont->next->vm_prev !=cont->prev))
         return insert_vma(mm, vma);
-    if(!holding(&mm->mm_lock))
+    if(!holdingsleep(&mm->mm_lock))
         panic("[insert_vma_fast]Race Conditions: access mm without lock\n");
     //Insert into list according the tree hierarchy
     vma->vm_prev=cont->prev;
@@ -422,7 +422,7 @@ int insert_vma(mm_struct_t *mm, vm_area_struct_t *vma){
         pr_err("pass an invalid argument!\n");
         return -1;
     }
-    if(!holding(&mm->mm_lock))
+    if(!holdingsleep(&mm->mm_lock))
         panic("Race Condtions: access mm_struct without lock\n");
     rb_node_t *vma_node=&vma->vm_rb_node;
     rb_node_t **link=NULL;
@@ -469,7 +469,7 @@ int remove_vma(mm_struct_t *mm, vm_area_struct_t *vma){
 #ifdef DEBUG_KVM
     KVM_TRACE("mm=%p vma=%p\n", (void *)mm, (void *)vma);
 #endif
-    if(!holding(&mm->mm_lock))
+    if(!holdingsleep(&mm->mm_lock))
         panic("[remove_vma]Race Conditions: access mm without lock!");
     if(vma->vm_mm!=mm){
         pr_warn("try to remove vma from another tree(Dismatch mm_struct_t.\n)");
@@ -500,7 +500,7 @@ uint64 get_unmapped_area(mm_struct_t *mm, uint64 len,
         pr_err("get_unmapped_area:get invalid para!\n");
         return -1;
     }
-    if(!holding(&mm->mm_lock))
+    if(!holdingsleep(&mm->mm_lock))
         panic("[get_unmapped_area]Race Conditions: access mm without lock!");
     uint64 avail_len=high_limit-low_limit;
     if(avail_len<len){

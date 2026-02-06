@@ -3,36 +3,38 @@ xv6 kernel is booting
 
 hart 1 starting
 [36m[INFO]  Freeing unused kernel memory: 4 KB[0m
-[36m[INFO]  Freeing unused kernel memory: 4 KB[0m
-hart 2 starting
 hart 3 starting
 [36m[INFO]  Freeing unused kernel memory: 4 KB[0m
+[36m[INFO]  Freeing unused kernel memory: 4 KB[0m
+hart 2 starting
 [36m[INFO]  Freeing unused kernel memory: 4 KB[0m
 Swap out started on pid 1
 [36m[INFO]  current sz1 is 3157 and ph.vaddr is 1000 and pg.filesz is 2157[0m
 [36m[INFO]  current sz1 is 4048 and ph.vaddr is 4000 and pg.filesz is 21[0m
-now the allocated data is 0xd000, and str_len is 0x1000
+now the allocated data is 0xe000, and str_len is 0x1000
 Now load_debug_sym(vm version) succeed.
 init: starting sh
-[1;31m[ERROR] uvmcopy_range:966: old_pg=0x0000000087d11000 new_pg=0x0000000087d2b000 sz=0x3000
+[1;31m[ERROR] uvmcopy_range:962: old_pg=0x0000000087d15000 new_pg=0x0000000087d30000 sz=0x3000
 [0m
-[1;31m[ERROR] uvmcopy_range:966: old_pg=0x0000000087d11000 new_pg=0x0000000087d2b000 sz=0x1000
+[1;31m[ERROR] uvmcopy_range:962: old_pg=0x0000000087d15000 new_pg=0x0000000087d30000 sz=0x1000
 [0m
-[1;31m[ERROR] uvmcopy_range:966: old_pg=0x0000000087d11000 new_pg=0x0000000087d2b000 sz=0x1000
+[1;31m[ERROR] uvmcopy_range:962: old_pg=0x0000000087d15000 new_pg=0x0000000087d30000 sz=0x1000
 [0m
-[1;31m[ERROR] uvmcopy_range:966: old_pg=0x0000000087d11000 new_pg=0x0000000087d2b000 sz=0x0
+[1;31m[ERROR] uvmcopy_range:962: old_pg=0x0000000087d15000 new_pg=0x0000000087d30000 sz=0x0
 [0m
-1
-1
-CPU 0 current holds 3 lock(s)
- [0]: "mm_struct's lock." (ptr 0x87d40b00)
-kernel/syscall.c:27(0x8000b572)
- [1]: "User_process lock" (ptr 0x80035d40)
-kernel/syscall.c:21(0x8000b534)
- [2]: ??? (unknown)
+CPU 0 current holds 5 lock(s)
+ [0]: "proc" (ptr 0x80037390)
+kernel/proc.c:117(0x80009c74)
+ [1]: "User_process lock" (ptr 0x80032d60)
+kernel/proc.c:304(0x8000a344)
+ [2]: "User_process lock" (ptr 0x80037460)
+kernel/proc.c:305(0x8000a352)
+ [3]: "sleep lock" (ptr 0x87d5c108)
+kernel/sleeplock.c:43(0x8000fe1e)
+ [4]: ??? (unknown)
 [36m[INFO]  NULL[0m
 
-PANIC at address 0x000000008001f16c in acquire at kernel/spinlock.c:29
-acquire
+PANIC at address 0x000000008002018c in acquire at kernel/spinlock.c:29
+Re-acquiring a lock while already holding it.
 QEMU: Terminated
 
