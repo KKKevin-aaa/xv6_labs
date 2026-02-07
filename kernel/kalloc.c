@@ -7,6 +7,7 @@
 
 #include "types.h"
 #include "param.h"
+#include "atomic.h"
 #include "memlayout.h"
 #include "spinlock.h"
 #include "riscv.h"
@@ -66,13 +67,20 @@ static inline void w_tail_offset(page_t *p, uint64 offset){
 }
 
 static inline void set_free(page_t * p){
-    if(p==NULL)     return;
-    p->flags.common.type=PG_TYPE_FREE;
+    if(unlikely(p==NULL))     return;
+    int new_ref=atomic_dec_and_ret(&p->flags.ref_count);
+    if(unlikely(new_ref<0)){
+        MM_TRACE("VMA Ref-count underflow!Double free deteched!");
+        panic("Extermely! dangerous in free %llx\n", (uint64)pfn2paddr(page2pfn(p)));
+    }
+    else if(new_ref==0)
+        p->flags.common.type=PG_TYPE_FREE;
 }
 
 static inline void set_alloc(page_t *p){
     if(p==NULL)     return;
-    p->flags.common.type=PG_TYPE_MAPPED;
+    if(atomic_inc_and_ret(&p->flags.ref_count)>0)
+        p->flags.common.type=PG_TYPE_MAPPED;
 }
 
 uint64 page2pfn(struct page *pg){
@@ -94,7 +102,6 @@ page_t *get_page_desc_assert(uint64 pfn){
 
 //NOTE: all recorded order is relative to ORDER_BASE
 static void blocks_flags_reset(page_t *p, uint64 new_order, uint8 free){
-    // Caller ensures p validity!
     uint64 pfn=1, size=1ull<<new_order;
     uint64 p_pfn=p-kmem.mem_bitmaps;
     ensure_pfn_valid(p_pfn+size-1);  //check if last is valid
@@ -256,7 +263,9 @@ retry:
     tmp=kmem.free_area[split_order].head;   //lower page
     high_tmp=tmp;  //higher page
     blocks_flags_reset(tmp, split_order, 0);
-    del_from_list_nolock(tmp, split_order);
+    del_from_list_nolock(tmp, split_order);     //pop from the list
+    if(atomic_read(&tmp->flags.ref_count)!=0)   //check the node's attribute
+        panic("Exist one allocated_page on free_list.");
     uint64 tmp_pfn=(uint64)(tmp-kmem.mem_bitmaps);
     while(split_order>order){
         //split into two blocks,both add into the lower level list
@@ -265,7 +274,8 @@ retry:
         high_tmp=get_page_desc_assert(tmp_pfn+step);
         blocks_flags_reset(tmp, split_order, 0);
         blocks_flags_reset(high_tmp, split_order, 1);
-        add_to_list_nolock(high_tmp, split_order);
+        if(atomic_read(&high_tmp->flags.ref_count)==0)
+            add_to_list_nolock(high_tmp, split_order);
     }
     offset=(tmp-kmem.mem_bitmaps)*PGSIZE;
     kmem.nr_free-=(size/PGSIZE);        //Maintaining the current free pages.
@@ -275,33 +285,9 @@ retry:
     return (void *)(offset+KERNBASE);
 }
 
-void reclaim_and_merge(uint64 head_pfn, uint64 init_order){
-    //Exclusively reclaim blocks of a given order.
-    //Also attempt to merge current block with its adjacent block to redur fragmentation.
-    page_t *head=get_page_desc_assert(head_pfn);
-    blocks_flags_reset(head, init_order, 1);
-    page_t *buddy;
-    uint64 buddy_pfn;
-    while(init_order<MAX_ORDER){
-        buddy_pfn= head_pfn ^ (1ull<<init_order);
-        if(buddy_pfn>=_hidden_total_pages || buddy_pfn<_hidden_start_pfn) break;
-        buddy=get_page_desc_safe(buddy_pfn);
-        if(!buddy || buddy->flags.common.type!=PG_TYPE_FREE 
-                || buddy->flags.buddy_head.order!=init_order)
-            break;
-        //remove current_page from the correspond free_list
-        del_from_list_nolock(buddy, init_order);
-        head_pfn=buddy_pfn & head_pfn;    //update for the next loop
-        // ensure_pfn_valid(b_head_pfn);
-        init_order++;
-    }//concatenation
-    blocks_flags_reset(&kmem.mem_bitmaps[head_pfn], init_order, 1);
-    add_to_list_nolock(&kmem.mem_bitmaps[head_pfn], init_order);
-}
-
-void free_pages_nolock(void *pa, uint64 size){
-    //When releasing an incomplete page, decompage it and splice the 
-    //seperated fragments back into their respective slop.
+void split_block(void *pa, uint64 size){
+    //called by reclaim_and_merge or free_pages
+    //Used for split the complete buddy blocks into the target_order
     if((uint64)pa < free_start_addr)    panic("try to free the data segment!");
     if(size==0) return; //stop early
     size=PGROUNDUP(size);   //at least one page
@@ -346,11 +332,92 @@ void free_pages_nolock(void *pa, uint64 size){
     //breakout from loop, must check pa is new block's header,size="size"
     if(head_pfn!=b_head_pfn || tail_pfn!=b_tail_pfn)
         panic("free_page: (non-header page)fail!");
-    reclaim_and_merge(b_head_pfn, req_order);
-    uint64 prev_nrfree=kmem.nr_free;
-    kmem.nr_free+=(size/PGSIZE);
-    if(prev_nrfree<kmem.low_watermark)
-        wakeup_one(&kmem);
+}
+
+
+/**
+ * @brief 仅重置伙伴系统元数据（order, is_head, offset），不触碰引用计数或页面类型。
+ * 
+ * @param p 指向块头页的指针。
+ * @param new_order 新块的阶数。
+ */
+static void reset_buddy_metadata(page_t *p, uint64 new_order) {
+    uint64 pfn = 1;
+    uint64 size = 1ull << new_order;
+    uint64 p_pfn = page2pfn(p);
+
+    ensure_pfn_valid(p_pfn + size - 1);
+    w_head_order(p, new_order);
+    while (pfn < size) {
+        w_tail_offset(p + pfn, pfn);
+        pfn++;
+    }
+}
+
+void reclaim_and_merge(uint64 head_pfn, uint64 init_order){
+    //Exclusively reclaim blocks of a given order.
+    //Also attempt to merge current block with its adjacent block to reduce fragmentation.
+    page_t *head=get_page_desc_assert(head_pfn);
+    if(atomic_read(&kmem.mem_bitmaps[head_pfn].flags.ref_count)!=0){
+        pr_warn("Attempt to reclaim one block which ref_count!=0");
+        return;
+    }
+    page_t *buddy;
+    uint64 buddy_pfn, new_order=init_order;
+    while(new_order<MAX_ORDER){
+        buddy_pfn= head_pfn ^ (1ull<<new_order);
+        if(buddy_pfn>=_hidden_total_pages || buddy_pfn<_hidden_start_pfn) break;
+        buddy=get_page_desc_safe(buddy_pfn);
+        if(!buddy || buddy->flags.common.type!=PG_TYPE_FREE || 
+            atomic_read(&buddy->flags.ref_count)!=0 ||
+            buddy->flags.buddy_head.order!=new_order)
+            break;
+        //remove current_page from the correspond free_list
+        del_from_list_nolock(buddy, new_order);
+        if(atomic_read(&buddy->flags.ref_count)!=0)
+            panic("Exist one allocated page in free_list.");
+        head_pfn=buddy_pfn & head_pfn;    //update for the next loop
+        // ensure_pfn_valid(b_head_pfn);
+        new_order++;
+    }//concatenation
+    page_t *final_head=get_page_desc_safe(head_pfn);
+    if(init_order!=new_order)   //Avoid double reset, underflow reference.
+        reset_buddy_metadata(final_head, new_order);
+    //At a minimum, the current block will be integrated into the free list with "init_order"
+    if(atomic_read(&final_head->flags.ref_count)==0)
+        add_to_list_nolock(final_head, new_order);
+    else    panic("After reclaiming,still exist some reference??");
+}
+
+void inc_ref_range(void *pa, uint64 size){
+    //Used by kfork, simply increase the page's ref_count to raise COW in page_fault.
+    uint64 start_pfn=paddr2pfn((uint64)pa), page_cnt;
+    page_t *start_page=get_page_desc_safe(start_pfn);
+    size=ALIGN_UP(size, PGSIZE);        //page-aligned
+    page_cnt=size/PGSIZE;
+    ensure_pfn_valid(start_pfn+page_cnt-1);
+    for(int i=0;i<page_cnt;i++){
+        if(atomic_inc_not_zero(&kmem.mem_bitmaps[i+start_pfn].flags.ref_count)!=1)
+            panic("During the batch refence increment, "
+                "encountered a page with ref_count is zero");
+    }
+}
+
+
+void free_pages_nolock(void *pa, uint64 size){
+    //When releasing an incomplete page, decompage it and splice the 
+    //seperated fragments back into their respective slop.
+    split_block(pa, size);
+    uint64 b_head_pfn=paddr2pfn((uint64)pa);
+    uint64 req_order=i_log2(size-1)-11;
+    blocks_flags_reset(&kmem.mem_bitmaps[b_head_pfn], req_order, 1);
+    if(atomic_read(&kmem.mem_bitmaps[b_head_pfn].flags.ref_count)==0){
+        reclaim_and_merge(b_head_pfn, req_order);
+        uint64 prev_nrfree=kmem.nr_free;
+        kmem.nr_free+=(size/PGSIZE);
+        if(prev_nrfree<kmem.low_watermark)
+            wakeup_one(&kmem);
+    }
 }
 
 void free_pages(void *pa, uint64 size){
@@ -359,8 +426,10 @@ void free_pages(void *pa, uint64 size){
     release(&kmem.lock);
 }
 /*
-* NOTE: Extremely dangerous operation: this implies we might deallocate multiple buddy blocks simultaneously.
-   Typically, the unmap phase should only use the aforementioned function that deletes a single buddy block.
+* NOTE: Extremely dangerous operation: 
+  this implies we might deallocate multiple buddy blocks simultaneously.
+   Typically, the unmap phase should only use the aforementioned function 
+   that deletes a single buddy block.
 */
 int reclaim_orphan_pages(void *pa, uint64 size){
     //Designed for those unmap area but still holds the physical resources.

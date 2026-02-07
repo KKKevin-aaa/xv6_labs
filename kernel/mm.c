@@ -1,6 +1,7 @@
 //All operation about mm_struct_t and vm_area_struct_t
 #include "param.h"
 #include "types.h"
+#include "atomic.h"
 #include "memlayout.h"
 #include "elf.h"
 #include "riscv.h"
@@ -39,21 +40,46 @@ static inline int in_range(uint64 addr, uint64 start, uint64 end){
     return (addr >= start) && (addr < end);
 }
 
-void vma_get(vm_area_struct_t *vma){    //Acquire one reference
-    if(vma==NULL)   return;
-    __sync_fetch_and_add(&vma->ref_count, 1);   //Atomic operations(lock-free)
-    #ifdef DEBUG_REF
-        printf("VMA %p get:ref=%d\n", vma, vma.ref_count);
-    #endif
-}
+//NOTE: Dangerous and discouraged practice that exposes internal interface.
+// void vma_get(vm_area_struct_t *vma){    //Acquire one reference
+//     if(vma==NULL)   return;
+//     __sync_fetch_and_add(&vma->ref_count, 1);   //Atomic operations(lock-free)
+//     #ifdef DEBUG_REF
+//         printf("VMA %p get:ref=%d\n", vma, vma.ref_count);
+//     #endif
+// }
 
-int vma_put(vm_area_struct_t *vma){    //Drop one reference
-    //If I am the last one decrease ref_count return 1, otherwise return 0.
-    if(vma==NULL)   return 0;
-    int new_ref=__sync_sub_and_fetch(&vma->ref_count, 1);
-    #ifdef DEBUG_REF
-        printf("VMA %p put:ref=%d\n", vma, new_ref);
-    #endif
+// int vma_put(vm_area_struct_t *vma){    //Drop one reference
+//     //If I am the last one decrease ref_count return 1, otherwise return 0.
+//     if(vma==NULL)   return 0;
+//     int new_ref=__sync_sub_and_fetch(&vma->ref_count, 1);
+//     #ifdef DEBUG_REF
+//         printf("VMA %p put:ref=%d\n", vma, new_ref);
+//     #endif
+//     if(new_ref==0){
+//         if(vma->vm_ops && vma->vm_ops->close)
+//             vma->vm_ops->close(vma);
+//         if(vma->vm_file!=NULL)
+//             fileclose(vma->vm_file);
+//         return slab_free((void *)vma);
+//     }
+//     else if(new_ref<0){
+//         MM_TRACE("VMA Ref-count underflow!Double free deteched!");
+//         pr_err("Extermely! dangerous in free %llx\n", (uint64)vma);
+//         __sync_lock_test_and_set(&vma->ref_count, REF_SATURATION);
+//         return 0;
+//     }
+//     return 0;
+// }
+void vma_get(vm_area_struct_t *vma){
+    if(unlikely(vma==NULL))  return; 
+    //error, use unlikely.While in hot path,use likely() but still need handle error.(less flat)
+    if(atomic_inc_not_zero(&vma->ref_count)!=1)
+        panic("Try to get uninitialized vma, or have already free.");
+}
+int vma_put(vm_area_struct_t *vma){
+    if(unlikely(vma==NULL))     return;
+    int new_ref=atomic_dec_and_ret(&vma->ref_count);
     if(new_ref==0){
         if(vma->vm_ops && vma->vm_ops->close)
             vma->vm_ops->close(vma);
@@ -61,11 +87,9 @@ int vma_put(vm_area_struct_t *vma){    //Drop one reference
             fileclose(vma->vm_file);
         return slab_free((void *)vma);
     }
-    else if(new_ref<0){
+    else if(unlikely(new_ref<0)){
         MM_TRACE("VMA Ref-count underflow!Double free deteched!");
-        pr_err("Extermely! dangerous in free %llx\n", (uint64)vma);
-        __sync_lock_test_and_set(&vma->ref_count, REF_SATURATION);
-        return 0;
+        panic("Extermely! dangerous in free %llx\n", (uint64)vma);
     }
     return 0;
 }
@@ -73,37 +97,31 @@ int vma_put(vm_area_struct_t *vma){    //Drop one reference
 static int vma_ctor(void *ptr){
     //treat as vma,initialize ref_count
     vm_area_struct_t *vma=(vm_area_struct_t *)ptr;
-    if(vma==NULL)
-        return -1;
+    if(unlikely(vma==NULL))   return -1;
     else{   //do some additional initialization.
-        vma->ref_count=1;
+        atomic_set(&vma->ref_count, 1);
         return 0;
     }
 }
 
 void mm_get(mm_struct_t *mm){    //Acquire one reference
-    if(mm==NULL)   return;
-    __sync_fetch_and_add(&mm->ref_count, 1);
-    #ifdef DEBUG_REF
-        printf("VMA %p get:ref=%d\n", mm, mm.ref_count);
-    #endif
+    if(unlikely(mm==NULL))      return;
+    if(atomic_inc_not_zero(&mm->ref_count)!=1)
+        panic("Get a uninitialized mm, or have already free.");
 }
 
 int mm_put(mm_struct_t *mm){    //Drop one reference
     // return 1 If I am the last one decrease ref_count, otherwise return 0.
-    if(mm==NULL)   return 0;
-    int new_ref=__sync_sub_and_fetch(&mm->ref_count, 1);
-    #ifdef DEBUG_REF
-        printf("VMA %p put:ref=%d\n", mm, new_ref);
-    #endif
+    if(unlikely(mm==NULL))      return 0;
+    int new_ref=atomic_dec_and_ret(&mm->ref_count);
     if(new_ref==0){
         if(remove_mm(mm)!=0)
             pr_warn("remove_mm fail, Check the reclaim logic.\n");
         return 1;
     }
-    else if(new_ref<0){
-        pr_warn("VMA Ref-count underflow!Double free deteched!");
-        __sync_lock_test_and_set(&mm->ref_count, REF_SATURATION);
+    else if(unlikely(new_ref<0)){
+        MM_TRACE("MM Ref-count underflow!Double free deteched!");
+        panic("Extermely! dangerous in free %llx\n", (uint64)mm);
     }
     return 0;
 }
@@ -114,7 +132,7 @@ static int mm_ctor(void *ptr){
     if(mm==NULL)
         return -1;
     else{   //do some additional initialization.
-        mm->ref_count=1;
+        atomic_set(&mm->ref_count, 1);
         initsleeplock(&mm->mm_lock, "mm_struct's lock.");
         return 0;
     }
@@ -156,7 +174,7 @@ vm_area_struct_t *kernel_insert_vma_helper(mm_struct_t *mm, uint64 va, uint64 sz
     if (perm & PTE_X) flags |= VM_EXEC;
     tmp_vma->vm_flags=flags;
     tmp_vma->vm_mm=mm;
-    tmp_vma->ref_count=1;   //Held by mm_struct
+    atomic_set(&tmp_vma->ref_count, 1);   //Held by mm_struct
     //Omit values for unused arguments.
     if(insert_vma(mm, tmp_vma)!=0){
         pr_warn("insert va=%llx, size=%llx fail.\n", va, sz);
@@ -181,7 +199,7 @@ vm_area_struct_t *vma_dup(const vm_area_struct_t *vma){       //Copy safely.
     }
     //Transitioning to the Commitment Phase;
     *vma_clone=*vma;
-    vma_clone->ref_count=1;
+    atomic_set(&vma_clone, 1);
     vma_clone->vm_next=NULL;
     vma_clone->vm_prev=NULL;
     memset(&vma_clone->vm_rb_node, 0, sizeof(rb_node_t));

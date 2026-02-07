@@ -118,7 +118,7 @@ struct vm_area_struct{  //Virtual Memory Area
         struct vm_area_struct *next_free;
     };
     const struct vm_operation_struct *vm_ops;
-    int ref_count;  //Atomic operations(used for non-mm_lock operations)
+    atomic_t ref_count;  //Atomic operations(used for non-mm_lock operations)
 };
 
 struct vma_context{ 
@@ -142,7 +142,7 @@ struct mm_struct{
     vm_area_struct_t *stack_vma; //tell us the start address of main block
     uint64 arg_start, arg_end;
     uint64 env_start, env_end;  
-    int ref_count;
+    atomic_t ref_count;
 };   //one process must have one tree
 #define REF_SATURATION      0XC0000000
 

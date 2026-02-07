@@ -1,12 +1,12 @@
 
 xv6 kernel is booting
 
-hart 1 starting
-[36m[INFO]  Freeing unused kernel memory: 4 KB[0m
 hart 3 starting
+hart 1 starting
 [36m[INFO]  Freeing unused kernel memory: 4 KB[0m
 [36m[INFO]  Freeing unused kernel memory: 4 KB[0m
 hart 2 starting
+[36m[INFO]  Freeing unused kernel memory: 4 KB[0m
 [36m[INFO]  Freeing unused kernel memory: 4 KB[0m
 Swap out started on pid 1
 [36m[INFO]  current sz1 is 3157 and ph.vaddr is 1000 and pg.filesz is 2157[0m
@@ -22,19 +22,12 @@ init: starting sh
 [0m
 [1;31m[ERROR] uvmcopy_range:962: old_pg=0x0000000087d15000 new_pg=0x0000000087d30000 sz=0x0
 [0m
-CPU 0 current holds 5 lock(s)
- [0]: "proc" (ptr 0x80037390)
-kernel/proc.c:117(0x80009c74)
- [1]: "User_process lock" (ptr 0x80032d60)
-kernel/proc.c:304(0x8000a344)
- [2]: "User_process lock" (ptr 0x80037460)
-kernel/proc.c:305(0x8000a352)
- [3]: "sleep lock" (ptr 0x87d5c108)
-kernel/sleeplock.c:43(0x8000fe1e)
- [4]: ??? (unknown)
-[36m[INFO]  NULL[0m
+1
+1
+[36m[INFO]  current sz1 is 6647 and ph.vaddr is 1000 and pg.filesz is 5647[0m
+[36m[INFO]  current sz1 is 8dc8 and ph.vaddr is 7000 and pg.filesz is 31[0m
 
-PANIC at address 0x000000008002018c in acquire at kernel/spinlock.c:29
-Re-acquiring a lock while already holding it.
+PANIC at address 0x0000000080007c84 in vmfault at kernel/vm.c:1518
+COW: pending implementation.
 QEMU: Terminated
 

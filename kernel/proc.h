@@ -138,7 +138,8 @@ struct vm_dupl_ctx {
     void *ret_va;
     uint64 end_va;
     int level;
-    res_block *rblocks;
+    res_block *old_rblocks;
+    res_block *new_rblocks;
 };
 
 //Used for copywalk, store the basic info about two pagetable and e.t.c

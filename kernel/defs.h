@@ -123,6 +123,7 @@ int             is_directory_empty(pagetable_t pagetable);
 void            dump_memory_map(void);
 int             check_poison(void *ptr, uint64 size);
 int             set_poison(void *ptr, uint64 size);
+void            inc_ref_range(void *pa, uint64 size);
 // inline          void sync_rmap(void *p, uint64 size, pte_t *pte);
 
 // log.c
@@ -242,7 +243,8 @@ int             mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 p
 pagetable_t     uvmcreate(void);
 uint64          uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int perm);
 uint64          uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz);
-int             uvmcopy_range(res_block *rb_array, pagetable_t old, pagetable_t new, uint64 start, uint64 end);
+int             uvmcopy_range(struct vm_dupl_ctx *ctx1);
+int             uvmcopy_range_noalloc(struct vm_dupl_ctx *ctx1);
 void            uvmfree_range(res_block *rb_array, pagetable_t pagetable, uint64 start, uint64 end);
 void            uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free);
 void            uvmclear(pagetable_t pagetable, uint64 va);

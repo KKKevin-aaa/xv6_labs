@@ -281,6 +281,7 @@ int growproc(int n) {       //Ensure enter this function holding two locks(uvmlo
 
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.
+#define COW
 int kfork(void) {
     int i, pid;
     struct proc *new_child;
@@ -324,10 +325,30 @@ int kfork(void) {
             goto error_on_copy;
         }
         //Physical memory Replication
+    #ifndef COW
         if(uvmcopy_range(new_child->rb_array, cur_parent->pagetable, new_child->pagetable, 
                 copy_vma->vm_start, copy_vma->vm_end - copy_vma->vm_start)<0){
             goto error_on_copy;
         }
+    #else   //COW(Copy on write), Exclude read-only regions and shared regions.
+        int cow_flags= (VM_WRITE) | ~(VM_SHARED);
+        if(new_vma->vm_flags & cow_flags){
+            //modified all pte with PTE_R and all writable pte into PTE_COW(in RSW)
+
+        }
+        else{   //Not specific regions, use traditional method:deep copy
+            if(uvmcopy_range(&(struct vm_dupl_ctx){
+                .old_pg=cur_parent->pagetable,
+                .new_pg=new_child->pagetable,
+                .base_va=copy_vma->vm_start,
+                .end_va=copy_vma->vm_end,
+                .level=2,
+                .old_rblocks=cur_parent->rb_array,
+                .new_rblocks=new_child->rb_array
+            })<0)
+                goto error_on_copy;
+        }
+    #endif
         prev_vma=new_vma;
         copy_vma=tmp_next;
     }
@@ -377,7 +398,7 @@ error_on_copy:
     release(&new_child->uvm_lock);
 
     if(!holding(&new_child->lock))
-        acquire(&new_child->lock);
+        acquire(&new_child->lock);  //acquire the child'lock for reclaim its resource.
     freeproc(new_child);        //remove complete pagetable and mm_struct
     release(&new_child->lock);
     pr_err("Error in kfrok.");

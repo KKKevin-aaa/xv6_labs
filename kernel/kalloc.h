@@ -67,6 +67,7 @@ typedef enum{
 
 typedef union page_flags{
     uint64 raw;
+    atomic_t ref_count;
     struct{
         uint64 type:3;
         uint64 is_head:1;
