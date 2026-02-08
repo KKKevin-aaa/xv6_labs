@@ -266,6 +266,7 @@ uint64          alloc_res_memory(res_block *rb_array, pagetable_t pagetable, uin
 uint64          free_res_memory(res_block *rb_array, pagetable_t pagetable, uint64 start_va, uint64 end_va, uint64 size);
 void            reclaim_res_memory_range(res_block *rb_array, pagetable_t pagetable, uint64 start_va, uint64 end_va);
 uint64          Simp_alloc_res_memory(res_block *rb_array, pagetable_t pagetable, uint64 size, int perm);
+uint64          scan_contigous_map(pagetable_t paegetable, uint64 src_va);
 
 //rbtree_impl.c
 void            Cycle_detection(rb_root_t *root);

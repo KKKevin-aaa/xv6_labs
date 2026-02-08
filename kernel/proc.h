@@ -148,8 +148,9 @@ struct vm_sub_copy_ctx{
     pte_t *src_pt;  //Source Page table
     uint64 base_va;
     uint64 size;
-    int level;
-    res_block *rblocks;
+    res_block *old_rblocks;
+    res_block *new_rblocks;
+    int dst_level;
 };
 
 #ifdef DEBUG_PROC
