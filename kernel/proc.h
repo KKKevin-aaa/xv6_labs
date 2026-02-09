@@ -132,12 +132,12 @@ struct proc {              // Process control block(PCB)
 };
 
 struct vm_dupl_ctx {
-    pagetable_t old_pg;
-    pagetable_t new_pg;
+    pagetable_t src_pg;
+    pagetable_t dst_pg;
     uint64 base_va;
     void *ret_va;
     uint64 end_va;
-    int level;
+    int dst_level;
     res_block *old_rblocks;
     res_block *new_rblocks;
 };

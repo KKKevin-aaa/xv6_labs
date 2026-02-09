@@ -243,7 +243,7 @@ int             mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 p
 pagetable_t     uvmcreate(void);
 uint64          uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int perm);
 uint64          uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz);
-int             uvmcopy_range(struct vm_dupl_ctx *ctx1);
+int             uvmcopy_range_private(struct vm_dupl_ctx *ctx1);
 int             uvmcopy_range_noalloc(struct vm_dupl_ctx *ctx1);
 void            uvmfree_range(res_block *rb_array, pagetable_t pagetable, uint64 start, uint64 end);
 void            uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free);

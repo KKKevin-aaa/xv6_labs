@@ -337,12 +337,12 @@ int kfork(void) {
 
         }
         else{   //Not specific regions, use traditional method:deep copy
-            if(uvmcopy_range(&(struct vm_dupl_ctx){
-                .old_pg=cur_parent->pagetable,
-                .new_pg=new_child->pagetable,
+            if(uvmcopy_range_private(&(struct vm_dupl_ctx){
+                .src_pg=cur_parent->pagetable,
+                .dst_pg=new_child->pagetable,
                 .base_va=copy_vma->vm_start,
                 .end_va=copy_vma->vm_end,
-                .level=2,
+                .dst_level=2,
                 .old_rblocks=cur_parent->rb_array,
                 .new_rblocks=new_child->rb_array
             })<0)
