@@ -78,13 +78,13 @@ static inline void set_free(page_t * p){
 }
 
 static inline void set_alloc(page_t *p){
-    if(p==NULL)     return;
+    if(unlikely(p==NULL))     return;
     if(atomic_inc_and_ret(&p->flags.ref_count)>0)
         p->flags.common.type=PG_TYPE_MAPPED;
 }
 
 uint64 page2pfn(struct page *pg){
-    if(pg==NULL)  return 0;
+    if(unlikely(pg==NULL))  return 0;
     return (uint64)(pg-kmem.mem_bitmaps);
 }
 
@@ -201,7 +201,7 @@ uint64 get_order(uint64 pa){
 
 uint8 is_head(uint64 pa){
     if(pa%PGSIZE!=0)
-    panic("get order: Lookup unaligned address!");
+        panic("get order: Lookup unaligned address!");
     acquire(&kmem.lock);
     page_t *p=get_page_desc_assert(paddr2pfn(pa));
     uint8 ret=p->flags.buddy_head.is_head;

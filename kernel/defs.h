@@ -124,6 +124,12 @@ void            dump_memory_map(void);
 int             check_poison(void *ptr, uint64 size);
 int             set_poison(void *ptr, uint64 size);
 void            inc_ref_range(void *pa, uint64 size);
+static inline int      get_page_ref_count(void *pa){
+    if((uint64)pa%PGSIZE!=0)
+        panic("get page ref_count: Lookup unaligned address!");
+    if(unlikely(pa==NULL))  return -1;  //error
+    return atomic_read(&get_page_desc_assert(paddr2pfn((uint64)pa))->flags.ref_count);
+}
 // inline          void sync_rmap(void *p, uint64 size, pte_t *pte);
 
 // log.c
