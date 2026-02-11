@@ -1,38 +1,6 @@
 ++echo log reset to ./logs/crash_dump.log
-log reset to ./logs/crash_dump.log+bt
-#0  __panic (file_name=0x80023600 "kernel/vm.c", line_no=0x5ee, 
-    func_name=0x80023020 <__func__.7> "vmfault", 
-    s=0x80024020 "COW: pending implementation.") at kernel/printf.c:534
-#1  0x0000000080007c84 in vmfault (rblocks=0x800375a8 <proc+36856>, 
-    pagetable=0x87d3b000, va=0x7000, read=0x0) at kernel/vm.c:1518
-#2  0x000000008000bc7c in usertrap () at kernel/trap.c:59
-#3  0x0000003ffffff09c in ?? ()
-+print pte
-No symbol "pte" in current context.
-+thread 1
-[Switching to thread 1 (Thread 1.1)]
-#0  __panic (file_name=0x80023600 "kernel/vm.c", line_no=0x5ee, 
-    func_name=0x80023020 <__func__.7> "vmfault", 
-    s=0x80024020 "COW: pending implementation.") at kernel/printf.c:534
-+print pte
-No symbol "pte" in current context.
-+frame 1
-#1  0x0000000080007c84 in vmfault (rblocks=0x800375a8 <proc+36856>, 
-    pagetable=0x87d3b000, va=0x7000, read=0x0) at kernel/vm.c:1518
-+print pte
-$1 = (pte_t *) 0x87d3f038
-+print *pte
-$2 = 0x200b1c13
-+print p->pagetable
-$3 = (pagetable_t) 0x87d3b000
-+bt
-#0  __panic (file_name=0x80023600 "kernel/vm.c", line_no=0x5ee, 
-    func_name=0x80023020 <__func__.7> "vmfault", 
-    s=0x80024020 "COW: pending implementation.") at kernel/printf.c:534
-#1  0x0000000080007c84 in vmfault (rblocks=0x800375a8 <proc+36856>, 
-    pagetable=0x87d3b000, va=0x7000, read=0x0) at kernel/vm.c:1518
-#2  0x000000008000bc7c in usertrap () at kernel/trap.c:59
-#3  0x0000003ffffff09c in ?? ()
-+;4#;4q
-Undefined command: "".  Try "help".
+log reset to ./logs/crash_dump.log+info breakpoints
+Num     Type           Disp Enb Address            What
+1       breakpoint     keep y   0x0000000080000f72 in init_whole_area at kernel/kalloc.c:154
+	stop only if i==0x2a3
 +q

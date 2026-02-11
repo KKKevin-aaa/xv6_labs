@@ -236,6 +236,7 @@ void split_into_blocks(res_block * rblocks, pagetable_t pagetable, uint64 va, ui
     *old_pte=PA2PTE(new_pagetable) | PTE_V; //Directory pte
     sfence_vma();
     free_pages((void *)delete_pa, get_step_size(cur_level));
+    sfence_vma();
 }
 
 //Split the hugepage into smaller part(cur_level -1 ) and ignore the pte with range:[start_vpn, end_vpn]
@@ -334,8 +335,7 @@ uint64 uvmunmap_helper(pagetable_t pagetable, uint64 va, uint64 size, int cur_le
                 cur_vpn++;    //across two pages, continue handling(at current level)
             }
             else{   //full Unmap(basic_stride < size-del_size)
-                uint64 max_cont_len=basic_stride;
-                uint64 cur_src_pa=PTE2PA(pagetable[cur_vpn]), cmp_perm=PTE_FLAGS(*pte);
+                uint64 max_cont_len=basic_stride, cmp_perm=PTE_FLAGS(*pte);
                 pte_t tmp_pte=0;
                 int inc_vpn=1;
                 while(cur_vpn+inc_vpn < 512 && max_cont_len < (size - del_size)){
@@ -543,7 +543,6 @@ int copy_partial_leaf_private(struct vm_sub_copy_ctx *p1){   //Reuse ret_va as s
     uint64 basic_stride=get_step_size(p1->dst_level), chunk_size;
     int i= p1->base_va >> PXSHIFT(p1->dst_level) & PXMASK;
     uint64 src_flags=PTE_FLAGS(p1->src_pt[i]), src_pa;
-    uint64 rb_idx=-1;       //Set to illegal at first.
     while(i<512 && p1->size>0){ //start with zero(always)
         //Pseduo-splitting of the heap reservation area, while maintaining physical continuity.
         src_pa=PTE2PA(p1->src_pt[i]);
@@ -640,12 +639,12 @@ int copy_partial_leaf_shared(struct vm_sub_copy_ctx *p1){
                 if(p1->dst_level==1){
                     //Both the parent and child processes have their corresponding PTEs
                     //set to read-only and marked for COW.
-                    src_child_pt[j]=PA2PTE(cur_pa) | src_flags & ~PTE_W | PTE_COW;
+                    src_child_pt[j]=PA2PTE(cur_pa) | (src_flags & ~PTE_W) | PTE_COW;
                     if(j>=start_pfn && j < end_pfn)
                         dst_child_pt[j]=src_child_pt[j];
                 }
                 else{
-                    src_child_pt[j]=PA2PTE(cur_pa) | PTE_V;    //not the lowest level
+                    src_child_pt[j]=(PA2PTE(cur_pa) | PTE_V);    //not the lowest level
                     dst_child_pt[j]=src_child_pt[j];
                 }
                 cur_pa+=sub_basic_stride;
@@ -677,7 +676,7 @@ int copy_partial_leaf_shared(struct vm_sub_copy_ctx *p1){
                 });  //Undertake the actual work.
             }
             else{
-                inc_ref_range(src_pa+start_pfn*PGSIZE, p1->size);
+                inc_ref_range((void *)(src_pa+start_pfn*PGSIZE), p1->size);
                 return 0;   //already finish copy.
             }
         }
@@ -704,10 +703,10 @@ int copy_partial_leaf_shared(struct vm_sub_copy_ctx *p1){
             }
             for(int j = 0; j < step; j++){
                 // Reuse flags from original entry
-                p1->src_pt[i+j] = p1->src_pt[i+j] & ~PTE_W | PTE_COW;
+                p1->src_pt[i+j] = (p1->src_pt[i+j] & ~PTE_W) | PTE_COW;
                 p1->dst_pt[i+j] = p1->src_pt[i+j];
             }
-            inc_ref_range(src_pa, chunk_size);
+            inc_ref_range((void *)src_pa, chunk_size);
             i+=step;
             p1->size-=chunk_size;
             src_pa+=chunk_size;
@@ -715,7 +714,7 @@ int copy_partial_leaf_shared(struct vm_sub_copy_ctx *p1){
         }
         else{
             //The lowest level, minimun size is PGSIZE.
-            p1->src_pt[i]=p1->src_pt[i] & ~PTE_W | PTE_COW;
+            p1->src_pt[i]=(p1->src_pt[i] & ~PTE_W) | PTE_COW;
             p1->dst_pt[i]= p1->src_pt[i];
             inc_ref_range((void *)PTE2PA(p1->src_pt[i]), PGSIZE);
             return 0;
@@ -806,7 +805,7 @@ void freewalk(pagetable_t pagetable, int do_free, int level) {
             freewalk((pagetable_t)pa, do_free, level-1);
             step=1;
         } else if ((pte & PTE_V) && do_free!=0) {   //leaf-node,release the physical page
-            //check if next page is associated with current page
+            //check if next page is associated with current page(Non-contiguity of physical addresses.)
             cur_order=get_order(pa);    //Specific area(Cannot be freed),so skip additional checks.
             uint64 max_phy_size=1ull<<(cur_order+ORDER_BASE), cont_len=0;
             //Not limit by max_sz(free the entire pagetable), so unnecessary to adjust the max_phy_size
@@ -921,9 +920,8 @@ int copy_heap_2mb_chunk_private(struct vm_dupl_ctx *v1){
         panic("Interface Conflict");
         return -1;
     }
-    uint64 cur_va=v1->base_va, rb_idx;
+    uint64 cur_va=v1->base_va, rb_idx, src_pa;
     pte_t src_pte;
-    uint64 src_pa, mem;
     int idx=0, inc_idx=0;
     while(cur_va < v1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE 
         && cur_va < v1->end_va){
@@ -941,7 +939,7 @@ int copy_heap_2mb_chunk_private(struct vm_dupl_ctx *v1){
             memmove((void *)new_superpage, (void *)(v1->new_rblocks[rb_idx].pa), SUPERPGSIZE);    //migrate data
             uint64 cur_pa=new_superpage+PGSIZE*bp_idx, cur_flags;
             memset(v1->new_rblocks[rb_idx].bitmap, 0, bp_idx);
-            memset(v1->new_rblocks->bitmap[bp_idx+bp_step], 0, 512-(bp_idx+bp_step));
+            memset(&v1->new_rblocks->bitmap[bp_idx+bp_step], 0, 512-(bp_idx+bp_step));
             if(v1->new_rblocks[rb_idx].promoted==0 || v1->base_va + SUPERPGSIZE > v1->end_va){
                 uint64 mem=(uint64)alloc_memory(PGSIZE);
                 if(mem==0)      panic("OOM.");
@@ -978,7 +976,7 @@ int copy_heap_2mb_chunk_private(struct vm_dupl_ctx *v1){
                 continue;
             }
             if(PTE_LEAF(src_pte)==1)    panic("Should not be leaf pte.");
-            pagetable_t cur_src_pg= PTE2PA(v1->src_pg[idx]), cur_dst_pg=0;
+            pagetable_t cur_src_pg= (pagetable_t)PTE2PA(v1->src_pg[idx]), cur_dst_pg=0;
             for(int i=0;i<bp_step;i++){
                 if((cur_src_pg[i+bp_idx] & PTE_V) !=0){
                     if(cur_dst_pg==0){
@@ -1042,7 +1040,7 @@ int copy_heap_2mb_chunk_shared(struct vm_dupl_ctx *v1){
                 //set to read-only and marked for COW.
                 if(j>=bp_idx && j < bp_idx+bp_step){
                     if(src_dire[j]==0)  continue;
-                    src_dire[j]=src_dire[j] & ~PTE_W | PTE_COW;
+                    src_dire[j]=(src_dire[j] & ~PTE_W) | PTE_COW;
                     dst_new_dire[j]=src_dire[j];
                     if(src_dire[j] & PTE_V)
                         inc_ref_range((void *)PTE2PA(src_dire[j]), PGSIZE);
@@ -1053,7 +1051,7 @@ int copy_heap_2mb_chunk_shared(struct vm_dupl_ctx *v1){
             //update old_rblock's metadata.
             v1->new_rblocks[rb_idx]=v1->old_rblocks[rb_idx];
             memset(v1->new_rblocks[rb_idx].bitmap, 0, bp_idx);
-            memset(v1->new_rblocks->bitmap[bp_idx+bp_step], 0, 512-(bp_idx+bp_step));
+            memset(&v1->new_rblocks->bitmap[bp_idx+bp_step], 0, 512-(bp_idx+bp_step));
             //udpate new_rblock's metadata.
         }
         else{   //Standard pte,however considering it's located within the heap region,
@@ -1063,7 +1061,7 @@ int copy_heap_2mb_chunk_shared(struct vm_dupl_ctx *v1){
                 continue;
             }
             if(PTE_LEAF(src_pte)==1)    panic("Should not be leaf pte.");
-            pagetable_t cur_src_pg= PTE2PA(v1->src_pg[idx]), cur_dst_pg=0;
+            pagetable_t cur_src_pg= (pagetable_t)PTE2PA(v1->src_pg[idx]), cur_dst_pg=0;
             for(int i=0;i<bp_step;i++){
                 if((cur_src_pg[i+bp_idx] & PTE_V) !=0){
                     if(cur_dst_pg==0){
@@ -1073,7 +1071,7 @@ int copy_heap_2mb_chunk_shared(struct vm_dupl_ctx *v1){
                         //hangle to the directory tree.
                         v1->dst_pg[idx]=PA2PTE(cur_dst_pg) | PTE_V;
                     }
-                    cur_src_pg[i+bp_idx] = cur_src_pg[i+bp_idx] & ~PTE_W | PTE_COW;
+                    cur_src_pg[i+bp_idx] = (cur_src_pg[i+bp_idx] & ~PTE_W) | PTE_COW;
                     cur_dst_pg[i+bp_idx]=cur_src_pg[i+bp_idx];
                     inc_ref_range((void *)PTE2PA(cur_dst_pg[i+bp_idx]), PGSIZE);
                 }
@@ -1090,7 +1088,7 @@ int copy_heap_2mb_chunk_shared(struct vm_dupl_ctx *v1){
 int copywalk_private(struct vm_dupl_ctx *v1){
     pte_t pte, new_pte;
     uint64 pa, standard_stride=get_step_size(v1->dst_level), cur_va=v1->base_va, va_step;
-    uint64 step, flags;
+    uint64 flags;
     int idx= v1->base_va >> PXSHIFT(v1->dst_level) & PXMASK, heap_managed=0;
     while(idx < 512) {
         if(cur_va >= v1->end_va) break;
@@ -1165,7 +1163,7 @@ int copywalk_private(struct vm_dupl_ctx *v1){
                 void *comp_leaf=alloc_memory(standard_stride);
                 if(comp_leaf==NULL)     panic("OOM.");
                 memset(comp_leaf, 0, standard_stride);
-                memmove(comp_leaf, pa, standard_stride);
+                memmove(comp_leaf, (void *)pa, standard_stride);
                 v1->dst_pg[idx]=PA2PTE((uint64)comp_leaf) | PTE_FLAGS(v1->src_pg[idx]);
             }
             va_step=MIN(standard_stride, remain_size);
@@ -1182,7 +1180,7 @@ int copywalk_private(struct vm_dupl_ctx *v1){
 int copywalk_shared(struct vm_dupl_ctx *v1){
     pte_t pte, new_pte;
     uint64 pa, standard_stride=get_step_size(v1->dst_level), cur_va=v1->base_va, va_step;
-    uint64 step, flags;
+    uint64 flags;
     int idx= v1->base_va >> PXSHIFT(v1->dst_level) & PXMASK, heap_managed=0;
     while(idx < 512) {
         if(cur_va >= v1->end_va) break;
@@ -1253,7 +1251,7 @@ int copywalk_shared(struct vm_dupl_ctx *v1){
                     return -1;
             }
             else{
-                v1->src_pg[idx]= v1->src_pg[idx] & ~PTE_W | PTE_COW;
+                v1->src_pg[idx]= (v1->src_pg[idx] & ~PTE_W) | PTE_COW;
                 v1->dst_pg[idx]= v1->src_pg[idx];
                 inc_ref_range((void *)PTE2PA(v1->src_pg[idx]), standard_stride);
             }
@@ -1302,11 +1300,14 @@ int uvmcopy_range_shared(struct vm_dupl_ctx *ctx1) {
     pr_err("old_pg=%p new_pg=%p start=0x%llx, end=0x%llx\n", 
         (void *)ctx1->old_pg, (void *)ctx1->new_pg, ctx1->base_va, ctx1->end_va);
 #endif
-    uint64 ret_va=0;
     ctx1->dst_level=2;
+    uint64 local_fallback_va=ctx1->base_va;
+    if(ctx1->ret_va==NULL)
+        ctx1->ret_va=&local_fallback_va;
     if(copywalk_shared(ctx1)<0)
     {    //prevent resources leaks and waste
-        uvmfree_range(ctx1->new_rblocks, ctx1->dst_pg, ctx1->base_va ,ret_va-ctx1->base_va);
+        uvmfree_range(ctx1->new_rblocks, ctx1->dst_pg, 
+            ctx1->base_va , (uint64)ctx1->ret_va-ctx1->base_va);
         //Error occurs, size are guaranteed not to exceed the original size
         pr_err("copywalk_shared failed.");
         return -1;
@@ -1325,7 +1326,8 @@ void uvmclear(pagetable_t pagetable, uint64 va) {
     *pte &= ~PTE_U;
 }
 
-//-----NOTE:the following three function are build upon kernel page, user pa is treated as kernel va.--------
+//-----NOTE:the following three function are build upon kernel page, 
+//          user pa is treated as kernel va.--------
 #define PROACTIVE_CHECK
 
 //handle file-backend page fault, support arbitrary size
@@ -1529,13 +1531,20 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
             }
             if((*pte & PTE_COW) && (cur_vma->vm_flags & VM_WRITE) && (*pte & PTE_W)==0){
                 uint64 old_pa=PTE2PA(*pte), src_flag=PTE_FLAGS(*pte);
-                uint64 max_cont_len=0;  //for shared pagetable, check the maximum length.
-                uint64 tmp_va=cur_va;
-                int tmp_idx=PX(found_level, cur_va);
-                while(tmp_va< cur_vma->vm_end){
-                    if(tmp_idx >512)    break;      //FIXME: 
+                if(get_page_ref_count((void *)old_pa)!=1){
+                    cur_pa=(uint64)alloc_memory(PGSIZE);
+                    if(cur_pa==0){
+                        pr_warn("COW:alloc memory fail.\n");
+                        goto error;
+                    }
+                    memmove((void *)cur_pa, (void *)old_pa, PGSIZE);
+                    *pte=PTE2PA(cur_pa) | (src_flag & ~PTE_COW) | PTE_W;    //Overwrite
+                    free_pages((void *)old_pa, PGSIZE);
                 }
-                panic("COW pending implementation.");
+                else{   //Current ref_count is already one, exclusively owned this page.
+                    *pte = (*pte & ~PTE_COW) | PTE_W;
+                    cur_pa=PTE2PA(*pte);
+                }
             }
             else{
                 pr_err("%llx exist valid pte, but it's not writable.", cur_va);
@@ -1558,12 +1567,21 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
         cur_va=basepage_va+block_size;
         basepage_va=PGROUNDDOWN(cur_va);
     }
+    if(locked_by_me==1){
+        releasesleep(&cur_proc->mm->mm_lock);
+        locked_by_me=0;
+    }
+    sfence_vma();   //At least call the TLB flush before reback to user's process,
+    //But considering, this funcion follow other process schedule 
+    // or this pagetable is shared by multi-thread and other CPU core is running the same process.
+    // TLB will dismatch with pagetable.
     return 0;
 error:
     if(locked_by_me==1){
         releasesleep(&cur_proc->mm->mm_lock);
         locked_by_me=0;
     }
+    sfence_vma();
     return -1;
 }
 
@@ -1613,7 +1631,7 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
             cur_order=(cur_order>MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):cur_order;
             block_size=1ull<<cur_order;
             while(len < block_size && block_size>PGSIZE)
-                block_size/=2;
+                block_size/=2;  //Before enter block is power of 2 already, divide 2 simply.
             // VM_TRACE("copyin needs alloc for basepage_va=0x%llx size=0x%llx\n", basepage_va, alloc_size);
             mem=alloc_memory(block_size);
             if(mem==0)  goto error;
@@ -1854,24 +1872,25 @@ uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
     else if(pte!=NULL && (*pte & PTE_V)==0){        //Swap in Fault
         //extrace info(Swap_id) from the pte.
         //FIXME: 
+        panic("Swap fault have not handle.");
     }
     else{       //PTE is valid, but permission dismatch
         if(vma->vm_flags & VM_WRITE){   //COW(copy on write)
-            if(PTE_LEAF(*pte)==0 || (*pte & PTE_COW)==0 || (*pte & PTE_W)==1)
+            if(!PTE_LEAF(*pte) || !(*pte & PTE_COW) || (*pte & PTE_W))
                 panic("Dismatch between PTE amd vm_flag in COW.");
             uint64 old_pa=PTE2PA(*pte), src_flag=PTE_FLAGS(*pte);
-            if(get_page_ref_count(old_pa)!=1){
+            if(get_page_ref_count((void *)old_pa)!=1){
                 ret_pa=(uint64)alloc_memory(PGSIZE);
                 if(ret_pa==0){
                     pr_warn("COW:alloc memory fail.\n");
                     goto release_and_ret;
                 }
-                memmove((void *)ret_pa, old_pa, PGSIZE);
-                *pte=PTE2PA(ret_pa) | (src_flag & ~PTE_COW | PTE_W);    //Overwrite
-                free_pages(old_pa, PGSIZE);
+                memmove((void *)ret_pa, (void *)old_pa, PGSIZE);
+                *pte=PTE2PA(ret_pa) | (src_flag & ~PTE_COW) | PTE_W;    //Overwrite
+                free_pages((void *)old_pa, PGSIZE);
             }
             else{   //Current ref_count is already one, exclusively owned this page.
-                *pte = *pte & ~PTE_COW | PTE_W;
+                *pte = (*pte & ~PTE_COW) | PTE_W;
                 ret_pa=PTE2PA(*pte);
             }
             // panic("COW: pending implementation.");

@@ -1,5 +1,6 @@
 #include "param.h"
 #include "types.h"
+#include "atomic.h"
 #include "memlayout.h"
 #include "elf.h"
 #include "riscv.h"
@@ -483,7 +484,7 @@ uint64 kvmdealloc_range(pagetable_t Kpagetable, uint64 va_start, uint64 va_end){
         new_vma->vm_page_prot=find_ret->vm_page_prot;
         new_vma->vm_flags=find_ret->vm_flags;
         new_vma->vm_mm=global_mm;
-        new_vma->ref_count=1;   //Held by mm_struct
+        atomic_set(&new_vma->ref_count, 1);     //Held by mm_struct
         //Omit values for unused arguments.
         if(insert_vma_fast(global_mm, new_vma, &cont1)==-1)
             goto reset_vma;
@@ -571,7 +572,7 @@ uint64 kvmdealloc_range2(pagetable_t Kpagetable, uint64 va_start, uint64 va_end)
         new_vma->vm_page_prot=find_ret->vm_page_prot;
         new_vma->vm_flags=find_ret->vm_flags;
         new_vma->vm_mm=global_mm;
-        new_vma->ref_count=1;   //Held by mm_struct
+        atomic_set(&new_vma->ref_count, 1);     //Held by mm_struct
         //Omit values for unused arguments.
         if(insert_vma_fast(global_mm, new_vma, &cont1)==-1)
             goto error_restore;
@@ -1019,7 +1020,7 @@ void test_vma_slab_allocator() {
             releasesleep(&global_mm->mm_lock);
             panic("Slab alloc failed prematurely at index!");
         }
-        if (vma_ptrs[i]->ref_count != 1) {
+        if(atomic_read(&vma_ptrs[i]->ref_count)!=1){
             releasesleep(&global_mm->mm_lock);
             panic("Allocated node ref_count, expected 1!");
         }
@@ -1144,7 +1145,7 @@ void test_vma_rbtree_and_list() {
     printf("    -> Looking up 0x1050...\n");
     vm_area_struct_t *found = find_vma_and_get(&test_mm, 0x1050);
     if (found != vma_a) panic("Lookup 0x1050 failed!");
-    printf("    -> Found VMA A (Ref count now: %d, Expected 2)\n", found->ref_count);
+    printf("    -> Found VMA A (Ref count now: %d, Expected 2)\n", atomic_read(&found->ref_count));
     vma_put(found); // 必须归还引用！
     
     // 查找 0x2050 (Inside B)

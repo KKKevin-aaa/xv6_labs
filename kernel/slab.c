@@ -1,5 +1,6 @@
 #include "param.h"
 #include "types.h"
+#include "atomic.h"
 #include "memlayout.h"
 #include "elf.h"
 #include "riscv.h"
@@ -155,7 +156,7 @@ struct slab_page *slab_refill(slab_cache_t *cache){  //Require lock held.
     //Post-allocation, pointer is exclusively head by current thread.(No lock!)
     for(int i=0;i<(1ull<<cache->page_order);i++){
         memset((void *)&(new_page+i)->u, 0, sizeof(new_page->u));
-        (new_page+i)->flags.common.type=PG_TYPE_SLAB;
+        page_set_type(new_page + i, PG_TYPE_SLAB);
         (new_page+i)->u.slab.cache=cache;
         (new_page+i)->u.slab.magic=SLAB_PAGE_MAGIC;
         (new_page+i)->u.slab.inuse_count=0;

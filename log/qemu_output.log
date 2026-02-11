@@ -1,33 +1,8 @@
 
 xv6 kernel is booting
 
-hart 3 starting
-hart 1 starting
-[36m[INFO]  Freeing unused kernel memory: 4 KB[0m
-[36m[INFO]  Freeing unused kernel memory: 4 KB[0m
-hart 2 starting
-[36m[INFO]  Freeing unused kernel memory: 4 KB[0m
-[36m[INFO]  Freeing unused kernel memory: 4 KB[0m
-Swap out started on pid 1
-[36m[INFO]  current sz1 is 3157 and ph.vaddr is 1000 and pg.filesz is 2157[0m
-[36m[INFO]  current sz1 is 4048 and ph.vaddr is 4000 and pg.filesz is 21[0m
-now the allocated data is 0xe000, and str_len is 0x1000
-Now load_debug_sym(vm version) succeed.
-init: starting sh
-[1;31m[ERROR] uvmcopy_range:962: old_pg=0x0000000087d15000 new_pg=0x0000000087d30000 sz=0x3000
-[0m
-[1;31m[ERROR] uvmcopy_range:962: old_pg=0x0000000087d15000 new_pg=0x0000000087d30000 sz=0x1000
-[0m
-[1;31m[ERROR] uvmcopy_range:962: old_pg=0x0000000087d15000 new_pg=0x0000000087d30000 sz=0x1000
-[0m
-[1;31m[ERROR] uvmcopy_range:962: old_pg=0x0000000087d15000 new_pg=0x0000000087d30000 sz=0x0
-[0m
-1
-1
-[36m[INFO]  current sz1 is 6647 and ph.vaddr is 1000 and pg.filesz is 5647[0m
-[36m[INFO]  current sz1 is 8dc8 and ph.vaddr is 7000 and pg.filesz is 31[0m
-
-PANIC at address 0x0000000080007c84 in vmfault at kernel/vm.c:1518
-COW: pending implementation.
+debug.
+PANIC at address 0x0000000080001764 in alloc_memory at kernel/kalloc.c:275
+Exist one allocated_page on free_list.
 QEMU: Terminated
 

@@ -1,5 +1,5 @@
 // Simple grep.  Only supports ^ . * $ operators.
-
+#include "kernel/types.h"
 #include "user/user.h"
 static int match_here(char *pattern, char *text);
 static int match_star(int char_to_repeat, char *rest_of_pattern, char *text);

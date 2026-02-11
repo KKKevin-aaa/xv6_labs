@@ -64,36 +64,42 @@ typedef enum{
     PG_TYPE_MAPPED=2,
     PG_TYPE_REVERSED=3,
 }pg_type_t;
-
-typedef union page_flags{
-    uint64 raw;
-    atomic_t ref_count;
-    struct{
-        uint64 type:3;
-        uint64 is_head:1;
-        uint64 val:60;
-    }common;
-    //A universal view of invarient attributes shared by all page types.
-    struct{
-        uint64 type:3;
-        uint64 is_head:1;   //must be 1
-        uint64 order:60;
-    }buddy_head;
-    struct{
-        uint64 type:3;
-        uint64 is_head:1;   //must be 0;
-        uint64 offset:60;
-    }buddy_tail;
-}page_flags_t;
-_Static_assert(sizeof(page_flags_t)==8, "FATAL:page_flags_t must be 8 bytes");
-_Static_assert(PG_TYPE_REVERSED<=7, "Page type enum overflow!max is 7!");
 struct map_page{
     void *rmapping;
     uint64 index;
     uint8 sub_type;
 };
+typedef union page_flags{
+    uint64 raw;
+    struct{
+        atomic_t ref_count;
+        //Use Uniform Type,avoid signle bit_field stradding storage unit.
+        //and padding casued by disalign.
+        union{
+            uint32 meta_raw;
+            struct{
+                uint32 type:3;
+                uint32 is_head:1;
+                uint32 reserved:4;
+                uint32 val:24;
+            }common;
+            struct{
+                uint32 type:3;
+                uint32 is_head:1;
+                uint32 reserved:4;
+                uint32 order:24;
+            }buddy_head;
+            struct{
+                uint32 type:3;
+                uint32 is_head:1;
+                uint32 reverse:4;
+                uint32 offset:24;
+            }buddy_tail;
+        }meta;
+    }parts;
+}page_flags_t;
 struct page{
-    page_flags_t flags;
+    page_flags_t __internal_flags;
     union 
     {
         struct {struct page *next, *prev;} buddy;    //PG_TYPE_BUDDY
@@ -106,3 +112,69 @@ _Static_assert(sizeof(struct page) <= 64, "Struct page is too big!");
 struct listhead{
     struct page *head;
 };
+static inline int page_get_ref(page_t *p){
+    if(unlikely(p==NULL))   return -1;
+    return atomic_read(&p->__internal_flags.parts.ref_count);
+}
+//Assign operation(=) will finish Load, Bit manipulation, Store automatically.
+static inline int page_inc_ref(page_t *p){
+    if(unlikely(p==NULL))   return -1;
+    return atomic_inc_and_ret(&p->__internal_flags.parts.ref_count);
+}
+static inline void page_set_ref(page_t *p, int new_ref){
+    if(unlikely(p==NULL))   return;
+    atomic_set(&p->__internal_flags.parts.ref_count, new_ref);
+}
+static inline int page_read_ref(page_t *p){
+    if(unlikely(p==NULL))   return -1;
+    return atomic_read(&p->__internal_flags.parts.ref_count);
+}
+static inline int page_dec_ref(page_t *p){
+    if(unlikely(p==NULL))   return -1;
+    return atomic_dec_and_ret(&p->__internal_flags.parts.ref_count);
+}
+static inline void page_set_val(page_t *p, uint32 new_val){
+    if(unlikely(p==NULL))   return ;
+    p->__internal_flags.parts.meta.common.val=new_val;
+}
+static inline void page_set_order(page_t *p, uint32 new_order){
+    page_set_val(p, new_order);
+}
+static inline void page_set_offset(page_t *p, uint32 new_offset){
+    page_set_val(p, new_offset);
+}
+static inline uint32 page_get_type(page_t *p){
+    return p->__internal_flags.parts.meta.common.type;
+}
+
+static inline int page_is_head(page_t *p){
+    return p->__internal_flags.parts.meta.common.is_head;
+}
+
+static inline uint32 page_get_order(page_t *p){
+    return p->__internal_flags.parts.meta.buddy_head.order;
+}
+
+static inline uint32 page_get_offset(page_t *p){
+    return p->__internal_flags.parts.meta.buddy_tail.offset;
+}
+static inline void page_set_type(page_t *p, uint32 type){
+    if(unlikely(p==NULL))   return;
+    p->__internal_flags.parts.meta.common.type = type;
+}
+static inline void page_set_head(page_t *p){
+    if(unlikely(p==NULL))   return;
+    p->__internal_flags.parts.meta.common.is_head=1;
+}
+static inline void page_set_tail(page_t *p){
+    if(unlikely(p==NULL))   return;
+    p->__internal_flags.parts.meta.common.is_head=0;
+}
+// [New] Logic Helpers
+static inline int page_is_free(page_t *p){
+    return page_get_type(p) == PG_TYPE_FREE; 
+}
+
+
+_Static_assert(sizeof(page_flags_t)==8, "FATAL:page_flags_t must be 8 bytes");
+_Static_assert(PG_TYPE_REVERSED<=7, "Page type enum overflow!max is 7!");

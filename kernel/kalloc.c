@@ -15,7 +15,7 @@
 #include "defs.h"
 #include "slab.h"
 #include "kalloc.h"
-
+#include "colors.h"
 void dump_memory_map();     //Called with OOM error panic.
 struct spinlock swap_lock;  //A logic lock protecting the "need_swap" signal 
 // and sleep/wake automicity for brief duration.Seperate from "kmem.lock" to avoid scheduling latency.
@@ -56,31 +56,42 @@ inline void sync_rmap(void *p, uint64 size, pte_t *pte){
 static inline void w_head_order(page_t *p, uint64 order){
     //Maintain the current page type.
     if(p==NULL)     return;
-    p->flags.buddy_head.is_head=1;
-    p->flags.buddy_head.order=order;
+    page_set_head(p);
+    page_set_order(p, order);
 }
 
 static inline void w_tail_offset(page_t *p, uint64 offset){
     if(p==NULL)     return;
-    p->flags.buddy_tail.is_head=0;
-    p->flags.buddy_tail.offset=offset;
+    page_set_tail(p);
+    page_set_offset(p, offset);
 }
 
 static inline void set_free(page_t * p){
     if(unlikely(p==NULL))     return;
-    int new_ref=atomic_dec_and_ret(&p->flags.ref_count);
+    int new_ref=page_dec_ref(p);
     if(unlikely(new_ref<0)){
-        MM_TRACE("VMA Ref-count underflow!Double free deteched!");
+        pr_warn("Page Ref-count underflow!Double free deteched!");
         panic("Extermely! dangerous in free %llx\n", (uint64)pfn2paddr(page2pfn(p)));
     }
     else if(new_ref==0)
-        p->flags.common.type=PG_TYPE_FREE;
+        page_set_type(p, PG_TYPE_FREE);
 }
 
 static inline void set_alloc(page_t *p){
     if(unlikely(p==NULL))     return;
-    if(atomic_inc_and_ret(&p->flags.ref_count)>0)
-        p->flags.common.type=PG_TYPE_MAPPED;
+    //For this shared structure, assign before check
+    //(more specific writing is read-modify-write actually for bit_field)
+    if(page_inc_ref(p)){
+        if(page_get_type(p)!=PG_TYPE_MAPPED)
+            page_set_type(p, PG_TYPE_MAPPED);
+    }
+}
+
+int get_page_ref_count(void *pa){
+    if((uint64)pa%PGSIZE!=0)
+        panic("get page ref_count: Lookup unaligned address!");
+    if(unlikely(pa==NULL))  return -1;  //error
+    return page_get_ref(get_page_desc_assert(paddr2pfn((uint64)pa)));
 }
 
 uint64 page2pfn(struct page *pg){
@@ -132,6 +143,9 @@ static void init_whole_area(uint64 end_addr, uint64 maximum_addr){
     _hidden_start_pfn=paddr2pfn(free_start_addr);
     memset(kmem.mem_bitmaps, 0, _hidden_total_pages*sizeof(page_t));
     for(int i=0;i<_hidden_total_pages;i++){ //Set the reversed area(red zone)
+        //For atomic variable, initialize the ref_count
+        if(i==0x2a3)    printf("debug.");
+        page_set_ref(&kmem.mem_bitmaps[i], 0);
         w_head_order(&kmem.mem_bitmaps[i], 0);
         set_alloc(&kmem.mem_bitmaps[i]);
     }
@@ -161,12 +175,12 @@ static void del_from_list_nolock(page_t *p, uint64 order){    //Occupied
     p->u.buddy.next=NULL;
     p->u.buddy.prev=NULL;
     //check if this block's oreder is expected
-    if(p->flags.buddy_head.order!=order){
+    if(page_get_order(p)!=order){
         KALLOC_TRACE("try to delete Order.%llu block list while this block is Order.%llu \n",
-            order, (uint64)p->flags.buddy_head.order);
+            order, (uint64)p->flags.parts.meta.buddy_head.order);
         panic("void");
     }
-    p->flags.common.type=PG_TYPE_MAPPED;
+    page_set_type(p, PG_TYPE_MAPPED);
 }
 
 static void add_to_list_nolock(page_t *p, uint64 order){  //free
@@ -179,34 +193,27 @@ static void add_to_list_nolock(page_t *p, uint64 order){  //free
         old_head->u.buddy.prev=new_head;
     }
     kmem.free_area[order].head=new_head;
-    if(p->flags.buddy_head.order!=order){
+    if(page_get_order(p)!=order){
         KALLOC_TRACE("try to add to Order.%llu block list, while this block is Order.%llu\n",
-            order, (uint64)p->flags.buddy_head.order);
+            order, (uint64)p->flags.parts.meta.buddy_head.order);
         panic("add_to_list");
     }
-    p->flags.common.type=PG_TYPE_FREE;
+    page_set_type(p, PG_TYPE_FREE);
 }
 
 uint64 get_order(uint64 pa){
     if(pa%PGSIZE!=0)
         panic("get order: Lookup unaligned address!");
-    acquire(&kmem.lock);
     page_t *p=get_page_desc_assert(paddr2pfn(pa));
-    uint64 ret;
-    if(p->flags.common.is_head==0)      ret=0;
-    else    ret=p->flags.buddy_head.order;
-    release(&kmem.lock);
-    return ret;
+    if(page_is_head(p)==0)  return 0;
+    return page_get_order(p);
 }
 
 uint8 is_head(uint64 pa){
     if(pa%PGSIZE!=0)
         panic("get order: Lookup unaligned address!");
-    acquire(&kmem.lock);
     page_t *p=get_page_desc_assert(paddr2pfn(pa));
-    uint8 ret=p->flags.buddy_head.is_head;
-    release(&kmem.lock);
-    return ret;
+    return page_is_head(p);
 }
 
 void print_memorytable(){   //with lock
@@ -264,7 +271,7 @@ retry:
     high_tmp=tmp;  //higher page
     blocks_flags_reset(tmp, split_order, 0);
     del_from_list_nolock(tmp, split_order);     //pop from the list
-    if(atomic_read(&tmp->flags.ref_count)!=0)   //check the node's attribute
+    if(page_get_ref(tmp)!=0)    //check the node's attribute
         panic("Exist one allocated_page on free_list.");
     uint64 tmp_pfn=(uint64)(tmp-kmem.mem_bitmaps);
     while(split_order>order){
@@ -274,7 +281,7 @@ retry:
         high_tmp=get_page_desc_assert(tmp_pfn+step);
         blocks_flags_reset(tmp, split_order, 0);
         blocks_flags_reset(high_tmp, split_order, 1);
-        if(atomic_read(&high_tmp->flags.ref_count)==0)
+        if(page_get_ref(high_tmp)==0)
             add_to_list_nolock(high_tmp, split_order);
     }
     offset=(tmp-kmem.mem_bitmaps)*PGSIZE;
@@ -304,13 +311,13 @@ void split_block(void *pa, uint64 size){
     }
     b_tail_pfn=b_head_pfn+(1ull<<req_order);
     ensure_pfn_valid(b_tail_pfn-1);
-    if(b_head->flags.common.is_head==0) 
-        head_pfn=b_head_pfn-b_head->flags.buddy_tail.offset;//Not a block's header
+    if(page_is_head(b_head)==0)
+        head_pfn=b_head_pfn-page_get_offset(b_head);    //Not a block's header
     else
         head_pfn=b_head_pfn;
         //Block header(also need consider,unmapping a portion from the begining is possible!)
     head=get_page_desc_assert(head_pfn);
-    cur_order=head->flags.buddy_head.order;
+    cur_order=page_get_order(head);
     if(req_order > cur_order){  //Dismatched
         panic("free_pages_nolock:order error!");
     }
@@ -358,7 +365,7 @@ void reclaim_and_merge(uint64 head_pfn, uint64 init_order){
     //Exclusively reclaim blocks of a given order.
     //Also attempt to merge current block with its adjacent block to reduce fragmentation.
     page_t *head=get_page_desc_assert(head_pfn);
-    if(atomic_read(&kmem.mem_bitmaps[head_pfn].flags.ref_count)!=0){
+    if(page_get_ref(head)!=0){
         pr_warn("Attempt to reclaim one block which ref_count!=0");
         return;
     }
@@ -368,13 +375,12 @@ void reclaim_and_merge(uint64 head_pfn, uint64 init_order){
         buddy_pfn= head_pfn ^ (1ull<<new_order);
         if(buddy_pfn>=_hidden_total_pages || buddy_pfn<_hidden_start_pfn) break;
         buddy=get_page_desc_safe(buddy_pfn);
-        if(!buddy || buddy->flags.common.type!=PG_TYPE_FREE || 
-            atomic_read(&buddy->flags.ref_count)!=0 ||
-            buddy->flags.buddy_head.order!=new_order)
+        if(!buddy || page_get_type(buddy)!=PG_TYPE_FREE || page_get_ref(buddy)!=0 ||
+            page_get_order(buddy)!=new_order)
             break;
         //remove current_page from the correspond free_list
         del_from_list_nolock(buddy, new_order);
-        if(atomic_read(&buddy->flags.ref_count)!=0)
+        if(page_get_ref(buddy)!=0)
             panic("Exist one allocated page in free_list.");
         head_pfn=buddy_pfn & head_pfn;    //update for the next loop
         // ensure_pfn_valid(b_head_pfn);
@@ -384,7 +390,7 @@ void reclaim_and_merge(uint64 head_pfn, uint64 init_order){
     if(init_order!=new_order)   //Avoid double reset, underflow reference.
         reset_buddy_metadata(final_head, new_order);
     //At a minimum, the current block will be integrated into the free list with "init_order"
-    if(atomic_read(&final_head->flags.ref_count)==0)
+    if(page_get_ref(final_head)==0)
         add_to_list_nolock(final_head, new_order);
     else    panic("After reclaiming,still exist some reference??");
 }
@@ -392,14 +398,13 @@ void reclaim_and_merge(uint64 head_pfn, uint64 init_order){
 void inc_ref_range(void *pa, uint64 size){
     //Used by kfork, simply increase the page's ref_count to raise COW in page_fault.
     uint64 start_pfn=paddr2pfn((uint64)pa), page_cnt;
-    page_t *start_page=get_page_desc_safe(start_pfn);
     size=ALIGN_UP(size, PGSIZE);        //page-aligned
     page_cnt=size/PGSIZE;
     ensure_pfn_valid(start_pfn+page_cnt-1);
     for(int i=0;i<page_cnt;i++){
-        if(atomic_inc_not_zero(&kmem.mem_bitmaps[i+start_pfn].flags.ref_count)!=1)
-            panic("During the batch refence increment, "
-                "encountered a page with ref_count is zero");
+        if(page_inc_ref(&kmem.mem_bitmaps[i+start_pfn])!=1)
+            panic("During the batch refence increment,(pa=%llx) "
+                "encountered a page with ref_count is zero", (uint64)pa);
     }
 }
 
@@ -411,7 +416,7 @@ void free_pages_nolock(void *pa, uint64 size){
     uint64 b_head_pfn=paddr2pfn((uint64)pa);
     uint64 req_order=i_log2(size-1)-11;
     blocks_flags_reset(&kmem.mem_bitmaps[b_head_pfn], req_order, 1);
-    if(atomic_read(&kmem.mem_bitmaps[b_head_pfn].flags.ref_count)==0){
+    if(page_get_ref(&kmem.mem_bitmaps[b_head_pfn])==0){
         reclaim_and_merge(b_head_pfn, req_order);
         uint64 prev_nrfree=kmem.nr_free;
         kmem.nr_free+=(size/PGSIZE);
@@ -457,13 +462,13 @@ int reclaim_orphan_pages(void *pa, uint64 size){
     //Three cases in total:cross one blocks, cross two blocks, cross multi-blocks
     while(b_head_pfn<b_tail_pfn){
         b_head=get_page_desc_assert(b_head_pfn);
-        if(b_head->flags.common.is_head==0) 
-            head_pfn=b_head_pfn-b_head->flags.buddy_tail.offset;//Not a block's header
+        if(page_is_head(b_head)==0)
+            head_pfn=b_head_pfn-page_get_offset(b_head);    //Not a block's header
         else
             head_pfn=b_head_pfn;
             //Block header(also need consider,unmapping a portion from the begining is possible!)
         head=get_page_desc_assert(head_pfn);
-        cur_order=head->flags.buddy_head.order;
+        cur_order=page_get_order(head);
         if(size_order > cur_order){  //Dismatched
             KALLOC_TRACE("free_pages_nolock:order error!");
             return -1;
@@ -519,7 +524,7 @@ void kfree(void *pa, uint64 size){
         KALLOC_TRACE("try to free protected area.\n");
         return;
     }
-    if(del_page->flags.common.type==PG_TYPE_SLAB)
+    if(page_get_type(del_page)==PG_TYPE_SLAB)
         slab_free(pa);
     else
         free_pages(pa, size);
@@ -631,12 +636,12 @@ void dump_memory_map(){ //holding the lock
         (uint64)(kmem.mem_bitmaps), free_start_addr, (free_start_addr-(uint64)(kmem.mem_bitmaps))/PGSIZE);
     while(cur_pfn<_hidden_total_pages){
         p=get_page_desc_assert(cur_pfn);
-        if(p->flags.common.is_head==1){
-            cur_order=p->flags.buddy_head.order;
+        if(page_is_head(p)==1){
+            cur_order=page_get_order(p);
             size=1ull<<(cur_order+ORDER_BASE);
             end_pfn=cur_pfn+(1ull<<cur_order);
             ensure_pfn_valid(end_pfn-1);
-            if(p->flags.common.type==PG_TYPE_FREE)
+            if(page_get_type(p)==PG_TYPE_FREE)
                 printf("0x%llx - 0x%llx  0x%llx pages  [FREE]   0x%llx\n", 
                     pfn2paddr(cur_pfn), pfn2paddr(end_pfn), size/PGSIZE, cur_order);
             else

@@ -78,7 +78,7 @@ void vma_get(vm_area_struct_t *vma){
         panic("Try to get uninitialized vma, or have already free.");
 }
 int vma_put(vm_area_struct_t *vma){
-    if(unlikely(vma==NULL))     return;
+    if(unlikely(vma==NULL))     return -1;
     int new_ref=atomic_dec_and_ret(&vma->ref_count);
     if(new_ref==0){
         if(vma->vm_ops && vma->vm_ops->close)
@@ -112,7 +112,7 @@ void mm_get(mm_struct_t *mm){    //Acquire one reference
 
 int mm_put(mm_struct_t *mm){    //Drop one reference
     // return 1 If I am the last one decrease ref_count, otherwise return 0.
-    if(unlikely(mm==NULL))      return 0;
+    if(unlikely(mm==NULL))      return -1;
     int new_ref=atomic_dec_and_ret(&mm->ref_count);
     if(new_ref==0){
         if(remove_mm(mm)!=0)
@@ -199,7 +199,7 @@ vm_area_struct_t *vma_dup(const vm_area_struct_t *vma){       //Copy safely.
     }
     //Transitioning to the Commitment Phase;
     *vma_clone=*vma;
-    atomic_set(&vma_clone, 1);
+    atomic_set(&vma_clone->ref_count, 1);
     vma_clone->vm_next=NULL;
     vma_clone->vm_prev=NULL;
     memset(&vma_clone->vm_rb_node, 0, sizeof(rb_node_t));

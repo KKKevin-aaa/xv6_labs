@@ -331,10 +331,19 @@ int kfork(void) {
             goto error_on_copy;
         }
     #else   //COW(Copy on write), Exclude read-only regions and shared regions.
-        int cow_flags= (VM_WRITE) | ~(VM_SHARED);
+        uint64 cow_flags= VM_WRITE | ~VM_SHARED;
         if(new_vma->vm_flags & cow_flags){
             //modified all pte with PTE_R and all writable pte into PTE_COW(in RSW)
-
+            if(uvmcopy_range_shared(&(struct vm_dupl_ctx){
+                .base_va=new_vma->vm_start,
+                .end_va=new_vma->vm_end,
+                .src_pg=cur_parent->pagetable,
+                .dst_pg=new_child->pagetable,
+                .new_rblocks=new_child->rb_array,
+                .old_rblocks=cur_parent->rb_array,
+                .dst_level=2,
+            })<0)
+                goto error_on_copy;
         }
         else{   //Not specific regions, use traditional method:deep copy
             if(uvmcopy_range_private(&(struct vm_dupl_ctx){
@@ -344,7 +353,7 @@ int kfork(void) {
                 .end_va=copy_vma->vm_end,
                 .dst_level=2,
                 .old_rblocks=cur_parent->rb_array,
-                .new_rblocks=new_child->rb_array
+                .new_rblocks=new_child->rb_array,
             })<0)
                 goto error_on_copy;
         }

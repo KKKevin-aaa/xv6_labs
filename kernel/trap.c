@@ -141,15 +141,22 @@ void kerneltrap() {
         if(which_dev==2 && myproc()!=0)     yield();
     }
     else{
-        //handle page fault and check if restore.
+        //handle page fault and check if restore.(Fix-retry, )
         if(scause == 13 || scause ==15){
             struct proc *p=myproc();
             uint64 stval=r_stval();
             if(stval<MAXVA && p!=NULL && p->mm!=NULL){
                 //Perform pre-checks to avoid unnecessary page fault handling
                 int is_write=(scause ==13)?1:0;
-                if(vmfault(p->rb_array, p->pagetable, r_stval(), is_write) != 0)
+                if(vmfault(p->rb_array, p->pagetable, r_stval(), is_write) != 0){
+                    //Post-fix Verification
+                    pte_t *new_pte=walk(p->pagetable, stval, 0, 0);
+                    if(scause==15 && (!(*new_pte & PTE_W) || !(*new_pte & PTE_V)))
+                        panic("Vmfualt lied.PTE is still read-only.");
+                    else if(scause==13 || !(*new_pte & PTE_V))
+                        panic("Vmafail lied.PTE is still unreadable.");
                     goto restore;
+                }
             }
         }
         // interrupt or trap from an unknown source
