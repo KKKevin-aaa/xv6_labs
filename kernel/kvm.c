@@ -164,23 +164,25 @@ pagetable_t kvmmake(void) {
     //Allocated once during system initialization, not per-process;
     //thus, it is immune to memory leak.
 
+    // ------------------IO device Mapping -----------------------
     // uart registers
-    kvmmap_boot_only(kpgtbl, UART0, UART0, PGSIZE, PTE_R | PTE_W);
+    kvmmap_boot_only(kpgtbl, UART0, UART0, PGSIZE, PTE_R | PTE_W | PTE_IO);
 
     // virtio mmio disk interface
-    kvmmap_boot_only(kpgtbl, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+    kvmmap_boot_only(kpgtbl, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W | PTE_IO);
 
 #ifdef LAB_NET
   // PCI-E ECAM (configuration space), for pci.c
-  kvmmap_nolock(kpgtbl, 0x30000000L, 0x30000000L, 0x10000000, PTE_R | PTE_W);
+  kvmmap_nolock(kpgtbl, 0x30000000L, 0x30000000L, 0x10000000, PTE_R | PTE_W | PTE_IO);
 
   // pci.c maps the e1000's registers here.
-  kvmmap_nolock(kpgtbl, 0x40000000L, 0x40000000L, 0x20000, PTE_R | PTE_W);
+  kvmmap_nolock(kpgtbl, 0x40000000L, 0x40000000L, 0x20000, PTE_R | PTE_W | PTE_IO);
 #endif  
 
     // PLIC
-    kvmmap_boot_only(kpgtbl, PLIC, PLIC, 0x4000000, PTE_R | PTE_W);
+    kvmmap_boot_only(kpgtbl, PLIC, PLIC, 0x4000000, PTE_R | PTE_W | PTE_IO);
 
+    //--------------------Normal RAM Mapping -----------------------
     // map kernel text executable and read-only.
     kvmmap_boot_only(kpgtbl, KERNBASE, KERNBASE, (uint64)etext - KERNBASE, PTE_R | PTE_X);
     global_mm->start_code=KERNBASE;
@@ -696,6 +698,7 @@ error:
 }
 
 void *kvmalloc(pagetable_t Kpagetable, uint64 req_sz, int xperm){
+    ??problem is here!! FIXME: 
 #ifdef DEBUG_KVM
     KVM_TRACE("Kpagetable=%p req_sz=%llx xperm=%d\n", (void *)Kpagetable, req_sz, xperm);
 #endif

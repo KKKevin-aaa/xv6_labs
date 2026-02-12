@@ -4,6 +4,7 @@ struct mm_struct;   //forward declaration
 struct vm_operation_struct;
 
 //Kernel macro, different from user_macro
+// Describe this memory's logic attribute
 // --- 基础权限 (对应 mmap prot) ---
 #define VM_READ         0x01ULL     // 可读
 #define VM_WRITE        0x02ULL     // 可写
@@ -78,18 +79,14 @@ static inline uint64 calc_vm_flags(int prot, int flags) {
     return vm_flags;
 }
 
-
+//Just a Template, always match the vm_flags.
 static inline uint64 flags2page_prot(uint64 vm_flags) {    //vm_flags to vm_page_prot
     //As a hardware-agnostic kernel structure, it implements the translation
     //from logical abstraction to physical hardware via the following functions.
     if((vm_flags & (VM_READ | VM_WRITE | VM_EXEC)) ==0)
         return 0;       //guard page check(PROT_NONE)
     uint64 page_prot = 0;
-    if (vm_flags & VM_WRITE){
-        if((vm_flags & VM_SHARED) || (vm_flags & VM_KERN))
-            page_prot |= PTE_W;
-        //Only paired with shared or kernel usage can grant permission.
-    }
+    if (vm_flags & VM_WRITE)    page_prot |= PTE_W;
     if (vm_flags & VM_EXEC)     page_prot |= PTE_X;
     if(!(vm_flags & VM_KERN))   page_prot |= PTE_U;
     page_prot |= PTE_V | PTE_R;     //Readable by default.

@@ -121,6 +121,10 @@ static inline int page_inc_ref(page_t *p){
     if(unlikely(p==NULL))   return -1;
     return atomic_inc_and_ret(&p->__internal_flags.parts.ref_count);
 }
+static inline int page_inc_not_zero_ref(page_t *p){
+    if(unlikely(p==NULL))   return -1;
+    return atomic_inc_not_zero(&p->__internal_flags.parts.ref_count);
+}
 static inline void page_set_ref(page_t *p, int new_ref){
     if(unlikely(p==NULL))   return;
     atomic_set(&p->__internal_flags.parts.ref_count, new_ref);

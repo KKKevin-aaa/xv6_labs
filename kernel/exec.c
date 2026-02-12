@@ -52,6 +52,8 @@ int elf_flags2vm_flags(int elf_flags){
 }
 
 // the implementation of the exec() system call
+// Build the mm_struct according the ELF memory layout
+// also serve as the basis for the fork. 
 int kexec(char *path, char **argv) {
     char *s, *last;
     int i, off;
@@ -68,7 +70,6 @@ int kexec(char *path, char **argv) {
         pr_warn("create shadow_mm failed.\n");
         return -1;
     }
-    memset(shadow_mm, 0, sizeof(mm_struct_t));
     initsleeplock(&shadow_mm->mm_lock, p->mm->mm_lock.name);
     begin_op();
     if ((ip = namei(path)) == 0){
@@ -100,24 +101,25 @@ int kexec(char *path, char **argv) {
 
         vm_area_struct_t *vma = alloc_vma_node();
         if (!vma) goto bad;
-        vma->vm_start = ph.vaddr; 
+        vma->vm_start = PGROUNDDOWN(ph.vaddr); 
         vma->vm_end = PGROUNDUP(ph.vaddr + ph.memsz); 
         
         vma->vm_filesz = ph.filesz; 
         vma->vm_pgoff = ph.off;     //file-backed VMA.
         vma->vm_file = filedup(src_file);         //Increase file's ref_count.
         
-        vma->vm_flags = elf_flags2vm_flags(ph.flags);
-        vma->vm_page_prot = flags2page_prot(vma->vm_flags) | PTE_W; 
+        vma->vm_flags = elf_flags2vm_flags(ph.flags);   //VM_PRIVATE by defualt.
+        vma->vm_page_prot = flags2page_prot(vma->vm_flags); 
         //In exec,file content already loaded.So page_prot must be writable.
         //(bypass shared, kernel limit defined in flags2_page_prot).
         
         vma->vm_mm = shadow_mm;
         vma->vm_ops = NULL; // 这是一个匿名加载段（虽然来自文件，但不是 shared mmap）
 
-        if ((sz1 = uvmalloc(new_pagetable, sz, ph.vaddr + ph.memsz, vma->vm_page_prot)) == 0) goto bad;
+        if ((sz1 = uvmalloc(new_pagetable, vma->vm_start, vma->vm_end, vma->vm_page_prot)) == 0) goto bad;
         if (loadseg(new_pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0) goto bad;
-        pr_info("current sz1 is 0x%llx and ph.vaddr is 0x%llx and pg.filesz is 0x%llx", sz1, ph.vaddr, ph.filesz);
+        pr_info("from elf,loading vma->vm_start=0x%llx, vma->vm_end=0x%llx and pg.filesz is 0x%llx",
+            vma->vm_start, vma->vm_end, ph.filesz);
         acquiresleep(&shadow_mm->mm_lock);
         if(insert_vma_fast(shadow_mm, vma, &(vma_context_t){.prev=prev_vma, .next=NULL})==-1){
             vma_put(vma);
@@ -134,7 +136,7 @@ int kexec(char *path, char **argv) {
             if (shadow_mm->start_data == 0) shadow_mm->start_data = vma->vm_start;
             shadow_mm->end_data = vma->vm_end;
         }
-        sz = sz1;
+        sz = MAX(sz, sz1);
     }   //sz is the highest address among all loadable segments.
     iunlock(ip);    //Ownership has been transferred.Release the lock but don't drop ref.
     end_op();
@@ -156,7 +158,8 @@ int kexec(char *path, char **argv) {
     //This represents the static ownership of the memory region,
     // which remains constant regradless of stack utilization.
     stack_vma->vm_end = stackbase+PGSIZE; 
-    stack_vma->vm_flags = VM_READ | VM_WRITE; 
+    stack_vma->vm_flags = VM_READ | VM_WRITE;   //non-shared(private) + writable,
+    // trigger the COW handling mechanism, when meeting page fualt.
     stack_vma->vm_page_prot = PTE_R | PTE_W | PTE_U;
     stack_vma->vm_mm = shadow_mm;
     stack_vma->vm_ops = NULL;
@@ -167,6 +170,7 @@ int kexec(char *path, char **argv) {
     }
     shadow_mm->stack_vma = stack_vma;
     prev_vma=stack_vma;
+    pr_info("stack_vma->vm_start=0x%llx, stack_vma->vm_end=0x%llx", stack_vma->vm_start, stack_vma->vm_end);
 
     //Create heap VMA before stack VMA
     vm_area_struct_t *heap_vma = alloc_vma_node();
@@ -183,6 +187,8 @@ int kexec(char *path, char **argv) {
         goto bad;
     }
     shadow_mm->heap_vma = heap_vma;
+    pr_info("heap_vma->vm_start=0x%llx, heap_vma->vm_end=0x%llx", heap_vma->vm_start, heap_vma->vm_end);
+
 
     sp=stackbase+PGSIZE;
     //Pass arguments on the stack;no heap involvement.

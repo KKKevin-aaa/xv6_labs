@@ -269,7 +269,7 @@ int growproc(int n) {       //Ensure enter this function holding two locks(uvmlo
         return -1;
     }
     if (n > 0) {
-        if ((heap_end = uvmalloc(p->pagetable, heap_end, heap_end+n, PTE_W)) == 0)
+        if ((heap_end = uvmalloc(p->pagetable, heap_end, heap_end+n, PTE_W | PTE_R)) == 0)
             return -1;
     } 
     else if (n < 0) {
@@ -330,37 +330,47 @@ int kfork(void) {
                 copy_vma->vm_start, copy_vma->vm_end - copy_vma->vm_start)<0){
             goto error_on_copy;
         }
-    #else   //COW(Copy on write), Exclude read-only regions and shared regions.
-        uint64 cow_flags= VM_WRITE | ~VM_SHARED;
-        if(new_vma->vm_flags & cow_flags){
-            //modified all pte with PTE_R and all writable pte into PTE_COW(in RSW)
-            if(uvmcopy_range_shared(&(struct vm_dupl_ctx){
-                .base_va=new_vma->vm_start,
-                .end_va=new_vma->vm_end,
-                .src_pg=cur_parent->pagetable,
-                .dst_pg=new_child->pagetable,
-                .new_rblocks=new_child->rb_array,
-                .old_rblocks=cur_parent->rb_array,
-                .dst_level=2,
-            })<0)
+    #else   //Adopt sharing mechanism, Only VM_write+ VM_shared require COW intervention,
+    // While others can be unified as copying PTE and incrementing the physical reference count.
+        struct vm_dupl_ctx ctx1={.base_va=new_vma->vm_start,
+            .end_va=new_vma->vm_end,
+            .src_pg=cur_parent->pagetable,
+            .dst_pg=new_child->pagetable,
+            .new_rblocks=new_child->rb_array,
+            .old_rblocks=cur_parent->rb_array,
+            .dst_level=2};
+        if(new_vma->vm_flags & (VM_IO | VM_PFNMAP)){     //NOTE: Highest priority
+            if(uvmcopy_range_direct_shared(&ctx1)<0)
                 goto error_on_copy;
         }
-        else{   //Not specific regions, use traditional method:deep copy
-            if(uvmcopy_range_private(&(struct vm_dupl_ctx){
-                .src_pg=cur_parent->pagetable,
-                .dst_pg=new_child->pagetable,
-                .base_va=copy_vma->vm_start,
-                .end_va=copy_vma->vm_end,
-                .dst_level=2,
-                .old_rblocks=cur_parent->rb_array,
-                .new_rblocks=new_child->rb_array,
-            })<0)
+        else if((new_vma->vm_flags & VM_WRITE) && !(new_vma->vm_flags & VM_SHARED)){
+            if(uvmcopy_range_cow(&ctx1)<0)
+                goto error_on_copy;
+        }
+        else{
+            if(uvmcopy_range_shared(&ctx1)<0)
                 goto error_on_copy;
         }
     #endif
+        //Synchronize metadata in mm_struct(Pointer parameter)
+        if(copy_vma==cur_parent->mm->heap_vma)
+            new_child->mm->heap_vma=new_vma;
+        else if(copy_vma==cur_parent->mm->stack_vma)
+            new_child->mm->stack_vma=new_vma;
+
         prev_vma=new_vma;
         copy_vma=tmp_next;
     }
+    //Invariants
+    new_child->mm->arg_start=cur_parent->mm->arg_start;
+    new_child->mm->arg_end=cur_parent->mm->arg_end;
+    new_child->mm->env_start=cur_parent->mm->env_start;
+    new_child->mm->env_end=cur_parent->mm->env_end;
+    new_child->mm->start_code=cur_parent->mm->start_code;
+    new_child->mm->end_code=cur_parent->mm->end_code;
+    new_child->mm->start_data=cur_parent->mm->start_data;
+    new_child->mm->end_data=cur_parent->mm->end_data;
+    
     releasesleep(&new_child->mm->mm_lock);
     releasesleep(&cur_parent->mm->mm_lock);
     release(&new_child->uvm_lock);

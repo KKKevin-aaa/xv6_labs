@@ -48,7 +48,7 @@ uint64 sys_sbrk(void) {
         panic("Fatal Error: sbrk invoked on a process lacking an mm_struct.\n");
     acquiresleep(&cur_proc->mm->mm_lock);
     if(cur_proc->mm->heap_vma==NULL){
-        PROC_TRACE("Current process lack heap_vma, unable to get necessary info.\n");
+        pr_err("Current process lack heap_vma, unable to get necessary info.\n");
         goto release_and_ret;
     }
     //FIXME: // FIXME: 内存布局已改为 [Text->BSS->Stack->Heap]，需修正 exec 初始 SP 位置及 sbrk 起始基址(不再紧接BSS)。

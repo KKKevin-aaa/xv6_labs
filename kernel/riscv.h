@@ -318,6 +318,7 @@ inline uint8 __attribute__((always_inline)) i_log2(uint64 x){
 // RISC-V 提供了 Bit 8 和 Bit 9 给操作系统专用
 #define PTE_COW   (1ULL << 8) // Copy-On-Write: 写时复制标记
 #define PTE_SWAP  (1ULL << 9) // Swap: 交换标记 (仅当 V=0 时使用，此处占位示意)
+#define PTE_IO    PTE_SWAP    // no-cache, belong to device(current V=1), no ref_count.
 
 // #if defined(LAB_MMAP) || defined(LAB_PGTBL) || defined(LAB_COW)
 #define PTE_LEAF(pte) (((pte) & PTE_R) | ((pte) & PTE_W) | ((pte) & PTE_X))

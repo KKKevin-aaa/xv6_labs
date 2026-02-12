@@ -723,17 +723,16 @@ int copy_partial_leaf_shared(struct vm_sub_copy_ctx *p1){
     return 0;
 }
 
+
+
 // Allocate PTEs and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 uint64 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm) {
 #ifdef DEBUG_VM
     VM_TRACE("oldsz=0x%llx newsz=0x%llx xperm=0x%x\n", oldsz, newsz, xperm);
 #endif
-    if(newsz<oldsz) return oldsz;
-    uint64 aligned_oldsz=PGROUNDUP(oldsz), aligned_newsz=PGROUNDUP(newsz);
-    if(aligned_oldsz==aligned_newsz)    return newsz;
-    uint64 remain_size=aligned_newsz-aligned_oldsz;
-    if(buddy_alloc(pagetable, aligned_oldsz, remain_size, xperm | PTE_R | PTE_U)!=0)
+    if(oldsz % PGSIZE !=0 || newsz % PGSIZE !=0 || oldsz >= newsz)    return 0;
+    if(buddy_alloc(pagetable, oldsz, newsz-oldsz, xperm | PTE_R | PTE_U)!=0)
         return 0;
     VM_TRACE("uvmalloc exiting success newsz=0x%llx\n", newsz);
     return newsz;
@@ -914,7 +913,7 @@ void freewalk_limit(pagetable_t pagetable, int do_free, uint64 base_va, uint64 m
     free_pages((void *)pagetable, PGSIZE);
 }
 
-int copy_heap_2mb_chunk_private(struct vm_dupl_ctx *v1){
+int copy_heap_private(struct vm_dupl_ctx *v1){
     if(v1->dst_level!=1 || !(v1->base_va>=v1->new_rblocks[0].va 
         && v1->base_va<v1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE)){
         panic("Interface Conflict");
@@ -996,12 +995,15 @@ int copy_heap_2mb_chunk_private(struct vm_dupl_ctx *v1){
     return inc_idx;
 }
 
-int copy_heap_2mb_chunk_shared(struct vm_dupl_ctx *v1){
+//Designated for shared memory and non-COW case, 
+// so we just copying PTE and increment reference count.
+int copy_heap_shared(struct vm_dupl_ctx *v1){
     if(v1->dst_level!=1 || !(v1->base_va>=v1->new_rblocks[0].va 
         && v1->base_va<v1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE)){
-        panic("Interface Conflict");
+        pr_err("Interface Conflict");
         return -1;
     }
+    //In this case, copying the whole valid heap reservation area.
     uint64 cur_va=v1->base_va, rb_idx;
     pte_t src_pte;
     uint64 src_pa;
@@ -1017,20 +1019,6 @@ int copy_heap_2mb_chunk_shared(struct vm_dupl_ctx *v1){
         if(v1->new_rblocks[rb_idx].pa!=0){
             src_pa = PTE2PA(src_pte);    // child pagetable or physical address.
             uint64 cur_pa=src_pa, sub_basic_stride=get_step_size(v1->dst_level-1);
-            //have allocated hugepage.
-            if(v1->new_rblocks[rb_idx].promoted==1){       //split it first.
-                pagetable_t src_new_dire=(pagetable_t)alloc_memory(PGSIZE);
-                if(src_new_dire==0)     panic("OOM.");
-                memset((void *)src_new_dire, 0, PGSIZE);
-                uint64 src_flags=PTE_FLAGS(src_pte);    //as leaf, flags is meaningful.
-                for(int j=0;j<512;j++){
-                    src_new_dire[j]=PA2PTE(cur_pa) | src_flags;
-                    cur_pa+=PGSIZE;
-                }
-                //Mount the new directory pte to replace the previous leaf pte.
-                v1->src_pg[idx]=PA2PTE(src_new_dire) | PTE_V;
-                v1->old_rblocks[rb_idx].promoted=0;
-            }
             pagetable_t dst_new_dire=(pagetable_t)alloc_memory(PGSIZE);
             if(dst_new_dire==0)     panic("OOM.");
             memset((void *)dst_new_dire, 0, PGSIZE);
@@ -1039,11 +1027,11 @@ int copy_heap_2mb_chunk_shared(struct vm_dupl_ctx *v1){
                 //Both the parent and child processes have their corresponding PTEs
                 //set to read-only and marked for COW.
                 if(j>=bp_idx && j < bp_idx+bp_step){
-                    if(src_dire[j]==0)  continue;
-                    src_dire[j]=(src_dire[j] & ~PTE_W) | PTE_COW;
+                    if(src_dire[j]==0 || (src_dire[j] & PTE_V)==0)  continue;
                     dst_new_dire[j]=src_dire[j];
-                    if(src_dire[j] & PTE_V)
+                    if((src_dire[j] & PTE_IO)==0)
                         inc_ref_range((void *)PTE2PA(src_dire[j]), PGSIZE);
+                    else    panic("Detect an io_mapped PTE.");
                 }
                 cur_pa+=sub_basic_stride;
             }
@@ -1071,9 +1059,116 @@ int copy_heap_2mb_chunk_shared(struct vm_dupl_ctx *v1){
                         //hangle to the directory tree.
                         v1->dst_pg[idx]=PA2PTE(cur_dst_pg) | PTE_V;
                     }
-                    cur_src_pg[i+bp_idx] = (cur_src_pg[i+bp_idx] & ~PTE_W) | PTE_COW;
                     cur_dst_pg[i+bp_idx]=cur_src_pg[i+bp_idx];
-                    inc_ref_range((void *)PTE2PA(cur_dst_pg[i+bp_idx]), PGSIZE);
+                    if((cur_dst_pg[i+idx] & PTE_IO)==0)
+                        inc_ref_range((void *)PTE2PA(cur_dst_pg[i+bp_idx]), PGSIZE);
+                    else    panic("Detect an io_mapped PTE.");
+                }
+            }
+            cur_va+=bp_step*PGSIZE;
+        }
+    }
+    *(uint64 *)(v1->ret_va)=cur_va;
+    return inc_idx;
+}
+
+int copy_heap_cow(struct vm_dupl_ctx *v1){
+    if(v1->dst_level!=1 || !(v1->base_va>=v1->new_rblocks[0].va 
+        && v1->base_va<v1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE)){
+        pr_err("Interface Conflict");
+        return -1;
+    }
+    uint64 cur_va=v1->base_va, rb_idx;
+    pte_t src_pte;
+    uint64 src_pa;
+    int idx=0, inc_idx=0;
+    while(cur_va < v1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE 
+        && cur_va < v1->end_va){
+        inc_idx++;
+        idx= cur_va >> PXSHIFT(v1->dst_level) & PXMASK;
+        src_pte = v1->src_pg[idx];
+        rb_idx=(cur_va-v1->new_rblocks[0].va)/SUPERPGSIZE;   //Alignment satisfied
+        uint64 bp_idx=(cur_va - v1->new_rblocks[0].va) % SUPERPGSIZE / PGSIZE;
+        uint64 bp_step=MIN(512-bp_idx, (v1->end_va - cur_va) / PGSIZE);
+        if(v1->new_rblocks[rb_idx].pa!=0){
+            src_pa = PTE2PA(src_pte);    // child pagetable or physical address.
+            uint64 cur_pa=src_pa, sub_basic_stride=get_step_size(v1->dst_level-1);
+            //have allocated hugepage.
+            if((src_pte & PTE_V)==0 || !(src_pte & PTE_IO))
+                panic("Detech an io_mapped PTE while dealing heap copy.");
+            if(v1->new_rblocks[rb_idx].promoted==1){       //split it first.
+                pagetable_t src_new_dire=(pagetable_t)alloc_memory(PGSIZE);
+                if(src_new_dire==0)     panic("OOM.");
+                memset((void *)src_new_dire, 0, PGSIZE);
+                uint64 src_flags=PTE_FLAGS(src_pte);    //as leaf, flags is meaningful.
+                for(int j=0;j<512;j++){
+                    src_new_dire[j]=PA2PTE(cur_pa) | src_flags;
+                    cur_pa+=PGSIZE;
+                }
+                //Mount the new directory pte to replace the previous leaf pte.
+                v1->src_pg[idx]=PA2PTE(src_new_dire) | PTE_V;
+                v1->old_rblocks[rb_idx].promoted=0;
+            }
+            pagetable_t dst_new_dire=(pagetable_t)alloc_memory(PGSIZE);
+            if(dst_new_dire==0)     panic("OOM.");
+            memset((void *)dst_new_dire, 0, PGSIZE);
+            pagetable_t src_dire=(pagetable_t)PTE2PA(v1->src_pg[idx]);
+            for(int j=0;j<512;j++){
+                //Both the parent and child processes have their corresponding PTEs
+                //set to read-only and marked for COW.
+                if(j>=bp_idx && j < bp_idx+bp_step){
+                    if(src_dire[j]==0 || (src_dire[j] & PTE_V)==0)  continue;
+                    src_dire[j]=(src_dire[j] & ~PTE_W) | PTE_COW;
+                    dst_new_dire[j]=src_dire[j];
+                    if((src_dire[j] & PTE_IO)==0)
+                        inc_ref_range((void *)PTE2PA(src_dire[j]), PGSIZE);
+                    else{
+                        pr_err("Detach an io_mapped PTE while dealing heap copy.");
+                        return -1;
+                    }
+                }
+                cur_pa+=sub_basic_stride;
+            }
+            v1->dst_pg[idx]=PA2PTE(dst_new_dire) | PTE_V;   //mount
+            //update old_rblock's metadata.
+            v1->new_rblocks[rb_idx]=v1->old_rblocks[rb_idx];
+            memset(v1->new_rblocks[rb_idx].bitmap, 0, bp_idx);
+            memset(&v1->new_rblocks->bitmap[bp_idx+bp_step], 0, 512-(bp_idx+bp_step));
+            //udpate new_rblock's metadata.
+        }
+        else{   //Standard pte,however considering it's located within the heap region,
+                //It still needs to be processed here accordingly.
+            if(src_pte==0 || (src_pte & PTE_V) ==0){
+                cur_va+=SUPERPGSIZE;
+                continue;
+            }
+            if(PTE_LEAF(src_pte)==1){
+                pr_err("Should not be leaf pte.");
+                return -1;
+            }
+            pagetable_t cur_src_pg= (pagetable_t)PTE2PA(v1->src_pg[idx]), cur_dst_pg=0;
+            for(int i=0;i<bp_step;i++){
+                if((cur_src_pg[i+bp_idx] & PTE_V) !=0){
+                    if(cur_dst_pg==0){
+                        cur_dst_pg=(pagetable_t)alloc_memory(PGSIZE);
+                        if(cur_dst_pg==0){
+                            pr_err("OOM.");
+                            return -1;
+                        }
+                        memset(cur_dst_pg, 0, PGSIZE);
+                        //hangle to the directory tree.
+                        v1->dst_pg[idx]=PA2PTE(cur_dst_pg) | PTE_V;
+                    }
+                    if((cur_src_pg[i+bp_idx] & PTE_IO)==0){
+                        cur_src_pg[i+bp_idx] = (cur_src_pg[i+bp_idx] & ~PTE_W) | PTE_COW;
+                        cur_dst_pg[i+bp_idx]=cur_src_pg[i+bp_idx];
+                        inc_ref_range((void *)PTE2PA(cur_dst_pg[i+bp_idx]), PGSIZE);
+                    }
+                    else{
+                        pr_err("Detech an io_mapped PTE while dealing heap copy.");
+                        return -1;
+                    }
+
                 }
             }
             cur_va+=bp_step*PGSIZE;
@@ -1096,7 +1191,7 @@ int copywalk_private(struct vm_dupl_ctx *v1){
             cur_va < v1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE){
             heap_managed=1;
             uint64 new_ret_va=0;
-            int inc_idx=copy_heap_2mb_chunk_private(&(struct vm_dupl_ctx){
+            int inc_idx=copy_heap_private(&(struct vm_dupl_ctx){
                 .base_va=cur_va,
                 .end_va=v1->end_va,
                 .dst_level=1,
@@ -1175,9 +1270,9 @@ int copywalk_private(struct vm_dupl_ctx *v1){
     return 0;
 }
 
-//Designed for COW, which copy the pagetable verbatim without allocating
-// additional physical memory.(shared physical page.)
-int copywalk_shared(struct vm_dupl_ctx *v1){
+//Designed for direct mapping(shared), which just copying the pte from src pagetable
+// And don't increment the reference count.
+int copywalk_direct_shared(struct vm_dupl_ctx *v1){
     pte_t pte, new_pte;
     uint64 pa, standard_stride=get_step_size(v1->dst_level), cur_va=v1->base_va, va_step;
     uint64 flags;
@@ -1186,23 +1281,8 @@ int copywalk_shared(struct vm_dupl_ctx *v1){
         if(cur_va >= v1->end_va) break;
         if(heap_managed==0 && v1->dst_level==1 && cur_va > v1->new_rblocks[0].va &&
             cur_va < v1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE){
-            heap_managed=1;
-            uint64 new_ret_va=0;
-            int inc_idx=copy_heap_2mb_chunk_shared(&(struct vm_dupl_ctx){
-                .base_va=cur_va,
-                .end_va=v1->end_va,
-                .dst_level=1,
-                .dst_pg=v1->dst_pg,
-                .src_pg=v1->src_pg, //Level-2 paegtable,able to get the correct sub_pg
-                .ret_va=&new_ret_va,
-                .new_rblocks=v1->new_rblocks,
-                .old_rblocks=v1->old_rblocks,
-            }
-            );
-            cur_va = new_ret_va;
-            idx+=inc_idx;
-            *(uint64 *)v1->ret_va=cur_va;
-            continue;
+            pr_err("This code path is unreachable under normal conditions.");
+            return -1;
         }
         pte = v1->src_pg[idx];
         pa = PTE2PA(pte);    // child pagetable or physical address.
@@ -1226,7 +1306,90 @@ int copywalk_shared(struct vm_dupl_ctx *v1){
                     return -1;
                 }
             }
-            if(copywalk_shared(&(struct vm_dupl_ctx)
+            if(copywalk_direct_shared(&(struct vm_dupl_ctx)
+                        {.src_pg=(pagetable_t)pa,
+                        .dst_pg=(pagetable_t)mem,
+                        .base_va=cur_va,
+                        .ret_va=v1->ret_va,
+                        .end_va=v1->end_va,
+                        .dst_level=v1->dst_level-1,
+                        .new_rblocks=v1->new_rblocks})<0)
+                return -1;
+            va_step = standard_stride;
+        } 
+        else{
+            // Case 3: Leaf Node(and can be upgraded to hugepage,remember check!)
+            uint64 remain_size=v1->end_va - cur_va;
+            if(standard_stride > remain_size){
+                pr_err("Partial leaf copy, shouldn't exist.");
+                return -1;
+            }
+            else    v1->dst_pg[idx]= v1->src_pg[idx];
+            va_step=MIN(standard_stride, remain_size);
+        }
+        idx++;
+        cur_va += va_step;
+        *(uint64 *)v1->ret_va = cur_va;
+    }
+    return 0;
+}
+
+//Designed for COW, which copy the pagetable verbatim without allocating
+// additional physical memory.(shared physical page.)
+int copywalk_shared_cow(struct vm_dupl_ctx *v1){
+    pte_t pte, new_pte;
+    uint64 pa, standard_stride=get_step_size(v1->dst_level), cur_va=v1->base_va, va_step;
+    uint64 flags;
+    int idx= v1->base_va >> PXSHIFT(v1->dst_level) & PXMASK, heap_managed=0;
+    while(idx < 512) {
+        if(cur_va >= v1->end_va) break;
+        if(heap_managed==0 && v1->dst_level==1 && cur_va > v1->new_rblocks[0].va &&
+            cur_va < v1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE){
+            heap_managed=1;
+            uint64 new_ret_va=0;
+            int inc_idx=copy_heap_shared(&(struct vm_dupl_ctx){
+                .base_va=cur_va,
+                .end_va=v1->end_va,
+                .dst_level=1,
+                .dst_pg=v1->dst_pg,
+                .src_pg=v1->src_pg, //Level-2 paegtable,able to get the correct sub_pg
+                .ret_va=&new_ret_va,
+                .new_rblocks=v1->new_rblocks,
+                .old_rblocks=v1->old_rblocks,
+            }
+            );
+            cur_va = new_ret_va;
+            idx+=inc_idx;
+            *(uint64 *)v1->ret_va=cur_va;
+            continue;
+        }
+        pte = v1->src_pg[idx];
+        pa = PTE2PA(pte);    // child pagetable or physical address.
+        flags = PTE_FLAGS(pte);
+        if((pte & PTE_V)==0 && (pte & PTE_IO)){
+            pr_err("detect an io_mapped pte.");
+            return -1;
+        }
+        if(pte==0 || (pte & PTE_V) ==0)
+            va_step=standard_stride;    //case 1: Invalid or don't exist pte at all.
+        else if (PTE_LEAF(pte)==0) {    // Case 2: Directory
+            new_pte=v1->dst_pg[idx];
+            void *mem=NULL;
+            if((new_pte & PTE_V)==0){       //Create only when if don't exist.
+                mem = alloc_memory(PGSIZE);
+                if(mem == NULL) return -1;
+                memset(mem, 0, PGSIZE);
+                new_pte = PA2PTE((uint64)mem) | flags | PTE_V;
+                v1->dst_pg[idx] = new_pte;
+            }
+            else{
+                mem=(char *)PTE2PA(new_pte);    //Extract the physical address from the pte.
+                if(PTE_LEAF(new_pte)){ //PTE is valid, make sure it's a directory(not huge page.)
+                    pr_err("copy to pagetable failed, already exist one, and dismatch with the dest.");
+                    return -1;
+                }
+            }
+            if(copywalk_shared_cow(&(struct vm_dupl_ctx)
                         {.src_pg=(pagetable_t)pa,
                         .dst_pg=(pagetable_t)mem,
                         .base_va=cur_va,
@@ -1255,6 +1418,82 @@ int copywalk_shared(struct vm_dupl_ctx *v1){
                 v1->dst_pg[idx]= v1->src_pg[idx];
                 inc_ref_range((void *)PTE2PA(v1->src_pg[idx]), standard_stride);
             }
+            va_step=MIN(standard_stride, remain_size);
+        }
+        idx++;
+        cur_va += va_step;
+        *(uint64 *)v1->ret_va = cur_va;
+    }
+    return 0;
+}
+
+//Designed for shared but non-COW, copying the original pte, incrementing the physical ref_count.
+int copywalk_shared(struct vm_dupl_ctx *v1){
+    pte_t pte;
+    uint64 pa, standard_stride=get_step_size(v1->dst_level), cur_va=v1->base_va, va_step;
+    uint64 flags;
+    int idx= v1->base_va >> PXSHIFT(v1->dst_level) & PXMASK, heap_managed=0;
+    while(idx < 512) {
+        if(cur_va >= v1->end_va) break;
+        if(heap_managed==0 && v1->dst_level==1 && cur_va > v1->new_rblocks[0].va &&
+            cur_va < v1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE){
+            heap_managed=1;
+            uint64 new_ret_va=0;
+            int inc_idx=copy_heap_shared(&(struct vm_dupl_ctx){
+                .base_va=cur_va,
+                .end_va=v1->end_va,
+                .dst_level=1,
+                .dst_pg=v1->dst_pg,
+                .src_pg=v1->src_pg, //Level-2 paegtable,able to get the correct sub_pg
+                .ret_va=&new_ret_va,
+                .new_rblocks=v1->new_rblocks,
+                .old_rblocks=v1->old_rblocks,
+            }
+            );
+            cur_va = new_ret_va;
+            idx+=inc_idx;
+            *(uint64 *)v1->ret_va=cur_va;
+            continue;
+        }
+        pte = v1->src_pg[idx];
+        pa = PTE2PA(pte);    // child pagetable or physical address.
+        flags = PTE_FLAGS(pte);
+        if((pte & PTE_V) && (pte & PTE_IO)){
+            pr_err("detect io_mapped pte.");
+            return -1;
+        }
+        if(pte==0 || (pte & PTE_V) ==0)
+            va_step=standard_stride;    //case 1: Invalid or don't exist pte at all.
+        else if (PTE_LEAF(pte)==0) {    // Case 2: Directory
+            void *mem=NULL;
+            if((v1->dst_pg[idx] & PTE_V)==0){       //Create only when if don't exist.
+                mem = alloc_memory(PGSIZE);
+                if(mem == NULL) return -1;
+                memset(mem, 0, PGSIZE);
+                v1->dst_pg[idx] = PA2PTE((uint64)mem) | flags | PTE_V;
+            }
+            else{
+                mem=(char *)PTE2PA(v1->dst_pg[idx]);
+                //Extract the physical address from the pte.
+            }
+            if(copywalk_shared(&(struct vm_dupl_ctx)
+                        {.src_pg=(pagetable_t)pa,
+                        .dst_pg=(pagetable_t)mem,
+                        .base_va=cur_va,
+                        .ret_va=v1->ret_va,
+                        .end_va=v1->end_va,
+                        .dst_level=v1->dst_level-1,
+                        .new_rblocks=v1->new_rblocks})<0)
+                return -1;
+            va_step = standard_stride;
+        } 
+        else{
+            // Case 3: Leaf Node(and can be upgraded to hugepage,remember check!)
+            uint64 remain_size=v1->end_va - cur_va;
+            if(standard_stride > remain_size && standard_stride!=PGSIZE)
+                panic("");
+            v1->dst_pg[idx]= v1->src_pg[idx];
+            inc_ref_range((void *)PTE2PA(v1->src_pg[idx]), standard_stride);
             va_step=MIN(standard_stride, remain_size);
         }
         idx++;
@@ -1315,6 +1554,45 @@ int uvmcopy_range_shared(struct vm_dupl_ctx *ctx1) {
     return 0;
 }
 
+int uvmcopy_range_cow(struct vm_dupl_ctx *ctx1) {
+#ifdef DEBUG_VM
+    pr_err("old_pg=%p new_pg=%p start=0x%llx, end=0x%llx\n", 
+        (void *)ctx1->old_pg, (void *)ctx1->new_pg, ctx1->base_va, ctx1->end_va);
+#endif
+    ctx1->dst_level=2;
+    uint64 local_fallback_va=ctx1->base_va;
+    if(ctx1->ret_va==NULL)
+        ctx1->ret_va=&local_fallback_va;
+    if(copywalk_shared_cow(ctx1)<0)
+    {    //prevent resources leaks and waste
+        uvmfree_range(ctx1->new_rblocks, ctx1->dst_pg, 
+            ctx1->base_va , (uint64)ctx1->ret_va-ctx1->base_va);
+        //Error occurs, size are guaranteed not to exceed the original size
+        pr_err("copywalk_cow failed.");
+        return -1;
+    }
+    return 0;
+}
+
+int uvmcopy_range_direct_shared(struct vm_dupl_ctx *ctx1){
+    #ifdef DEBUG_VM
+    pr_err("old_pg=%p new_pg=%p start=0x%llx, end=0x%llx\n", 
+        (void *)ctx1->old_pg, (void *)ctx1->new_pg, ctx1->base_va, ctx1->end_va);
+#endif
+    ctx1->dst_level=2;
+    uint64 local_fallback_va=ctx1->base_va;
+    if(ctx1->ret_va==NULL)
+        ctx1->ret_va=&local_fallback_va;
+    if(copywalk_direct_shared(ctx1)<0)
+    {    //prevent resources leaks and waste
+        uvmfree_range(ctx1->new_rblocks, ctx1->dst_pg, 
+            ctx1->base_va , (uint64)ctx1->ret_va-ctx1->base_va);
+        //Error occurs, size are guaranteed not to exceed the original size
+        pr_err("copywalk_direct_shared failed.");
+        return -1;
+    }
+    return 0;
+} 
 
 // mark a PTE invalid for user access.
 // used by exec for the user stack guard page.
@@ -1886,7 +2164,7 @@ uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
                     goto release_and_ret;
                 }
                 memmove((void *)ret_pa, (void *)old_pa, PGSIZE);
-                *pte=PTE2PA(ret_pa) | (src_flag & ~PTE_COW) | PTE_W;    //Overwrite
+                *pte=PA2PTE(ret_pa) | (src_flag & ~PTE_COW) | PTE_W;    //Overwrite
                 free_pages((void *)old_pa, PGSIZE);
             }
             else{   //Current ref_count is already one, exclusively owned this page.
@@ -2076,8 +2354,8 @@ uint64 alloc_res_memory(res_block *rblocks, pagetable_t pagetable, uint64 init_h
     uint64 req_size=align_newsz-align_oldsz, start_va, end_va;
     if(align_oldsz<align_2mb_heap_start){
         if(align_newsz<align_2mb_heap_start)
-            return uvmalloc(pagetable, oldsz, newsz, xperm);
-        uint64 tmp_ret=uvmalloc(pagetable, oldsz, align_2mb_heap_start, xperm);
+            return uvmalloc(pagetable, align_oldsz, align_newsz, xperm);
+        uint64 tmp_ret=uvmalloc(pagetable, align_oldsz, align_2mb_heap_start, xperm);
         if(tmp_ret!=align_2mb_heap_start)   return 0;
         req_size-=(align_2mb_heap_start-align_oldsz);
         align_oldsz=align_2mb_heap_start;
@@ -2120,7 +2398,7 @@ uint64 alloc_res_memory(res_block *rblocks, pagetable_t pagetable, uint64 init_h
                 }
             }
             else{//use the simple allocator(split_alloc must be zero)
-                int tmp_ret=uvmalloc(pagetable, oldsz, newsz, xperm);
+                int tmp_ret=uvmalloc(pagetable, align_oldsz, align_newsz, xperm);
                 if(tmp_ret!=newsz)  return 0;
                 memset(rblocks[idx].bitmap+start_vpn, 1, vpn_step);
                 rblocks[idx].pop_count+=vpn_step;

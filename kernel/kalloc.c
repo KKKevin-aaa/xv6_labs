@@ -142,12 +142,14 @@ static void init_whole_area(uint64 end_addr, uint64 maximum_addr){
     //Skip the text,rodata segment of the program, start from the free_start_addr
     _hidden_start_pfn=paddr2pfn(free_start_addr);
     memset(kmem.mem_bitmaps, 0, _hidden_total_pages*sizeof(page_t));
+    page_t *tmp_page=NULL;
     for(int i=0;i<_hidden_total_pages;i++){ //Set the reversed area(red zone)
         //For atomic variable, initialize the ref_count
-        if(i==0x2a3)    printf("debug.");
-        page_set_ref(&kmem.mem_bitmaps[i], 0);
-        w_head_order(&kmem.mem_bitmaps[i], 0);
-        set_alloc(&kmem.mem_bitmaps[i]);
+        tmp_page=&kmem.mem_bitmaps[i];
+        page_set_ref(tmp_page, 0);
+        w_head_order(tmp_page, 0);
+        page_set_ref(tmp_page, 1);    //Not zero increment
+        page_set_type(tmp_page, PG_TYPE_MAPPED);
     }
     for(int i=0;i<MAX_ORDER+1;i++){
         kmem.free_area[i].head=NULL;
@@ -251,6 +253,7 @@ retry:
     if(split_order>MAX_ORDER){
         if(mycpu()->noff>1){
             printf("Holding more than one lock when occur OOM.Cannot attempt to swap.\n");
+            dump_memory_map();
             return NULL;
         }
         kswap_woken=1;
@@ -269,10 +272,10 @@ retry:
     }
     tmp=kmem.free_area[split_order].head;   //lower page
     high_tmp=tmp;  //higher page
-    blocks_flags_reset(tmp, split_order, 0);
     del_from_list_nolock(tmp, split_order);     //pop from the list
     if(page_get_ref(tmp)!=0)    //check the node's attribute
         panic("Exist one allocated_page on free_list.");
+    blocks_flags_reset(tmp, split_order, 0);    //Adjust to occupied state.
     uint64 tmp_pfn=(uint64)(tmp-kmem.mem_bitmaps);
     while(split_order>order){
         //split into two blocks,both add into the lower level list
@@ -402,7 +405,7 @@ void inc_ref_range(void *pa, uint64 size){
     page_cnt=size/PGSIZE;
     ensure_pfn_valid(start_pfn+page_cnt-1);
     for(int i=0;i<page_cnt;i++){
-        if(page_inc_ref(&kmem.mem_bitmaps[i+start_pfn])!=1)
+        if(page_inc_not_zero_ref(&kmem.mem_bitmaps[i+start_pfn])!=1)
             panic("During the batch refence increment,(pa=%llx) "
                 "encountered a page with ref_count is zero", (uint64)pa);
     }

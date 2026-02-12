@@ -663,16 +663,14 @@ void *do_mmap(mmap_context_t *ctx1){
         pr_err("Access invalid mm_struct or without necessary lock.");
         return (void *)-1;
     }
-    uint64 vm_flags=0, vm_page_prot=PTE_U, final_start=(uint64)ctx1->sugg_addr;
+    uint64 final_start=(uint64)ctx1->sugg_addr;
     vm_area_struct_t *new_vma=alloc_vma_node();
     if(new_vma==NULL){
         pr_err("Sys_mmap failed, unable to create a new vma.\n");
         return (void *)-1;
     }
     new_vma->vm_flags=calc_vm_flags(ctx1->prot, ctx1->flags);
-    new_vma->vm_page_prot=flags2page_prot(new_vma->vm_flags);
-    new_vma->vm_flags=vm_flags;
-    new_vma->vm_page_prot=vm_page_prot;
+    new_vma->vm_page_prot=flags2page_prot(new_vma->vm_flags) | PTE_U;
     if(ctx1->length & (PGSIZE-1))      ctx1->length=PGROUNDUP(ctx1->length);
     if(final_start + ctx1->length > UPPER_LIMIT){
         pr_err("No gap of sufficient size exists bwtween VMAs;mmap failed.");

@@ -17,7 +17,11 @@
 #endif
 // 这里的 ##__VA_ARGS__ 是 GCC/Clang 特性，允许参数为空
 #define pr_err(fmt, ...) \
-    printf(ANSI_BOLD_RED "[ERROR] %s:%d: " fmt ANSI_RESET "\n", __func__, __LINE__, ##__VA_ARGS__)
+    do{     \
+        printf(ANSI_BOLD_RED "[ERROR] %s:%d: " fmt ANSI_RESET "\n", __func__, __LINE__, ##__VA_ARGS__);    \
+        panic("pr_err");    \
+    }while(0)
+
 
 #define pr_warn(fmt, ...) \
     printf(ANSI_YELLOW "[WARN]  " fmt ANSI_RESET "\n", ##__VA_ARGS__)

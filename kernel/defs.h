@@ -246,6 +246,8 @@ uint64          uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int 
 uint64          uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz);
 int             uvmcopy_range_private(struct vm_dupl_ctx *ctx1);
 int             uvmcopy_range_shared(struct vm_dupl_ctx *ctx1);
+int             uvmcopy_range_direct_shared(struct vm_dupl_ctx *ctx1);
+int             uvmcopy_range_cow(struct vm_dupl_ctx *ctx1);
 void            uvmfree_range(res_block *rb_array, pagetable_t pagetable, uint64 start, uint64 end);
 void            uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free);
 void            uvmclear(pagetable_t pagetable, uint64 va);
