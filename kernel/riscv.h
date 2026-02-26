@@ -35,6 +35,8 @@ static inline void w_mepc(uint64 x) { asm volatile("csrw mepc, %0" : : "r"(x)); 
 #define SSTATUS_SIE (1L << 1)   // Supervisor Interrupt Enable
 #define SSTATUS_UIE (1L << 0)   // User Interrupt Enable
 
+#define SATP_PG_MASK ((1ULL << 44) -1)  //Riscv-64
+
 static inline uint64 __attribute__((always_inline)) r_sstatus() {
     uint64 x;
     asm volatile("csrr %0, sstatus" : "=r"(x));
@@ -149,7 +151,6 @@ static inline void w_pmpaddr0(uint64 x) { asm volatile("csrw pmpaddr0, %0" : : "
 #define SATP_SV39 (8L << 60)
 
 #define MAKE_SATP(pagetable) (SATP_SV39 | (((uint64)pagetable) >> 12))
-
 // supervisor address translation and protection;
 // holds the address of the page table.
 static inline void w_satp(uint64 x) { asm volatile("csrw satp, %0" : : "r"(x)); }
@@ -158,6 +159,12 @@ static inline uint64 __attribute__((always_inline)) r_satp() {
     uint64 x;
     asm volatile("csrr %0, satp" : "=r"(x));
     return x;
+}
+
+static inline uint64 __attribute__((always_inline)) get_pagetable(){
+    uint64 x;
+    asm volatile("csrr %0, satp" : "=r"(x));
+    return (x & SATP_PG_MASK) << 12;    //extract the PFN and convert into pa.
 }
 
 // Supervisor Trap Cause
@@ -247,7 +254,7 @@ typedef uint64 pte_t;
 typedef uint64 *pagetable_t;  // 512 PTEs
 
 #define RESERVE
-#define IN_PLACE_PROMOTE
+// #define IN_PLACE_PROMOTE
 #define RES_BITMAP_WORDS 8
 #define THRESHLOD 2
 #define MAX_RES_BLOCK 32

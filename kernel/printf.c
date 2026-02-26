@@ -235,14 +235,15 @@ int load_debug_sym_vm(){
     uint64 str_len=header.max_len*header.name_cnt;
     uint64 alloc_str_len=PGROUNDUP(str_len);
     void *mem0=NULL;
-    mem0=kvmalloc((pagetable_t)r_satp(), alloc_str_len, PTE_R | PTE_W);
+    //The operands of bitwise operators must be of integral type.
+    mem0=kvmalloc((pagetable_t)get_pagetable(), alloc_str_len, PTE_R | PTE_W);
     if(mem0==NULL){
         pr_err("Kernel: OOM!\n");
         goto cleanup;
     }
     memset(mem0, 0, alloc_str_len);
     if(readi(data_ip, 0, (uint64)mem0, cur_offset, str_len)!=str_len){
-        kvmdealloc((pagetable_t)r_satp(), (uint64)mem0, alloc_str_len);
+        kvmdealloc((pagetable_t)get_pagetable(), (uint64)mem0, alloc_str_len);
         pr_err("Kernel: read wrong data!\n");
         goto cleanup;
     }
@@ -250,16 +251,16 @@ int load_debug_sym_vm(){
 
     uint64 data_len=sizeof(uint16)*header.addr_cnt*2 + sizeof(uint32)*header.addr_cnt;
     uint64 alloc_data_len=PGROUNDUP(data_len);
-    void *mem1=kvmalloc((pagetable_t)r_satp(), alloc_data_len, PTE_R | PTE_W);
+    void *mem1=kvmalloc((pagetable_t)get_pagetable(), alloc_data_len, PTE_R | PTE_W);
     if(mem1==NULL){
-        kvmdealloc((pagetable_t)r_satp(), (uint64)mem0, alloc_str_len);
+        kvmdealloc((pagetable_t)get_pagetable(), (uint64)mem0, alloc_str_len);
         printf("Kernel: OOM!\n");
         goto cleanup;
     }
     memset(mem1, 0, alloc_data_len);
     if(readi(data_ip, 0, (uint64)mem1, cur_offset, data_len)!=data_len){
-        kvmdealloc((pagetable_t)r_satp(), (uint64)mem0, alloc_str_len);
-        kvmdealloc((pagetable_t)r_satp(), (uint64)mem1, alloc_data_len);
+        kvmdealloc((pagetable_t)get_pagetable(), (uint64)mem0, alloc_str_len);
+        kvmdealloc((pagetable_t)get_pagetable(), (uint64)mem1, alloc_data_len);
         printf("Kernel: read wrong data!\n");
         goto cleanup;
     }

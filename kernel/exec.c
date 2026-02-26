@@ -116,7 +116,13 @@ int kexec(char *path, char **argv) {
         vma->vm_mm = shadow_mm;
         vma->vm_ops = NULL; // 这是一个匿名加载段（虽然来自文件，但不是 shared mmap）
 
-        if ((sz1 = uvmalloc(new_pagetable, vma->vm_start, vma->vm_end, vma->vm_page_prot)) == 0) goto bad;
+        if((sz1= uvmalloc(&(struct alloc_context){
+            .pagetable=new_pagetable,
+            .seg_start=vma->vm_start,
+            .seg_end=vma->vm_end,
+            .pt_lock=NULL,
+            .xperm=vma->vm_page_prot
+        })) ==0 )   goto bad;
         if (loadseg(new_pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0) goto bad;
         pr_info("from elf,loading vma->vm_start=0x%llx, vma->vm_end=0x%llx and pg.filesz is 0x%llx",
             vma->vm_start, vma->vm_end, ph.filesz);
@@ -148,7 +154,13 @@ int kexec(char *path, char **argv) {
 
     //Do some preparation work.
     stackbase=sz+PGSIZE;    //Top-guard + bottom-guard(stack only one-page.)
-    if (uvmalloc(new_pagetable, stackbase-PGSIZE, stackbase+2*PGSIZE, PTE_W) == 0) goto bad;
+    if(uvmalloc(&(struct alloc_context){
+        .pagetable=new_pagetable,
+        .seg_start=stackbase-PGSIZE,
+        .seg_end=stackbase+2*PGSIZE,
+        .xperm=PTE_W
+    }) ==0 )    goto bad;
+    pr_info("Now alloc and mappage a new stack area in 0x%llx", (uint64)new_pagetable);
     uvmclear(new_pagetable, stackbase-PGSIZE);
     uvmclear(new_pagetable, stackbase+PGSIZE);
     // --- 创建 Stack VMA ---
@@ -229,7 +241,7 @@ int kexec(char *path, char **argv) {
     release(&p->uvm_lock);   //Release locks as early as possible to enhance system concurrency
 
     if(old_mm!=NULL)    mm_put(old_mm);//reclaim the unused resource 
-    proc_freepagetable(old_pagetable);      //No process can get this outdated pagetable(Unreachability)
+    proc_freepagetable(NULL, old_pagetable);      //No process can get this outdated pagetable(Unreachability)
     //init the reserved area(after delete the previous resource)
     init_res_array(p->rb_array, p->mm->heap_vma->vm_start);
 
@@ -238,7 +250,8 @@ bad:
     if(holdingsleep(&shadow_mm->mm_lock))    releasesleep(&shadow_mm->mm_lock);
     mm_put(shadow_mm);
     if (new_pagetable!=0)
-        proc_freepagetable(new_pagetable);
+        proc_freepagetable(NULL, new_pagetable);
+        //No process can get this temporary unpublished pagetable.
     if(src_file!=NULL){
         if (ip!=NULL)   iunlock(ip);
         //Ownership have being handed over to the src_file.(No put.)

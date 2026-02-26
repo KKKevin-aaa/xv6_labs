@@ -10,6 +10,33 @@ struct mem_trans_stash{ //Rearrange the memory layout for check and set poison q
     uint8 is_occupied;  //zero means free, while 1 means occupied.
 };
 
+struct batch_map_entry{
+    uint64 pa;
+    uint64 va;
+    uint64 size;
+    int xperm;
+    int status;     //0 means have not mapped, 1 means already mapped.
+};
+
+struct alloc_context{
+    pagetable_t pagetable;
+    uint64 seg_start;
+    uint64 seg_end;
+    struct spinlock *pt_lock;
+    res_block *rblocks;
+    int xperm;
+};
+
+struct map_context{
+    pagetable_t pagetable;
+    uint64 start_va;
+    uint64 size;
+    uint64 pa;
+    struct spinlock *pt_lock;
+    int cur_level;
+    int do_free;
+    int xperm;
+};
 
 #define MEM_TRANS_STACH_MAGIC 0x21792352
 

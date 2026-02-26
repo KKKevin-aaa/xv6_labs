@@ -253,11 +253,11 @@ retry:
     if(split_order>MAX_ORDER){
         if(mycpu()->noff>1){
             printf("Holding more than one lock when occur OOM.Cannot attempt to swap.\n");
-            dump_memory_map();
+            //dump_memory_map();
             return NULL;
         }
         kswap_woken=1;
-        acquire(&swap_lock);    //Before this mement only holding kmem.lock
+        acquire(&swap_lock);    //Only the kmem_lock was held prior to this.
         //NOTE: Make the "check for out-of-memory" and "go to sleep" into a single atomic operations.
         wakeup((void *)swap_kthread);
         release(&kmem.lock);

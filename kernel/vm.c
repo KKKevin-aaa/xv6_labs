@@ -12,6 +12,7 @@
 #include "file.h"
 #include "fcntl.h"
 #include "rbtree.h"
+#include "kvm.h"
 #include "mm.h"
 #include "vm.h"
 #include "colors.h"
@@ -154,6 +155,17 @@ void vmprint(pagetable_t pagetable) {
     dump_memory_map();
 }
 // #endif
+static inline int in_res_area(uint64 va, res_block *rblocks){
+    if(rblocks==NULL){
+        pr_err("Invalid argument:rblocks require a non-NULL pointer.");
+        return -1;
+    }
+    if(va >= rblocks[0].va && va < rblocks[MAX_RES_BLOCK-1].va +SUPERPGSIZE)
+        return 1;
+    return 0;
+}
+
+
 void init_res_array(res_block *rblocks, uint64 init_heap_start){    //Assuming A fixed-size stack
     //Limited by the physical memory, cannot reach MAXVA
     uint64 align_2mb_hs=SUPERPGROUNDUP(init_heap_start);
@@ -169,21 +181,25 @@ void init_res_array(res_block *rblocks, uint64 init_heap_start){    //Assuming A
 // does not flush TLB or enable paging.
 //NOTE: Paired with alloc(Buddy-system), it can be guarantee pa follows Buddy-system's prescribed size;
 // When pa is suffiencently large and va meets the alignment requirements, we prefer mappage into larger pages.
-int mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm){
+int mappages(struct map_context *ctx1){
 #ifdef DEBUG_VM
     VM_TRACE("va=%p size=0x%llx pa=%p perm=0x%x\n", (void *)va, size, (void *)pa, perm);
 #endif
     // if(pa != (1ull<<i_log2(pa)))   panic("Bypass the buddy system, passing invalid pa!\n");
+    if(ctx1==NULL || ctx1->size==0 || ctx1->pagetable==NULL){
+        pr_err("Invalid parameter.");
+        return -1;
+    }
     pte_t *pte=NULL;
     uint64 basic_size=PGSIZE, target_level=0, prev_level=3;   //determine rewalk necessity
-    if(size%PGSIZE!=0)  panic("mappages: size not aligned");
-    if (size == 0) panic("mappages: size: 0");
-    while(size>0){
-        if(va%GIGAPGSIZE==0 && size>=GIGAPGSIZE){
+    if(ctx1->size%PGSIZE!=0)  panic("mappages: size not aligned");
+    if (ctx1->size == 0) panic("mappages: size: 0");
+    while(ctx1->size>0){
+        if(ctx1->start_va%GIGAPGSIZE==0 && ctx1->size>=GIGAPGSIZE){
             target_level=2;
             basic_size=GIGAPGSIZE;
         } 
-        else if(va%MEGAPGSIZE==0 && size>=MEGAPGSIZE){
+        else if(ctx1->start_va%MEGAPGSIZE==0 && ctx1->size>=MEGAPGSIZE){
             target_level=1;
             basic_size=MEGAPGSIZE;
         }
@@ -191,19 +207,19 @@ int mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
             target_level=0;
             basic_size=PGSIZE;
         }
-        if ((pa % basic_size) != 0) panic("mappages: pa not aligned");
-        if(prev_level!=target_level || PX(target_level, va)==0){
+        if ((ctx1->pa % basic_size) != 0) panic("mappages: pa not aligned");
+        if(prev_level!=target_level || PX(target_level, ctx1->start_va)==0){
             //check if need jump into other level or arrive the boundary
-            pte=walk(pagetable, va, 1, target_level);//walk again
+            pte=walk(ctx1->pagetable, ctx1->start_va, 1, target_level);//walk again
             prev_level=target_level;
         }
         else    pte++;  //update the pte quickly,no need to walk agin
         if(*pte & PTE_V)    panic("mappages: remap");
         //check if it's the last vpns to 
-        *pte= PA2PTE(pa) | PTE_V | perm; //Assign
-        size-=basic_size;
-        va+=basic_size;
-        pa+=basic_size;
+        *pte= PA2PTE(ctx1->pa) | PTE_V | ctx1->xperm; //Assign
+        ctx1->size-=basic_size;
+        ctx1->start_va+=basic_size;
+        ctx1->pa+=basic_size;
         //update basic_size(and target level) based on the current maximum alignment value.
     }
     return 0;
@@ -278,32 +294,48 @@ pagetable_t uvmcreate() {
     return pagetable;
 }
 
-uint64 uvmunmap_helper(pagetable_t pagetable, uint64 va, uint64 size, int cur_level, int do_free){
+uint64 uvmunmap_helper(struct map_context *ctx1){
+// uint64 uvmunmap_helper(pagetable_t pagetable, uint64 va, uint64 size, int cur_level, int do_free){
     //Unmap and then free physical resource(if necessary)
 #ifdef DEBUG_VM
     VM_TRACE("va=%p size=0x%llx do_free=%d, cur_level is %d\n", (void *)va, size, do_free, cur_level);
 #endif
-    uint64 basic_stride=get_step_size(cur_level);
-    uint64 cur_vpn=PX(cur_level, va), start_page_offset=va & (basic_stride-1);
+    if(ctx1==NULL || ctx1->pagetable==NULL || ctx1->size==0){
+        pr_err("Invalid argument.");
+        return -1;
+    }
+    uint64 basic_stride=get_step_size(ctx1->cur_level);
+    uint64 cur_vpn=PX(ctx1->cur_level, ctx1->start_va);
+    uint64 start_page_offset=ctx1->start_va & (basic_stride-1);
     pte_t *pte;
-    uint64 end_vpn=cur_vpn+(start_page_offset+size+basic_stride-1)/basic_stride;    //exclude end_vpn
+    uint64 end_vpn=cur_vpn+(start_page_offset+ctx1->size+basic_stride-1)/basic_stride;
+    //exclude end_vpn
     if(end_vpn>512){
         #ifdef DEBUG_VM
             VM_TRACE("Out-of-bounds deletion caused by the upper's failure to split the data:\n");
-            VM_TRACE("size=0x%llx, cur_level=%d, end_vpn=0x%llx\n", size, cur_level, end_vpn);
+            VM_TRACE("size=0x%llx, cur_level=%d, end_vpn=0x%llx\n", 
+                ctx1->size, ctx1->cur_level, end_vpn);
         #endif
         panic("uvmunmap_helper!");
         return -1;
     }
     uint64 pa, vpn_incr, cur_order=0, del_size=0, pending;
+    uint64 delete_pa[32]={0}, delete_size[32]={0};
+    //store pa to be deleted(also with its size) and process them in a batch,
+    //followed by a TLB flush to improve efficiency.
+    int locked_by_me=0, delete_idx=0;
+    if(ctx1->pt_lock!=NULL && !holding(ctx1->pt_lock)){
+        acquire(ctx1->pt_lock);
+        locked_by_me=1;
+    }
     while(cur_vpn<end_vpn){
-        pte=&pagetable[cur_vpn];
-        uint64 page_offset=va & (basic_stride-1);
+        pte=&ctx1->pagetable[cur_vpn];
+        uint64 page_offset=ctx1->start_va & (basic_stride-1);
         if((*pte & PTE_V)==0){
             cur_vpn++;
-            pending=MIN(basic_stride-page_offset, size-del_size);
+            pending=MIN(basic_stride-page_offset, ctx1->size-del_size);
             del_size+=pending;
-            va+=pending;
+            ctx1->start_va+=pending;
         }
         else if(PTE_LEAF(*pte)){
             pa=PTE2PA(*pte);
@@ -311,66 +343,116 @@ uint64 uvmunmap_helper(pagetable_t pagetable, uint64 va, uint64 size, int cur_le
                 //This is safe as current implementation does not invoke a free operations on these area.
                 VM_TRACE("Uvmunmap dangerous area(outside the RAM region)\n");
                 pte[0]=0;
-                va+=basic_stride;
+                ctx1->start_va+=basic_stride;
                 del_size+=basic_stride;
                 cur_vpn++;
             }
-            else if(page_offset !=0 || size-del_size<basic_stride){
+            else if(page_offset !=0 || ctx1->size-del_size<basic_stride){
                 //Partial Unmap and use Pruned Spltting Strategy
-                pending=MIN(size-del_size, basic_stride-page_offset);
+                pending=MIN(ctx1->size-del_size, basic_stride-page_offset);
                 pte_t tmp_pte=*pte; //Old bigger page pte
                 *pte=0; //Unmap to prevent remap error!
-                if(cur_level<=0)    panic("Try to Split the minimun Unit");
-                uint64 child_start_vpn=PX(cur_level-1, va), child_end_vpn=PX(cur_level-1, va+pending);
+                if(ctx1->cur_level<=0)    panic("Try to Split the minimun Unit");
+                uint64 child_start_vpn=PX(ctx1->cur_level-1, ctx1->start_va);
+                uint64 child_end_vpn=PX(ctx1->cur_level-1, ctx1->start_va+pending);
                 child_end_vpn=(child_end_vpn==0)?512:child_end_vpn;
-                *pte=PA2PTE((uint64)split_and_prune(tmp_pte, child_start_vpn, child_end_vpn, cur_level)) | PTE_V;
-                if(do_free){    
+                *pte=PA2PTE((uint64)split_and_prune(tmp_pte, child_start_vpn, child_end_vpn, ctx1->cur_level)) | PTE_V;
+                if(ctx1->do_free){
                     //Calculate the free_start_pa(the Only place still remember the original physical address)
-                    uint64 free_start_pa=PTE2PA(tmp_pte)+child_start_vpn*get_step_size(cur_level-1);
-                    free_pages((void *)free_start_pa, pending);
+                    uint64 free_start_pa=PTE2PA(tmp_pte)+child_start_vpn*get_step_size(ctx1->cur_level-1);
+                    delete_pa[delete_idx]=free_start_pa;
+                    delete_size[delete_idx++]=pending;
+                    if(delete_idx>=32){     //Start processing each batch, must begin with sfence_vam
+                        //'Casue MMU will bypass lock and read RAM's pagetable.So tlb will accumulate always.
+                        sfence_vma();
+                        for(int i=0;i<32;i++)
+                            free_pages((void *)delete_pa[i], delete_size[i]);
+                        memset((void *)delete_pa, 0, sizeof(uint64)*32);
+                        memset((void *)delete_size, 0, sizeof(uint64)*32);
+                        delete_idx=0;
+                    }
+                    // free_pages((void *)free_start_pa, pending);
                 }
-                if(pending==size-del_size)  return size;
+                if(pending==ctx1->size-del_size)  return ctx1->size;
                 del_size+=pending;
-                va+=pending;
+                ctx1->start_va+=pending;
                 cur_vpn++;    //across two pages, continue handling(at current level)
             }
             else{   //full Unmap(basic_stride < size-del_size)
                 uint64 max_cont_len=basic_stride, cmp_perm=PTE_FLAGS(*pte);
                 pte_t tmp_pte=0;
                 int inc_vpn=1;
-                while(cur_vpn+inc_vpn < 512 && max_cont_len < (size - del_size)){
-                    tmp_pte=pagetable[cur_vpn+inc_vpn];
-                    if((tmp_pte & PTE_V) == 0)  break;
-                    if(PTE2PA(tmp_pte) != pa + inc_vpn * basic_stride)
-                        break;
-                    if(PTE_FLAGS(tmp_pte) != cmp_perm)
-                        break;
-                    inc_vpn++;
-                    max_cont_len+=basic_stride;
+                while(cur_vpn+inc_vpn < 512 && max_cont_len < (ctx1->size - del_size)){
+                    inc_vpn=1;
+                    max_cont_len=basic_stride;  ???fixme:
+                    while(cur_vpn+inc_vpn < 512 && max_cont_len < (ctx1->size - del_size)){
+                        tmp_pte=ctx1->pagetable[cur_vpn+inc_vpn];
+                        if((tmp_pte & PTE_V) == 0)  break;
+                        if(PTE2PA(tmp_pte) != pa + inc_vpn * basic_stride)
+                            break;
+                        if(PTE_FLAGS(tmp_pte) != cmp_perm)
+                            break;
+                        inc_vpn++;
+                        max_cont_len+=basic_stride;
+                    }
+                    for(int i=0;i<inc_vpn;i++)
+                        if(cur_vpn+i<end_vpn) pte[i]=0;
+                    if(ctx1->do_free!=0){
+                        delete_pa[delete_idx]=pa;
+                        delete_size[delete_idx++]=max_cont_len;
+                        if(delete_idx>=32){
+                            sfence_vma();
+                            for(int i=0;i<32;i++)
+                                free_pages((void *)delete_pa[i], delete_size[i]);
+                            memset((void *)delete_pa, 0, sizeof(uint64)*32);
+                            memset((void *)delete_size, 0, sizeof(uint64)*32);
+                            delete_idx=0;
+                        }
+                    }
+                    del_size+=max_cont_len;
+                    ctx1->start_va+=max_cont_len;
+                    cur_vpn+=inc_vpn;
                 }
-
-                cur_order=get_order(pa);    //Return 0 while pa located in a huge page
-                uint64 max_phy_size=1ull<<(cur_order + ORDER_BASE);
-                pending=max_phy_size;
-                while(pending > max_cont_len && pending > basic_stride){
-                    pending /= 2;
-                    inc_vpn /=2;
-                }
-                if(do_free!=0)  free_pages((void *)pa, pending); //free 
-                if(cur_order < cur_level*9) 
-                    panic("dismatch\n");    //Only allocte a single smaller page
-
-                vpn_incr=1ull << (cur_order - cur_level*9);
-                for(int i=0;i<vpn_incr;i++)
-                    if(cur_vpn+i<end_vpn) pte[i]=0;
-                del_size+=pending;
-                va+=pending;
-                cur_vpn+=vpn_incr;
             }
         }
+                // cur_order=get_order(pa);    //Return 0 while pa located in a huge page
+                // uint64 max_phy_size=1ull<<(cur_order + ORDER_BASE);
+                // pending=max_phy_size;
+                // while(pending > max_cont_len && pending > basic_stride){
+                //     pending /= 2;
+                //     inc_vpn /=2;
+                // }
+                // if(cur_order < ctx1->cur_level*9) 
+                //     panic("dismatch\n");    //Only allocte a single smaller page
+
+                // vpn_incr=1ull << (cur_order - ctx1->cur_level*9);
+                // for(int i=0;i<vpn_incr;i++)
+                //     if(cur_vpn+i<end_vpn) pte[i]=0;
+                // if(ctx1->do_free!=0){
+                //     delete_pa[delete_idx]=pa;
+                //     delete_size[delete_idx++]=pending;
+                //     if(delete_idx>=32){
+                //         sfence_vma();
+                //         for(int i=0;i<32;i++)
+                //             free_pages((void *)delete_pa[i], delete_size[i]);
+                //         memset((void *)delete_pa, 0, sizeof(uint64)*32);
+                //         memset((void *)delete_size, 0, sizeof(uint64)*32);
+                //         delete_idx=0;
+                //     }
+                // }
+                // del_size+=pending;
+                // ctx1->start_va+=pending;
+                // cur_vpn+=vpn_incr;
         else{   //directory page:Split and delegate the task to the next-level page table! 
-            pending=MIN(basic_stride-page_offset, size-del_size);
-            uvmunmap_helper((pagetable_t)PTE2PA(*pte), va, pending, cur_level-1, do_free);
+            pending=MIN(basic_stride-page_offset, ctx1->size-del_size);
+            uvmunmap_helper(&(struct map_context){
+                .pagetable=(pagetable_t)PTE2PA(*pte),
+                .start_va=ctx1->start_va,
+                .cur_level=ctx1->cur_level-1,
+                .pt_lock=ctx1->pt_lock,
+                .size=pending,
+                .do_free=ctx1->do_free
+            });
             //NOTE: Adopt Lazy reclaim mechanism: avoid thrashing, the cost of verification,
             // and Concurrency hell. Only two specific moment take earge reclaim:
             // exit/freeproc(use freewalk instead), memory pressure(implemented by backprocess)
@@ -379,11 +461,18 @@ uint64 uvmunmap_helper(pagetable_t pagetable, uint64 va, uint64 size, int cur_le
             //     free_pages((void *)child_pa, PGSIZE);
             //     *pte=0; //clear the pte
             // }
-            va+=pending;
+            ctx1->start_va+=pending;
             del_size+=pending;
             cur_vpn++;
         }
     }
+    sfence_vma();
+    for(int i=0;i<delete_idx;i++)
+        free_pages((void *)delete_pa[i], delete_size[i]);
+    memset((void *)delete_pa, 0, sizeof(uint64)*32);
+    memset((void *)delete_size, 0, sizeof(uint64)*32);
+    if(locked_by_me==1)
+        release(ctx1->pt_lock);
     return del_size;
 }
 
@@ -434,54 +523,119 @@ uint64 Simp_uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int cur_leve
         va+=pending;
         del_size+=pending;
     }
+    sfence_vma();
     return del_size;
 }
 
-void uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int do_free){
+void uvmunmap(struct map_context *ctx1){
 #ifdef DEBUG_VM
     VM_TRACE("va=%p size=0x%llx do_free=%d\n", (void *)va, size, do_free);
 #endif
-    if(size%PGSIZE!=0)  panic("mappages: size not aligned");
-    if (size == 0) panic("mappages: size");
-    uint64 del_size=uvmunmap_helper(pagetable, va, size, 2, do_free);
-    if(del_size!=size)
+    if(ctx1==NULL || ctx1->pagetable==NULL)
+        panic("Invalid argument.");
+    if(ctx1->size%PGSIZE!=0)  panic("mappages: size not aligned");
+    if (ctx1->size == 0)    panic("mappages: size");
+    ctx1->cur_level=2;      //Start from highest level.
+    uint64 del_size=uvmunmap_helper(ctx1);
+    if(del_size!=ctx1->size)
         panic("uvmunmap: cannot unmap required size!");
 }
 
 //--------------------ALLOC--------------------------
-int buddy_alloc(pagetable_t pagetable, uint64 va, uint64 size, int xperm){
+// int buddy_alloc(pagetable_t pagetable, uint64 va, uint64 size, int xperm){
+int buddy_alloc(struct alloc_context *ctx1){
     //return 0 when Success , and return -1 when it fail!
     //A shared utility for use and kernel space.
-    if(va%PGSIZE!=0)    panic("Split_alloc: unaligned address!");
-    uint8 va_order=i_log2(va & -va);
-    va_order=(va_order==0 || va_order>MAX_ORDER+ORDER_BASE)?
-        (MAX_ORDER+ORDER_BASE):va_order;
-    uint64 cur_max_size=1ull<<va_order ,alloc_size, cur_va=va;
+    if(ctx1==NULL || ctx1->seg_start >ctx1->seg_end){
+        pr_err("Invalid parameter.");
+        return -1;
+    }
+    if(ctx1->seg_start%PGSIZE!=0)    panic("Split_alloc: unaligned address!");
+    uint8 cur_order=i_log2(ctx1->seg_start & -ctx1->seg_start);
+    cur_order=(cur_order==0 || cur_order>MAX_ORDER+ORDER_BASE)?
+        (MAX_ORDER+ORDER_BASE):cur_order;
+    uint64 cur_max_size=1ull<<cur_order ,alloc_size;
+    uint64 cur_va=ctx1->seg_start, size=ctx1->seg_end-ctx1->seg_start;
     void *mem;
+    struct batch_map_entry map_request[8];
+    memset(map_request, 0, sizeof(struct batch_map_entry));
+    int req_cnt=0;
+    //before entering loop, release this lock firstly.
     while(size>0){
         alloc_size=cur_max_size;
         while(size < alloc_size && alloc_size>PGSIZE)
             alloc_size/=2;
         mem=alloc_memory(alloc_size);
         if (mem == 0) {
-            VM_TRACE("uvmalloc failed to allocate cur_va=0x%llx size=0x%llx\n", cur_va, alloc_size);
-            uvmdealloc(pagetable, cur_va, va);
+            pr_info("uvmalloc failed to allocate cur_ctx1->seg_start=0x%llx size=0x%llx\n", 
+                ctx1->seg_start, alloc_size);
+            for(int i=0;i<req_cnt;i++)
+                free_pages((void *)map_request[i].pa, map_request[i].size);
+            uvmdealloc(&(struct alloc_context){
+                .pagetable=ctx1->pagetable,
+                .pt_lock=ctx1->pt_lock,
+                .seg_start=cur_va,
+                .seg_end=ctx1->seg_start,
+            });
             return -1;
         }
         memset(mem, 0, alloc_size);
-        VM_TRACE("uvmalloc -> mappages cur_va=0x%llx alloc_size=0x%llx\n", cur_va, alloc_size);
-        if(mappages(pagetable, cur_va, alloc_size, (uint64)mem, xperm)!=0){
-            free_pages(mem, alloc_size);
-            VM_TRACE("uvmalloc mappages failed at cur_va=0x%llx size=0x%llx\n", cur_va, alloc_size);
-            uvmdealloc(pagetable, cur_va, va);
-            return -1;
+        map_request[req_cnt].pa=(uint64)mem;
+        map_request[req_cnt].va=cur_va;
+        map_request[req_cnt].size=alloc_size;
+        map_request[req_cnt].xperm=ctx1->xperm;
+        req_cnt++;
+        if(req_cnt>=8){
+            //Process accumulated mapping requests.(full batch, commit.)
+            for(int i=0;i<req_cnt;i++){
+                if(mappages(&(struct map_context){
+                    .pagetable=ctx1->pagetable,
+                    .start_va=map_request[i].va,
+                    .size=map_request[i].size,
+                    .pa=map_request[i].pa,
+                    .xperm=map_request[i].xperm
+                })!=0){
+                    for(int j=i;j<req_cnt;j++)
+                        free_pages((void *)map_request[j].pa, map_request[j].size);
+                    uvmdealloc(&(struct alloc_context){
+                        .pagetable=ctx1->pagetable,
+                        .pt_lock=ctx1->pt_lock,
+                        .seg_start=cur_va,
+                        .seg_end=ctx1->seg_start
+                    });
+                    return -1;
+                }
+            }
+            req_cnt=0;
+            memset(map_request, 0, sizeof(struct batch_map_entry));
+            release(ctx1->pt_lock);
         }
+        pr_info("uvmalloc -> mappages cur_ctx1->seg_start=0x%llx alloc_size=0x%llx\n", 
+            cur_va, alloc_size);
         if(size>alloc_size)  size-=alloc_size;
         else    break;
         cur_va+=alloc_size;
-        va_order=i_log2(cur_va & -cur_va);
-        va_order=(va_order > MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):va_order;
-        cur_max_size=1ull << va_order;
+        cur_order=i_log2(cur_va & -cur_va);
+        cur_order=(cur_order > MAX_ORDER+ORDER_BASE)?(MAX_ORDER+ORDER_BASE):cur_order;
+        cur_max_size=1ull << cur_order;
+    }
+    for(int i=0;i<req_cnt;i++){
+        if(mappages(&(struct map_context){
+            .pagetable=ctx1->pagetable,
+            .start_va=map_request[i].va,
+            .size=map_request[i].size,
+            .pa=map_request[i].pa,
+            .xperm=map_request[i].xperm
+        })!=0){
+            for(int j=i;j<req_cnt;j++)
+                free_pages((void *)map_request[i].pa, map_request[i].size);
+            uvmdealloc(&(struct alloc_context){
+                .pagetable=ctx1->pagetable,
+                .pt_lock=ctx1->pt_lock,
+                .seg_start=map_request[i].va,
+                .seg_end=ctx1->seg_start,
+            });
+        }
     }
     return 0;
 }
@@ -651,8 +805,7 @@ int copy_partial_leaf_shared(struct vm_sub_copy_ctx *p1){
             }
             p1->src_pt[i]=PA2PTE(src_child_pt) | PTE_V;
             p1->dst_pt[i]=PA2PTE(dst_child_pt) | PTE_V;
-            if(p1->base_va >= p1->new_rblocks[0].va 
-                && p1->base_va< p1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE){
+            if(in_res_area(p1->base_va, p1->new_rblocks)==1){
                 //update old_rblock's metadata.
                 uint64 rb_idx=(p1->base_va - p1->new_rblocks[0].va) / SUPERPGSIZE;
                 if(p1->old_rblocks[rb_idx].pa!=0){
@@ -727,29 +880,38 @@ int copy_partial_leaf_shared(struct vm_sub_copy_ctx *p1){
 
 // Allocate PTEs and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
-uint64 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm) {
-#ifdef DEBUG_VM
-    VM_TRACE("oldsz=0x%llx newsz=0x%llx xperm=0x%x\n", oldsz, newsz, xperm);
-#endif
-    if(oldsz % PGSIZE !=0 || newsz % PGSIZE !=0 || oldsz >= newsz)    return 0;
-    if(buddy_alloc(pagetable, oldsz, newsz-oldsz, xperm | PTE_R | PTE_U)!=0)
+// uint64 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm) {
+uint64 uvmalloc(struct alloc_context * ctx1){
+    if(ctx1==NULL)  return 0;
+    if(ctx1->seg_start % PGSIZE !=0 || ctx1->seg_end % PGSIZE !=0 
+        || ctx1->seg_start >= ctx1->seg_end)
         return 0;
-    VM_TRACE("uvmalloc exiting success newsz=0x%llx\n", newsz);
-    return newsz;
+    //Verify that xperm is configured with PTE_R and PTE_U
+    if((ctx1->xperm & (PTE_R | PTE_U))==0)
+        ctx1->xperm |= (PTE_R | PTE_U);
+    if(buddy_alloc(ctx1)!=0)
+        return 0;
+    VM_TRACE("uvmalloc exiting success newsz=0x%llx\n", ctx1->seg_end);
+    return ctx1->seg_end;
 }
 
 //-------------------DEALLOC------------------------------
 //Keep the same logic as uvmalloc(Binary Buddy Decomposition!)
 //A User/Kernel agnostic function.
-uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
+
+uint64 uvmdealloc(struct alloc_context *ctx1){
 #ifdef DEBUG_VM
     VM_TRACE("oldsz=0x%llx newsz=0x%llx\n", oldsz, newsz);
 #endif
-    if (newsz >= oldsz) {
-        VM_TRACE("uvmdealloc no-op new>=old, returning oldsz=0x%llx\n", oldsz);
-        return oldsz;
+    if(ctx1==NULL || ctx1->pagetable==NULL){
+        pr_err("Invalid parameter.");
+        return -1;
     }
-    uint64 aligned_newsz=PGROUNDUP(newsz), aligned_oldsz=PGROUNDUP(oldsz);
+    if(ctx1->seg_end >= ctx1->seg_start){
+        VM_TRACE("uvmdealloc no-op new>=old, returning oldsz=0x%llx\n", oldsz);
+        return ctx1->seg_start;
+    }
+    uint64 aligned_newsz=PGROUNDUP(ctx1->seg_end), aligned_oldsz=PGROUNDUP(ctx1->seg_start);
     if (aligned_newsz < aligned_oldsz) {
         // Perform the release step-by-step, following the reverse logic of alloc.
         uint8 newsz_order=i_log2(aligned_newsz & -aligned_newsz);
@@ -766,7 +928,13 @@ uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
                 VM_TRACE("uvmdealloc -> uvmunmap va=0x%llx size=0x%llx, remain size is 0x%llx\n", 
                     cur_va-free_size, free_size, remain_size);
             #endif
-            uvmunmap(pagetable, cur_va, free_size, 1);
+            uvmunmap(&(struct map_context){
+                .pagetable=ctx1->pagetable,
+                .start_va=cur_va,
+                .size=free_size,
+                .do_free=1,
+                .pt_lock=ctx1->pt_lock
+            });
             if(remain_size>free_size)  remain_size-=free_size;
             else    break;
             cur_va+=free_size;
@@ -778,7 +946,7 @@ uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
         // uvmunmap(pagetable, PGROUNDUP(newsz), npages, 1);
     }
     VM_TRACE("uvmdealloc exiting newsz=0x%llx\n", newsz);
-    return newsz;
+    return ctx1->seg_end;
 }
 
 //----------------------END dealloc------------------------------------------------------
@@ -843,10 +1011,6 @@ void freewalk(pagetable_t pagetable, int do_free, int level) {
 }
 
 void freewalk_limit(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz, int level) {
-#ifdef DEBUG_VM
-    if (base_va == 0 && level == 2)
-        VM_TRACE("Freewalk Start: pt=%p base_va=0x%llx max_sz=0x%llx\n", pagetable, base_va, max_sz);
-#endif
     pte_t pte;// there are 2^9 = 512 PTEs in a page table.
     uint64 pa, step;
     uint64 standard_stride=get_step_size(level); 
@@ -858,9 +1022,6 @@ void freewalk_limit(pagetable_t pagetable, int do_free, uint64 base_va, uint64 m
         pa = PTE2PA(pte);    //child pagetable or physical
         if ((pte & PTE_V) && PTE_LEAF(pte) == 0) {
             // this PTE points to a lower-level page table.
-            #ifdef DEBUG_VM
-                VM_TRACE("%sDir: idx=%d va=0x%llx -> next_pa=%p\n", INDENT_STR(level), idx, cur_va, (void*)pa);
-            #endif
             freewalk_limit((pagetable_t)pa, do_free, cur_va, max_sz, level-1);
             step=1;
             va_step=standard_stride;
@@ -914,16 +1075,14 @@ void freewalk_limit(pagetable_t pagetable, int do_free, uint64 base_va, uint64 m
 }
 
 int copy_heap_private(struct vm_dupl_ctx *v1){
-    if(v1->dst_level!=1 || !(v1->base_va>=v1->new_rblocks[0].va 
-        && v1->base_va<v1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE)){
+    if(v1->dst_level!=1 || in_res_area(v1->base_va, v1->new_rblocks)!=1){
         panic("Interface Conflict");
         return -1;
     }
     uint64 cur_va=v1->base_va, rb_idx, src_pa;
     pte_t src_pte;
     int idx=0, inc_idx=0;
-    while(cur_va < v1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE 
-        && cur_va < v1->end_va){
+    while(in_res_area(cur_va, v1->new_rblocks)==1 && cur_va<v1->end_va){
         inc_idx++;
         idx= cur_va >> PXSHIFT(v1->dst_level) & PXMASK;
         src_pte = v1->src_pg[idx];
@@ -935,7 +1094,8 @@ int copy_heap_private(struct vm_dupl_ctx *v1){
             //have allocated hugepage
             uint64 new_superpage=(uint64)alloc_memory(SUPERPGSIZE);
             if(new_superpage==0)    return -1;
-            memmove((void *)new_superpage, (void *)(v1->new_rblocks[rb_idx].pa), SUPERPGSIZE);    //migrate data
+            memmove((void *)new_superpage, (void *)(v1->new_rblocks[rb_idx].pa), SUPERPGSIZE);
+            //migrate data
             uint64 cur_pa=new_superpage+PGSIZE*bp_idx, cur_flags;
             memset(v1->new_rblocks[rb_idx].bitmap, 0, bp_idx);
             memset(&v1->new_rblocks->bitmap[bp_idx+bp_step], 0, 512-(bp_idx+bp_step));
@@ -998,8 +1158,7 @@ int copy_heap_private(struct vm_dupl_ctx *v1){
 //Designated for shared memory and non-COW case, 
 // so we just copying PTE and increment reference count.
 int copy_heap_shared(struct vm_dupl_ctx *v1){
-    if(v1->dst_level!=1 || !(v1->base_va>=v1->new_rblocks[0].va 
-        && v1->base_va<v1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE)){
+    if(v1->dst_level!=1 || in_res_area(v1->base_va, v1->new_rblocks)!=1){
         pr_err("Interface Conflict");
         return -1;
     }
@@ -1008,8 +1167,7 @@ int copy_heap_shared(struct vm_dupl_ctx *v1){
     pte_t src_pte;
     uint64 src_pa;
     int idx=0, inc_idx=0;
-    while(cur_va < v1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE 
-        && cur_va < v1->end_va){
+    while(in_res_area(cur_va, v1->new_rblocks)==1 && cur_va<v1->end_va){
         inc_idx++;
         idx= cur_va >> PXSHIFT(v1->dst_level) & PXMASK;
         src_pte = v1->src_pg[idx];
@@ -1073,8 +1231,7 @@ int copy_heap_shared(struct vm_dupl_ctx *v1){
 }
 
 int copy_heap_cow(struct vm_dupl_ctx *v1){
-    if(v1->dst_level!=1 || !(v1->base_va>=v1->new_rblocks[0].va 
-        && v1->base_va<v1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE)){
+    if(v1->dst_level!=1 || in_res_area(v1->base_va, v1->new_rblocks)!=1){
         pr_err("Interface Conflict");
         return -1;
     }
@@ -1187,8 +1344,8 @@ int copywalk_private(struct vm_dupl_ctx *v1){
     int idx= v1->base_va >> PXSHIFT(v1->dst_level) & PXMASK, heap_managed=0;
     while(idx < 512) {
         if(cur_va >= v1->end_va) break;
-        if(heap_managed==0 && v1->dst_level==1 && cur_va > v1->new_rblocks[0].va &&
-            cur_va < v1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE){
+        if(heap_managed==0 && v1->dst_level==1 
+            && in_res_area(cur_va, v1->new_rblocks)==1){
             heap_managed=1;
             uint64 new_ret_va=0;
             int inc_idx=copy_heap_private(&(struct vm_dupl_ctx){
@@ -1279,8 +1436,8 @@ int copywalk_direct_shared(struct vm_dupl_ctx *v1){
     int idx= v1->base_va >> PXSHIFT(v1->dst_level) & PXMASK, heap_managed=0;
     while(idx < 512) {
         if(cur_va >= v1->end_va) break;
-        if(heap_managed==0 && v1->dst_level==1 && cur_va > v1->new_rblocks[0].va &&
-            cur_va < v1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE){
+        if(heap_managed==0 && v1->dst_level==1 && 
+            in_res_area(cur_va, v1->new_rblocks)==1){
             pr_err("This code path is unreachable under normal conditions.");
             return -1;
         }
@@ -1343,8 +1500,8 @@ int copywalk_shared_cow(struct vm_dupl_ctx *v1){
     int idx= v1->base_va >> PXSHIFT(v1->dst_level) & PXMASK, heap_managed=0;
     while(idx < 512) {
         if(cur_va >= v1->end_va) break;
-        if(heap_managed==0 && v1->dst_level==1 && cur_va > v1->new_rblocks[0].va &&
-            cur_va < v1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE){
+        if(heap_managed==0 && v1->dst_level==1 
+            && in_res_area(cur_va, v1->new_rblocks)==1){
             heap_managed=1;
             uint64 new_ret_va=0;
             int inc_idx=copy_heap_shared(&(struct vm_dupl_ctx){
@@ -1435,8 +1592,8 @@ int copywalk_shared(struct vm_dupl_ctx *v1){
     int idx= v1->base_va >> PXSHIFT(v1->dst_level) & PXMASK, heap_managed=0;
     while(idx < 512) {
         if(cur_va >= v1->end_va) break;
-        if(heap_managed==0 && v1->dst_level==1 && cur_va > v1->new_rblocks[0].va &&
-            cur_va < v1->new_rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE){
+        if(heap_managed==0 && v1->dst_level==1 &&
+            in_res_area(cur_va, v1->new_rblocks)==1){
             heap_managed=1;
             uint64 new_ret_va=0;
             int inc_idx=copy_heap_shared(&(struct vm_dupl_ctx){
@@ -1522,6 +1679,11 @@ int uvmcopy_range_private(struct vm_dupl_ctx *ctx1) {
     pr_err("old_pg=%p new_pg=%p start=0x%llx, end=0x%llx\n", 
         (void *)ctx1->old_pg, (void *)ctx1->new_pg, ctx1->base_va, ctx1->end_va);
 #endif
+    if(ctx1==NULL || ctx1->new_rblocks==NULL || ctx1->old_rblocks==NULL 
+        || ctx1->src_pg==NULL || ctx1->dst_pg==NULL){
+        pr_err("Invalid paramter.");
+        return -1;
+    }
     uint64 ret_va=0;
     ctx1->dst_level=2;
     if(copywalk_private(ctx1)<0)
@@ -1701,7 +1863,13 @@ int process_empty_pte(struct proc *cur_proc, uint64 basepage_va, uint64 cur_va, 
         else    perm = cur_vma->vm_page_prot;
     }
     acquire(&cur_proc->uvm_lock);
-    if(mappages(cur_proc->pagetable, basepage_va, block_size, (uint64)mem, perm)!=0){
+    if(mappages(&(struct map_context){
+        .pagetable=cur_proc->pagetable,
+        .start_va=basepage_va,
+        .size=block_size,
+        .pa=(uint64)mem,
+        .xperm=perm
+    })!=0){
         release(&cur_proc->uvm_lock);
         free_pages(mem, block_size);
         if(locked_by_me)        releasesleep(&cur_proc->mm->mm_lock);
@@ -1776,7 +1944,13 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
             }
 
             acquire(&cur_proc->uvm_lock);
-            if(mappages(pagetable, basepage_va, block_size, (uint64)mem, perm)!=0){
+            if(mappages(&(struct map_context){
+                .pagetable=pagetable,
+                .start_va=basepage_va,
+                .size=block_size,
+                .pa=(uint64)mem,
+                .xperm=perm
+            })!=0){
                 release(&cur_proc->uvm_lock);
                 free_pages(mem, block_size);
                 goto error;
@@ -1849,8 +2023,8 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
         releasesleep(&cur_proc->mm->mm_lock);
         locked_by_me=0;
     }
-    sfence_vma();   //At least call the TLB flush before reback to user's process,
-    //But considering, this funcion follow other process schedule 
+    sfence_vma();   //Must call the TLB flush before reback to user's process,
+    //But considering this funcion follow other process schedule 
     // or this pagetable is shared by multi-thread and other CPU core is running the same process.
     // TLB will dismatch with pagetable.
     return 0;
@@ -1921,7 +2095,13 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
                 goto error;
             }
             acquire(&cur_proc->uvm_lock);
-            if(mappages(pagetable, basepage_va, block_size, (uint64)mem, perm)!=0){
+            if(mappages(&(struct map_context){
+                .pagetable=pagetable,
+                .start_va=basepage_va,
+                .pa=(uint64)mem,
+                .size=block_size,
+                .xperm=perm
+            })!=0){
                 release(&cur_proc->uvm_lock);
                 free_pages(mem, block_size);
                 goto error;
@@ -2017,7 +2197,13 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max) {
                 goto error;
             }
             acquire(&cur_proc->uvm_lock);
-            if(mappages(pagetable, basepage_va, block_size, (uint64)mem, perm)!=0){
+            if(mappages(&(struct map_context){
+                .pagetable=pagetable,
+                .start_va=basepage_va,
+                .size=block_size,
+                .pa=(uint64)mem,
+                .xperm=perm
+            }) !=0 ) {
                 release(&cur_proc->uvm_lock);
                 free_pages((void *)mem, block_size);
                 goto error;
@@ -2070,7 +2256,8 @@ error:
     return -1;
 }
 
-// allocate and map user memory if process is referencing a page that was lazily allocated in sys_sbrk().
+// allocate and map user memory if process is referencing a page 
+// that was lazily allocated in sys_sbrk().
 // returns 0 if va is invalid or already mapped, or if out of physical memory, 
 // and return physical address if successful.
 uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
@@ -2100,17 +2287,31 @@ uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
     if(pte==NULL){      //Lazy allocation.
         if(vma->vm_file==NULL){     //Anonymous Fault.(.bss or heap or stack), mayeb mmap
         #ifdef RESERVE
-            ret_pa=Simp_alloc_res_memory(rblocks, pagetable, va, PTE_W|PTE_R|PTE_U);
+            ret_pa=alloc_res_memory(&(struct alloc_context){
+                .pagetable=pagetable,
+                .seg_start=va,
+                .seg_end=va+PGSIZE,
+                .pt_lock=&p->uvm_lock,
+                .xperm=vma->vm_page_prot,
+                .rblocks=p->rb_array
+            });
         #else
-            tmp_ret = (uint64)alloc_memory(PGSIZE);
-            if (tmp_ret == 0){
+            ret_pa = (uint64)alloc_memory(PGSIZE);
+            if (ret_pa == 0){
                 VM_TRACE("alloc new page fail.\n");
                 goto release_and_ret;
             }
-            memset((void *)tmp_ret, 0, PGSIZE);
-            if (mappages(p->pagetable, va, PGSIZE, tmp_ret, vma->vm_page_prot) != 0) {
-                free_pages((void *)tmp_ret, PGSIZE);
-                tmp_ret=0;
+            memset((void *)ret_pa, 0, PGSIZE);
+            if(mappages(&(struct map_context){
+                .pagetable=p->pagetable,
+                .start_va=va,
+                .size=PGSIZE,
+                .pa=ret_pa,
+                .xperm=vma->vm_page_prot,
+                .pt_lock=&p->uvm_lock,
+            }) != 0){
+                free_pages((void *)ret_pa, PGSIZE);
+                ret_pa=0;
                 goto release_and_ret;
             }
         #endif
@@ -2138,7 +2339,13 @@ uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
                     pr_info("Other concurrent process have resolved.");
                     ret_pa=PTE2PA(*pte);
                 }
-                else if (mappages(p->pagetable, va, PGSIZE, ret_pa, vma->vm_page_prot) != 0) {
+                else if(mappages(&(struct map_context){
+                    .pagetable=p->pagetable,
+                    .start_va=va,
+                    .size=PGSIZE,
+                    .pa=ret_pa,
+                    .xperm=vma->vm_page_prot
+                }) !=0 ) {
                     VM_TRACE("Mappage %llx fail", va);
                     free_pages((void *)ret_pa, PGSIZE);
                     ret_pa=PTE2PA(*pte);
@@ -2197,7 +2404,8 @@ int ismapped(pagetable_t pagetable, uint64 va) {
 pte_t *pgpte(pagetable_t pagetable, uint64 va) { return walk(pagetable, va, 0, 0); }
 // #endif
 
-int merge_into_hugepages_Out(res_block *rblocks, pagetable_t pagetable, uint64 va, uint64 alloced_pa){
+int merge_into_hugepages_Out(res_block *rblocks, pagetable_t pagetable, 
+    uint64 va, uint64 alloced_pa){
     //for out-of-place promoted.Expensive copy or move cost.
     uint16 idx=(va-rblocks[0].va)/SUPERPGSIZE, cur_order;
     if(idx>=MAX_RES_BLOCK)  return -1;
@@ -2236,7 +2444,8 @@ int merge_into_hugepages_Out(res_block *rblocks, pagetable_t pagetable, uint64 v
     //Commit Phase
     expe_perm |= (accu_ad)?(PTE_A | PTE_D):0;
     *parent_pte=expe_perm | PA2PTE(alloced_pa) | PTE_V;
-    sfence_vma();   //keep the proper sequence, avoid reusing the freed memory(which record in tlb)
+    sfence_vma();
+    //keep the proper sequence, avoid reusing the freed memory(which record in tlb)
     bp_idx=0;
     while(bp_idx<512){
         if(rblocks[idx].bitmap[bp_idx]!=0){
@@ -2294,8 +2503,8 @@ int merge_into_hugepages_In(res_block *rblocks, pagetable_t pagetable, uint64 va
 }
 
 int move_and_aggregate(res_block *rblocks, pagetable_t pagetable, uint64 va, uint64 alloced_pa){
-    //Prepare the shadow copy, may trigger faults;not absolutely safe.
-    if(va>rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE || va<rblocks[0].va){
+    //Prepare the shadow copy, may trigger faults;not absolute safe.
+    if(in_res_area(va, rblocks)!=1){
         panic("aggregate_data failed:invalid va");
         return -1;
     }
@@ -2346,127 +2555,8 @@ void safe_update_and_free(res_block *rblocks, pagetable_t pagetable, uint64 va, 
     sfence_vma();
 }
 
-uint64 alloc_res_memory(res_block *rblocks, pagetable_t pagetable, uint64 init_heap_start, 
-        uint64 oldsz, uint64 newsz, int xperm){ //sync---64(backward)
-    //Lazy promotion.
-    uint64 align_2mb_heap_start=SUPERPGROUNDUP(init_heap_start);
-    uint64 align_oldsz=PGROUNDDOWN(oldsz), align_newsz=PGROUNDDOWN(newsz);
-    uint64 req_size=align_newsz-align_oldsz, start_va, end_va;
-    if(align_oldsz<align_2mb_heap_start){
-        if(align_newsz<align_2mb_heap_start)
-            return uvmalloc(pagetable, align_oldsz, align_newsz, xperm);
-        uint64 tmp_ret=uvmalloc(pagetable, align_oldsz, align_2mb_heap_start, xperm);
-        if(tmp_ret!=align_2mb_heap_start)   return 0;
-        req_size-=(align_2mb_heap_start-align_oldsz);
-        align_oldsz=align_2mb_heap_start;
-    }
-    uint16 idx=(align_oldsz-align_2mb_heap_start)/SUPERPGSIZE;
-    uint64 start_vpn, vpn_step, new_block;
-    int split_alloc;
-    start_va=align_oldsz;
-    if(idx>=MAX_RES_BLOCK)  return 0;
-    while(idx<MAX_RES_BLOCK && req_size>0){
-        split_alloc=(SUPERPGROUNDDOWN(start_va)==SUPERPGROUNDDOWN(newsz))?0:1;
-        if(split_alloc){
-            end_va=(idx+1==MAX_RES_BLOCK)?(rblocks[idx].va+SUPERPGSIZE):rblocks[idx+1].va;
-            vpn_step=(end_va-start_va)/PGSIZE;
-        }
-        else{
-            end_va=align_newsz;
-            vpn_step=(align_newsz-start_va)/PGSIZE;
-        }
-        start_vpn=(start_va-rblocks[idx].va)/PGSIZE;
-        if(rblocks[idx].promoted==0){
-            if(rblocks[idx].pop_count>=THRESHLOD){
-                //use the huge page(2mb)
-                new_block=(uint64)alloc_memory(SUPERPGSIZE);
-                if(new_block==0){   //promoted fail!
-                    new_block=(uint64)alloc_memory(vpn_step*PGSIZE);
-                    if(new_block==0)    panic("out-of-memory");
-                }
-                else{   //Hugepage allocate success
-                    if(merge_into_hugepages_Out(rblocks, pagetable, SUPERPGROUNDDOWN(start_va), new_block)==0){
-                        rblocks[idx].pa=new_block;
-                        rblocks[idx].promoted=1;
-                        rblocks[idx].pop_count+=vpn_step;
-                        //update the mapping_table
-                        memset(rblocks[idx].bitmap+start_vpn, 1, vpn_step);    //update the bitmaps
-                    }
-                    else{   //Merge fail, reclaim the allocated resource
-                        free_pages((void *)new_block, SUPERPGSIZE);
-                    }
-                }
-            }
-            else{//use the simple allocator(split_alloc must be zero)
-                int tmp_ret=uvmalloc(pagetable, align_oldsz, align_newsz, xperm);
-                if(tmp_ret!=newsz)  return 0;
-                memset(rblocks[idx].bitmap+start_vpn, 1, vpn_step);
-                rblocks[idx].pop_count+=vpn_step;
-            }
-        }   //for promoted pages, do nothing!
-        req_size-=(end_va-start_va);
-        start_va=end_va;
-        idx++;
-    }
-    //check if cross-page and need handle further
-    return newsz;
-}
-
-uint64 free_res_memory(res_block *rblocks, pagetable_t pagetable, uint64 init_heap_start, 
-        uint64 oldsz, uint64 newsz){
-    //Eager Demotion!
-    if(init_heap_start % SUPERPGSIZE !=0 )  panic("free_res_memory:pass the unaligned address!");
-    uint64 align_oldsz=PGROUNDUP(oldsz), align_newsz=PGROUNDUP(newsz);
-    uint64 req_size=align_oldsz-align_newsz, start_va, end_va;
-    //dealloc backward,maintain consistent handling logic
-    if(align_newsz<init_heap_start){
-        if(align_oldsz<init_heap_start)
-            return uvmdealloc(pagetable, oldsz, newsz);
-        uint64 tmp_ret=uvmdealloc(pagetable, init_heap_start, align_newsz);
-        if(tmp_ret!=align_newsz)    return 0;   //error
-        req_size-=(init_heap_start-align_newsz);
-        align_newsz=init_heap_start;
-    }
-    uint16 idx=(align_newsz-init_heap_start)/SUPERPGSIZE;
-    uint64 start_vpn, vpn_step;
-    int split_dealloc;
-    start_va=align_newsz;
-    while(idx<MAX_RES_BLOCK && req_size>0){
-        start_vpn=(start_va-rblocks[idx].va)/PGSIZE;
-        split_dealloc=(SUPERPGROUNDDOWN(start_va)==SUPERPGROUNDDOWN(oldsz))?0:1;
-        if(split_dealloc){
-            end_va=(idx+1==MAX_RES_BLOCK)?(rblocks[idx].va+SUPERPGSIZE):rblocks[idx+1].va;
-        }
-        else    end_va=align_oldsz;
-        vpn_step=(end_va-start_va)/PGSIZE;
-        if(rblocks[idx].promoted==1){  //Demotion is merely a preliminary step for reclamation.
-            //Split regradless of release size due to the lack of intermidate state.
-            split_into_blocks(rblocks, pagetable, start_va, 1);  // Demotion for partial uvmunmap
-            rblocks[idx].promoted=0;
-        }
-        uint64 bp_idx=start_vpn, bp_step;
-        pte_t *pte=walk(pagetable, start_va, 0, 0);
-        while(bp_idx<start_vpn+vpn_step){
-            if(rblocks[idx].bitmap[bp_idx]!=0){
-                uint64 cur_bp_pa=PTE2PA(*pte);
-                uint64 cur_order=get_order(cur_bp_pa);
-                bp_step=(1ull<<cur_order);
-                rblocks[idx].pop_count-=bp_step;
-            }
-            else    bp_step=1;
-            bp_idx+=bp_step;
-            pte+=bp_step;
-        }
-        uvmdealloc(pagetable, end_va, start_va);    //Finalize the deallocation process.
-        memset(rblocks[idx].bitmap+start_vpn, 0, vpn_step);
-        req_size-=(end_va-start_va);
-        start_va=end_va;
-        idx++;
-    }
-    return newsz;
-}
-
-void reclaim_res_memory_range(res_block *rblocks, pagetable_t pagetable, uint64 start_va, uint64 end_va){
+void reclaim_memory_res_range(res_block *rblocks, pagetable_t pagetable, 
+        uint64 start_va, uint64 end_va){
     //check if current rblocks is valid and initialize success
     uint64 block_start, block_end, intersect_start, intersect_end;
     uint64 base_addr=rblocks[0].va;  //Save the initial address to enable fast assignment.
@@ -2503,168 +2593,458 @@ void reclaim_res_memory_range(res_block *rblocks, pagetable_t pagetable, uint64 
         }
     }
 }
-#ifdef IN_PLACE_PROMOTE
-uint64 Simp_alloc_res_memory(res_block *rblocks, pagetable_t pagetable, 
-        uint64 va, int xperm){
-    //Triggered by a single page fault and allocate exactly one pages.
-    va=PGROUNDDOWN(va);
-    uint64 new_block=0;
-    if(va<rblocks[0].va || va>=rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE){
-        new_block=(uint64)alloc_memory(PGSIZE);
-        if(new_block==0) return 0;
-        memset((void *)new_block, 0, PGSIZE);
-        if(mappages(pagetable, va, PGSIZE, new_block, xperm)!=0){
-            free_pages((void *)new_block, PGSIZE);
-            new_block=0;
-        }
-        return new_block;
+uint64 free_memory_res(struct alloc_context *ctx1){
+    //Eager Demotion!
+    if(ctx1==NULL || ctx1->pagetable==NULL || ctx1->rblocks==NULL 
+        || ctx1->seg_start <= ctx1->seg_end){
+        pr_err("Invalid argument.");
+        return 0;
     }
-    uint16 idx=(va-rblocks[0].va)/SUPERPGSIZE; //now idx must be valid!
-    uint64 cur_vpn=(va-rblocks[idx].va)/PGSIZE;
-    //By reserving huge page in the heap, only one allocation and multiple mapping is enough.
-    if(rblocks[idx].promoted==0){  //enter reservable region, evaluate reservation strategy
-        if(rblocks[idx].is_scattered==1){
-            if(rblocks[idx].alloc_attempts<MAX_ALLOWED_ALLOCATIONS){
-                new_block=(uint64)alloc_memory(SUPERPGSIZE);
-                if(new_block!=0){
-                    memset((void *)new_block, 0, SUPERPGSIZE);
-                    // update the pte Only when new memory is ready to avoid handling intermediate states.
-                    if(mappages(pagetable, va, PGSIZE, new_block+cur_vpn*PGSIZE, xperm)!=0){
-                        free_pages((void *)new_block, SUPERPGSIZE);
-                        rblocks[idx].alloc_attempts++;
-                        goto signle_page;
+    if(ctx1->rblocks[0].va % SUPERPGSIZE !=0 )
+        panic("free_res_memory:pass the unaligned address!");
+    ctx1->seg_start=PGROUNDUP(ctx1->seg_start);
+    ctx1->seg_end=PGROUNDUP(ctx1->seg_end);
+    // uint64 align_oldsz=PGROUNDUP(oldsz), align_newsz=PGROUNDUP(newsz);
+    uint64 req_size=ctx1->seg_start - ctx1->seg_end, start_va, end_va;
+    //dealloc backward,maintain consistent handling logic
+    if(ctx1->seg_end < ctx1->rblocks[0].va){
+        if(ctx1->seg_start < ctx1->rblocks[0].va)
+            return uvmdealloc(&(struct alloc_context){
+                .pagetable=ctx1->pagetable,
+                .pt_lock=ctx1->pt_lock,
+                .rblocks=ctx1->rblocks,
+                .seg_start=ctx1->seg_start,
+                .seg_end=ctx1->seg_end,
+            });
+        uint64 tmp_ret=uvmdealloc(&(struct alloc_context){
+            .pagetable=ctx1->pagetable,
+            .pt_lock=ctx1->pt_lock,
+            .rblocks=ctx1->rblocks,
+            .seg_start=ctx1->rblocks[0].va,
+            .seg_end=ctx1->seg_end
+        });
+        if(tmp_ret!=ctx1->seg_end)    return 0;   //error
+        req_size-=(ctx1->rblocks[0].va - ctx1->seg_end);
+        ctx1->seg_end=ctx1->rblocks[0].va;
+    }
+    uint16 idx=(ctx1->seg_end - ctx1->rblocks[0].va)/SUPERPGSIZE;
+    uint64 start_vpn, vpn_step;
+    int split_dealloc;
+    start_va=ctx1->seg_end;
+    while(idx<MAX_RES_BLOCK && req_size>0){
+        start_vpn=(start_va-ctx1->rblocks[idx].va)/PGSIZE;
+        split_dealloc=(SUPERPGROUNDDOWN(start_va)==SUPERPGROUNDDOWN(ctx1->seg_start))?0:1;
+        if(split_dealloc){
+            end_va=(idx+1==MAX_RES_BLOCK)?
+                (ctx1->rblocks[idx].va+SUPERPGSIZE):ctx1->rblocks[idx+1].va;
+        }
+        else    end_va=ctx1->seg_start;
+        vpn_step=(end_va-start_va)/PGSIZE;
+        if(ctx1->rblocks[idx].promoted==1){  //Demotion is merely a preliminary step for reclamation.
+            //Split regradless of release size due to the lack of intermidate state.
+            split_into_blocks(ctx1->rblocks, ctx1->pagetable, start_va, 1);  // Demotion for partial uvmunmap
+            ctx1->rblocks[idx].promoted=0;
+        }
+        uint64 bp_idx=start_vpn;
+        for(uint64 bp_idx=start_vpn;bp_idx<start_vpn+vpn_step;bp_idx++){
+            if(ctx1->rblocks[idx].bitmap[bp_idx]!=0)
+                ctx1->rblocks[idx].pop_count--;
+        }
+        uvmdealloc(&(struct alloc_context){
+            .pagetable=ctx1->pagetable,
+            .seg_start=end_va,
+            .seg_end=start_va,
+            .pt_lock=ctx1->pt_lock,
+            .rblocks=ctx1->rblocks
+        });     //Finalize the deallocation process.
+        memset(ctx1->rblocks[idx].bitmap+start_vpn, 0, vpn_step);
+        req_size-=(end_va-start_va);
+        start_va=end_va;
+        idx++;
+    }
+    return ctx1->seg_end;
+}
+#ifdef IN_PLACE_PROMOTE
+uint64 alloc_memory_res(struct alloc_context *ctx1){    //Consider reserved area version.
+    ctx1->seg_start=PGROUNDDOWN(ctx1->seg_start);
+    if(ctx1==NULL || ctx1->rblocks==NULL || ctx1->pagetable==NULL 
+        || ctx1->seg_start>=ctx1->seg_end){
+        pr_err("Invalid argument.");
+        return 0;
+    }
+    int ret1=in_res_area(ctx1->seg_start, ctx1->rblocks);
+    int ret2=in_res_area(ctx1->seg_end, ctx1->rblocks);
+    uint64 res_start=0, res_end=0, non_res_start=0, non_res_end=0;
+    uint64 block1, block1_size, ret_pa=0;//Record the first allocated block pa.
+    if(ret1==-1 && ret2==-1){
+        pr_err("Invalid argument.Unable to determine if currently within res_area.");
+        return 0;
+    }
+    if(ret1==0 && ret2==1){
+        //Splice into two ranges, [va, rblocks[0].va] and [rblocks[0].va, va+size]
+        block1_size=ctx1->rblocks[0].va - ctx1->seg_start;
+        block1=(uint64)alloc_memory(block1_size);
+        if(block1==0)   return 0;
+        memset((void *)block1, 0, block1_size);
+        if(mappages(&(struct map_context){
+            .pagetable=ctx1->pagetable,
+            .start_va=ctx1->seg_start,
+            .pt_lock=ctx1->pt_lock,
+            .pa=block1,
+            .size=block1_size,
+            .xperm=ctx1->xperm
+        }) != 0 ){
+            free_pages((void *)block1, block1_size);
+            return 0;
+        }
+        res_start=ctx1->rblocks[0].va;
+        res_end=ctx1->seg_end;
+        non_res_start=ctx1->seg_start;
+        non_res_end=ctx1->rblocks[0].va;
+        ret_pa=block1;
+    }
+    else if(ret1==1 && ret2==0){
+        //Exist one range exceeds heap_res_area.mappage it firstly
+        block1_size=ctx1->seg_end - ctx1->rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE;
+        block1=(uint64)alloc_memory(block1_size);
+        if(block1==0)   return 0;
+        memset((void *)block1, 0, block1_size);
+        if(mappages(&(struct map_context){
+            .pagetable=ctx1->pagetable,
+            .start_va=ctx1->rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE,
+            .pt_lock=ctx1->pt_lock,
+            .pa=block1,
+            .size=block1_size,
+            .xperm=ctx1->xperm
+        }) != 0 ){
+            free_pages((void *)block1, block1_size);
+            return 0;
+        }
+        res_start=ctx1->seg_start;
+        res_end=ctx1->rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE;
+        non_res_start=ctx1->rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE;
+        non_res_end=ctx1->seg_end;
+    }
+    else if(ret1==1 && ret2==1){
+        res_start=ctx1->seg_start;
+        res_end=ctx1->seg_end;
+    }
+    else{   //ret1==0 && ret2==0, just treat as ordinary area and map.
+        block1_size=ctx1->seg_end - ctx1->seg_start;
+        block1=(uint64)alloc_memory(block1_size);
+        if(block1==0)   return 0;
+        memset((void *)block1, 0, block1_size);
+        if(mappages(&(struct map_context){
+            .pagetable=ctx1->pagetable,
+            .start_va=ctx1->seg_start,
+            .pt_lock=ctx1->pt_lock,
+            .pa=block1,
+            .size=block1_size,
+            .xperm=ctx1->xperm
+        }) != 0 ){
+            free_pages((void *)block1, block1_size);
+            return 0;
+        }
+        return block1;
+    }
+    uint16 idx=(res_start - ctx1->rblocks[0].va)/SUPERPGSIZE;
+    uint64 cur_vpn, new_heap_block, cur_size, cur_va=res_start;
+    while(cur_va < res_end){
+        //handle one rblock each time.
+        if(ctx1->rblocks[idx].promoted==1)  continue;   //Exist the leaf_pte already.(superpage)
+        cur_vpn=(cur_va-ctx1->rblocks[idx].va)/PGSIZE;
+        //enter reservable region, evaluate reservation strategy
+        if(idx==MAX_RES_BLOCK-1)
+            cur_size=MIN(res_end, ctx1->rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE);
+        else
+            cur_size=MIN(res_end, ctx1->rblocks[idx+1].va);
+        cur_size=cur_size-cur_va;
+        if(ctx1->rblocks[idx].is_scattered==1){
+            if(ctx1->rblocks[idx].alloc_attempts<MAX_ALLOWED_ALLOCATIONS){
+                new_heap_block=(uint64)alloc_memory(SUPERPGSIZE);
+                if(new_heap_block!=0){
+                    memset((void *)new_heap_block, 0, SUPERPGSIZE);
+                    // update the pte Only when new memory is ready 
+                    // to avoid handling intermediate states.
+                    if(mappages(&(struct map_context){
+                        .pagetable=ctx1->pagetable,
+                        .start_va=cur_va,
+                        .size=cur_size,
+                        .pa=new_heap_block+cur_vpn*PGSIZE,
+                        .xperm=ctx1->xperm
+                    }) !=0 ) {
+                        free_pages((void *)new_heap_block, SUPERPGSIZE);
+                        ctx1->rblocks[idx].alloc_attempts++;
+                        goto discrete_alloc;
                     }
-                    if(rblocks[idx].pop_count>0){
-                        if(move_and_aggregate(rblocks, pagetable, va, new_block)!=0){
-                            rblocks[idx].alloc_attempts++;
-                            free_pages((void *)new_block, SUPERPGSIZE);//rollback
-                            pte_t *flight_pte=walk(pagetable, va, 0, 0);
-                            if(flight_pte)  *flight_pte=0;
-                            sfence_vma();
-                            goto signle_page;
+                    if(ctx1->rblocks[idx].pop_count>0){
+                        if(move_and_aggregate(ctx1->rblocks, ctx1->pagetable, cur_va, new_heap_block)!=0){
+                            ctx1->rblocks[idx].alloc_attempts++;
+                            free_pages((void *)new_heap_block, SUPERPGSIZE);//rollback
+                            pte_t *flight_pte=walk(ctx1->pagetable, cur_va, 0, 0);
+                            if(flight_pte==NULL)    panic("map successfully, but detect invalid pte.");
+                            memset(flight_pte, 0, sizeof(pte_t)*cur_size/PGSIZE);
+                            goto discrete_alloc;
                         }
-                        //update the mapping(safe)
-                        safe_update_and_free(rblocks, pagetable, va, new_block);//move the data
+                        //update the mapping(safe), then move the data.
+                        safe_update_and_free(ctx1->rblocks, ctx1->pagetable, cur_va, new_heap_block);
                     }
-                    rblocks[idx].bitmap[cur_vpn]=1;    //Synchronisz data
-                    rblocks[idx].pop_count++;
-                    rblocks[idx].is_scattered=0;   //update
-                    rblocks[idx].pa=new_block;
-                    return rblocks[idx].pa+cur_vpn*PGSIZE;
+                    if(ret_pa==0)   ret_pa=new_heap_block+cur_vpn*PGSIZE;
+                    //Synchronisz data
+                    memset(&ctx1->rblocks[idx].bitmap[cur_vpn], 1, sizeof(uint8)*cur_size/PGSIZE);
+                    ctx1->rblocks[idx].pop_count+=(cur_size/PGSIZE);
+                    ctx1->rblocks[idx].is_scattered=0;   //update
+                    ctx1->rblocks[idx].pa=new_heap_block;
+                    cur_va+=cur_size;
+                    continue;
                 }
-                rblocks[idx].alloc_attempts++;
+                ctx1->rblocks[idx].alloc_attempts++;
             }
-signle_page:
-            new_block=(uint64)alloc_memory(PGSIZE); //when alloc fail or map fail(free already)
-            if(new_block==0){
-                panic("Simp_alloc_res_memory : out-of-memory");
+discrete_alloc:
+            if(buddy_alloc(&(struct alloc_context){
+                .pagetable=ctx1->pagetable,
+                .seg_start=cur_va,
+                .seg_end=cur_va+cur_size,
+                .rblocks=ctx1->rblocks,
+                .xperm=ctx1->xperm,
+                .pt_lock=ctx1->pt_lock
+            }) !=0 ){
+                pr_err("Handling discrete page alloction in res_area fail.");
+                free_memory_res(&(struct alloc_context){
+                    .pagetable=ctx1->pagetable,
+                    .pt_lock=ctx1->pt_lock,
+                    .seg_start=cur_va,
+                    .seg_end=res_start,
+                    .rblocks=ctx1->rblocks
+                });
+                if(non_res_end > non_res_start){
+                    //In certain case, unmapping this region is not strictly required.
+                    uvmdealloc(&(struct alloc_context){
+                        .pagetable=ctx1->pagetable,
+                        .seg_start=non_res_end,
+                        .seg_end=non_res_start,
+                        .pt_lock=ctx1->pt_lock,
+                        .rblocks=ctx1->rblocks
+                    });
+                }
                 return 0;
             }
-            memset((void *)new_block, 0, PGSIZE);
-            if(mappages(pagetable, va, PGSIZE, new_block, xperm)!=0){
-                free_pages((void *)new_block, PGSIZE);
-                return 0;
+            if(ret_pa==0){      //Perform a page table walk to resolve the pa.
+                pte_t *pte=walk(ctx1->pagetable, cur_va, 0, 0);
+                if(pte==NULL)   panic("Existing pte have cleared within critical area.");
+                ret_pa=PTE2PA(*pte);
             }
-            else{
-                rblocks[idx].bitmap[cur_vpn]=1;    //Synchronsize data
-                rblocks[idx].pop_count++;
-                return new_block;
-            }
+            memset(&ctx1->rblocks[idx].bitmap[cur_vpn], 1, sizeof(uint8)*cur_size/PGSIZE);
+            ctx1->rblocks[idx].pop_count+=(cur_size/PGSIZE);
         }
         else{   // is_scrattered==0
-            if(mappages(pagetable, va, PGSIZE, rblocks[idx].pa+cur_vpn*PGSIZE, xperm)!=0){
-                panic("Simp_alloc_res_memory : mapping to existing page fail!");
+            if(mappages(&(struct map_context){
+                .pagetable=ctx1->pagetable,
+                .start_va=cur_va,
+                .size=cur_size,
+                .pa=ctx1->rblocks[idx].pa+cur_vpn*PGSIZE,
+                .xperm=ctx1->xperm
+            }) !=0 ) {
+                panic("Mapping to existing page fail!");
+                free_memory_res(&(struct alloc_context){
+                    .pagetable=ctx1->pagetable,
+                    .pt_lock=ctx1->pt_lock,
+                    .seg_start=cur_va,
+                    .seg_end=res_start,
+                    .rblocks=ctx1->rblocks
+                });
+                if(non_res_end > non_res_start){
+                    //In certain case, unmapping this region is not strictly required.
+                    uvmdealloc(&(struct alloc_context){
+                        .pagetable=ctx1->pagetable,
+                        .seg_start=non_res_end,
+                        .seg_end=non_res_start,
+                        .pt_lock=ctx1->pt_lock,
+                        .rblocks=ctx1->rblocks
+                    });
+                }
                 return 0;
             }
-            rblocks[idx].bitmap[cur_vpn]=1;    //Synchronisz data
-            rblocks[idx].pop_count++;
-            if(THRESHLOD==0 || rblocks[idx].pop_count>=THRESHLOD-1){
-                //Supposing existing the huge already,Upgrade page table
-                if(merge_into_hugepages_In(rblocks, pagetable, va)==0){
-                    rblocks[idx].bitmap[cur_vpn]=1;    //Synchronisz data
-                    rblocks[idx].pop_count++;
-                    rblocks[idx].promoted=1;
+            ctx1->rblocks[idx].pop_count+=(cur_size/PGSIZE);    //Synchronisz data
+            if(THRESHLOD==0 || ctx1->rblocks[idx].pop_count>=THRESHLOD-1){
+                //Supposing exist the huge_page already,Upgrade page table
+                if(merge_into_hugepages_In(ctx1->rblocks, ctx1->pagetable, ctx1->seg_start)==0){
+                    memset(&ctx1->rblocks[idx].bitmap[cur_vpn], 1, sizeof(uint8)*cur_size/PGSIZE);
+                    ctx1->rblocks[idx].promoted=1;
                 }
                 else{
-                    pte_t *flight_pte=walk(pagetable, va, 0, 0);
-                    if(*flight_pte) *flight_pte=0;
-                    sfence_vma();
-                    return 0;
+                    pr_warn("Exceed the threshold, but merge fail.");
+                    //Not considered a mandatory rollback error;it simply means the benefits of 
+                    // hugepage are no longer exist.
                 }
             }
+            if(ret_pa==0)   ret_pa=ctx1->rblocks[idx].pa+cur_vpn*PGSIZE;
         }
+        cur_va+=cur_size;
     }
-    //already promoted, exist mapping.
-    return rblocks[idx].pa+cur_vpn*PGSIZE;
+    if(!holding(ctx1->pt_lock))     sfence_vma();
+    return ret_pa;
 }
 #else
-uint64 Simp_alloc_res_memory(res_block *rblocks, pagetable_t pagetable,
-    uint64 va, int xperm){
-    //Triggered by a single page fault and allocate exactly one pages.
-    va=PGROUNDDOWN(va);
-    uint64 new_block=0;
-    if(va<rblocks[0].va){
-        new_block=(uint64)alloc_memory(PGSIZE);
-        if(new_block==0) return 0;
-        memset((void *)new_block, 0, PGSIZE);
-        if(mappages(pagetable, va, PGSIZE, new_block, xperm)!=0){
-            free_pages((void *)new_block, PGSIZE);
-            new_block=0;
-        }
-        return new_block;
+uint64 alloc_memory_res(struct alloc_context *ctx1){    //Consider reserved area version.
+    //out-of-place promotion, alloc memory in addition.
+    ctx1->seg_start=PGROUNDDOWN(ctx1->seg_start);
+    if(ctx1==NULL || ctx1->rblocks==NULL || ctx1->pagetable==NULL 
+        || ctx1->seg_start>=ctx1->seg_end){
+        pr_err("Invalid argument.");
+        return 0;
     }
-    uint16 idx=(va-rblocks[0].va)/SUPERPGSIZE;
-    if(idx>MAX_RES_BLOCK)   return 0;
-    uint64 start_vpn=(va-rblocks[idx].va)/PGSIZE;
-    if(idx>=512)    return 0;
-    if(rblocks[idx].promoted==0){  //enter reservable region, evaluate reservation strategy
-        if(THRESHLOD==0 || rblocks[idx].pop_count>=THRESHLOD-1){
-            new_block=(uint64)alloc_memory(SUPERPGSIZE);
-            if(new_block==0){   //promoted fail!
-                new_block=(uint64)alloc_memory(PGSIZE);
-                if(new_block==0){
-                    panic("out-of-memory");
-                    return 0;
-                }
-                memset((void *)new_block, 0, PGSIZE);
-                if(mappages(pagetable, va, PGSIZE, new_block, xperm)!=0){
-                    free_pages((void *)new_block, PGSIZE);
-                    return 0;
-                }
-                rblocks[idx].bitmap[start_vpn]=1;
-                rblocks[idx].pop_count++;
-                return new_block;
-            }
-            //promoted success
-            memset((void *)new_block, 0, SUPERPGSIZE);
-            if(merge_into_hugepages_Out(rblocks, pagetable, va, new_block)==0){
-                rblocks[idx].pa=new_block;
-                rblocks[idx].promoted=1;
-                rblocks[idx].bitmap[start_vpn]=1;
-                rblocks[idx].pop_count++;
-                return new_block+start_vpn*PGSIZE;
-            }
-            else{
-                free_pages((void *)new_block, SUPERPGSIZE);
-                return 0;
-            }
-        }
-        else{   
-            //use the simple allocator
-            new_block=(uint64)alloc_memory(PGSIZE);
-            if(new_block==0)    panic("out-of-memory");
-            memset((void *)new_block, 0, PGSIZE);
-            if(mappages(pagetable, va, PGSIZE, new_block, xperm)!=0){
-                free_pages((void *)new_block, PGSIZE);
-                return 0;
-            }
-            rblocks[idx].bitmap[start_vpn]=1;
-            rblocks[idx].pop_count++;
-            return new_block;
-        }
+    int ret1=in_res_area(ctx1->seg_start, ctx1->rblocks);
+    int ret2=in_res_area(ctx1->seg_end, ctx1->rblocks);
+    uint64 res_start=0, res_end=0, non_res_start=0, non_res_end=0;
+    uint64 block1, block1_size, ret_pa=0;//Record the first allocated block pa.
+    if(ret1==-1 && ret2==-1){
+        pr_err("Invalid argument.Unable to determine if currently within res_area.");
+        return 0;
     }
-    rblocks[idx].pop_count++;
-    //already promoted, exist mapping.
-    return new_block;
+    if(ret1==0 && ret2==1){
+        //Splice into two ranges, [va, rblocks[0].va] and [rblocks[0].va, va+size]
+        block1_size=ctx1->rblocks[0].va - ctx1->seg_start;
+        block1=(uint64)alloc_memory(block1_size);
+        if(block1==0)   return 0;
+        memset((void *)block1, 0, block1_size);
+        if(mappages(&(struct map_context){
+            .pagetable=ctx1->pagetable,
+            .start_va=ctx1->seg_start,
+            .pt_lock=ctx1->pt_lock,
+            .pa=block1,
+            .size=block1_size,
+            .xperm=ctx1->xperm
+        }) != 0 ){
+            free_pages((void *)block1, block1_size);
+            return 0;
+        }
+        res_start=ctx1->rblocks[0].va;
+        res_end=ctx1->seg_end;
+        non_res_start=ctx1->seg_start;
+        non_res_end=non_res_start + block1_size;
+        ret_pa=block1;
+    }
+    else if(ret1==1 && ret2==0){
+        //Exist one range exceeds heap_res_area.mappage it firstly
+        block1_size=ctx1->seg_end - ctx1->rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE;
+        block1=(uint64)alloc_memory(block1_size);
+        if(block1==0)   return 0;
+        memset((void *)block1, 0, block1_size);
+        if(mappages(&(struct map_context){
+            .pagetable=ctx1->pagetable,
+            .start_va=ctx1->rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE,
+            .pt_lock=ctx1->pt_lock,
+            .pa=block1,
+            .size=block1_size,
+            .xperm=ctx1->xperm
+        }) != 0 ){
+            free_pages((void *)block1, block1_size);
+            return 0;
+        }
+        res_start=ctx1->seg_start;
+        res_end=ctx1->rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE;
+        non_res_start=ctx1->rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE;
+        non_res_end=non_res_start + block1_size;
+    }
+    else if(ret1==1 && ret2==1){
+        res_start=ctx1->seg_start;
+        res_end=ctx1->seg_end;
+    }
+    else{   //ret1==0 && ret2==0, just treat as ordinary area and map.
+        block1_size=ctx1->seg_end - ctx1->seg_start;
+        block1=(uint64)alloc_memory(block1_size);
+        if(block1==0)   return 0;
+        memset((void *)block1, 0, block1_size);
+        if(mappages(&(struct map_context){
+            .pagetable=ctx1->pagetable,
+            .start_va=ctx1->seg_start,
+            .pt_lock=ctx1->pt_lock,
+            .pa=block1,
+            .size=block1_size,
+            .xperm=ctx1->xperm
+        }) != 0 ){
+            free_pages((void *)block1, block1_size);
+            return 0;
+        }
+        return block1;
+    }
+    uint16 idx=(res_start - ctx1->rblocks[0].va)/SUPERPGSIZE;
+    uint64 cur_vpn, new_heap_block, cur_size, cur_va=res_start;
+    //Record the initial start as rollback termunation point.
+    while(cur_va < res_end){
+        //handle one rblock each time.
+        cur_vpn=(cur_va-ctx1->rblocks[idx].va)/PGSIZE;
+        //enter reservable region, evaluate reservation strategy
+        if(idx==MAX_RES_BLOCK-1)
+            cur_size=MIN(res_end, ctx1->rblocks[MAX_RES_BLOCK-1].va+SUPERPGSIZE);
+        else
+            cur_size=MIN(res_end, ctx1->rblocks[idx+1].va);
+        cur_size=cur_size-cur_va;
+        if(ctx1->rblocks[idx].promoted==1){
+            cur_va+=cur_size;
+            idx++;
+            continue;   //Exist the leaf_pte already.
+        }
+        if(THRESHLOD==0 || ctx1->rblocks[idx].pop_count>=THRESHLOD-cur_size/PGSIZE){
+            new_heap_block=(uint64)alloc_memory(SUPERPGSIZE);
+            if(new_heap_block!=0){
+                memset((void *)new_heap_block, 0, SUPERPGSIZE);
+                if(merge_into_hugepages_Out(ctx1->rblocks, ctx1->pagetable, 
+                        cur_va, new_heap_block)==0){
+                    ctx1->rblocks[idx].pa=new_heap_block;
+                    ctx1->rblocks[idx].promoted=1;
+                    ctx1->rblocks[idx].pop_count+=(cur_size/PGSIZE);
+                    memset(&ctx1->rblocks[idx].bitmap[cur_vpn], 1, sizeof(uint8)*cur_size/PGSIZE);
+                    if(ret_pa==0)   ret_pa=new_heap_block+cur_vpn*PGSIZE;
+                    cur_va+=cur_size;
+                    idx++;
+                    continue;
+                }
+                else{
+                    free_pages((void *)new_heap_block, SUPERPGSIZE);
+                    pr_warn("for out-of-place promotion, merge into new memory fail.");
+                }
+            }
+        }
+        if(buddy_alloc(&(struct alloc_context){
+            .pagetable=ctx1->pagetable,
+            .seg_start=cur_va,
+            .seg_end=cur_va+cur_size,
+            .rblocks=ctx1->rblocks,
+            .xperm=ctx1->xperm,
+            .pt_lock=ctx1->pt_lock}) !=0 ){
+            pr_err("Handling discrete page alloction in res_area fail.");
+            free_memory_res(&(struct alloc_context){
+                .pagetable=ctx1->pagetable,
+                .seg_start=cur_va,
+                .seg_end=res_start,
+                .pt_lock=ctx1->pt_lock,
+                .rblocks=ctx1->rblocks
+            });
+            if(non_res_end > non_res_start){
+                //In certain case, unmapping this region is not strictly required.
+                uvmdealloc(&(struct alloc_context){
+                    .pagetable=ctx1->pagetable,
+                    .seg_start=non_res_end,
+                    .seg_end=non_res_start,
+                    .pt_lock=ctx1->pt_lock,
+                    .rblocks=ctx1->rblocks
+                });
+            }
+            return 0;
+        }
+        if(ret_pa==0){      //Perform a page table walk to resolve the pa.
+            pte_t *pte=walk(ctx1->pagetable, cur_va, 0, 0);
+            if(pte==NULL)   panic("Existing pte have cleared within critical section.");
+            ret_pa=PTE2PA(*pte);
+        }
+        memset(&ctx1->rblocks[idx].bitmap[cur_vpn], 1, sizeof(uint8)*cur_size/PGSIZE);
+        ctx1->rblocks[idx].pop_count+=(cur_size/PGSIZE);
+        cur_va+=cur_size;
+        idx++;
+    }
+    if(!holding(ctx1->pt_lock))     sfence_vma();
+    return ret_pa;
 }
 #endif

@@ -51,9 +51,6 @@ uint64 sys_sbrk(void) {
         pr_err("Current process lack heap_vma, unable to get necessary info.\n");
         goto release_and_ret;
     }
-    //FIXME: // FIXME: 内存布局已改为 [Text->BSS->Stack->Heap]，需修正 exec 初始 SP 位置及 sbrk 起始基址(不再紧接BSS)。
-    // 重点检查：uvmcopy 需兼容地址空间空洞(非连续)；栈底需加 Guard Page 防止溢出覆盖全局变量(BSS)。
-    // 调试陷阱：以前栈溢出报 PageFault，现在可能静默修改数据，务必警惕！
     addr = cur_proc->mm->heap_vma->vm_end;
     if(n==0)    goto release_and_ret;   //No need to grow explicity
     uint64 limit=0;

@@ -13,6 +13,9 @@
 #include "mm.h"
 #include "colors.h"
 
+//Enable COW 
+#define COW
+
 // #define PROC_TEST_TIME 
 struct cpu cpus[NCPU];
 
@@ -42,13 +45,20 @@ struct spinlock wait_lock;
 // guard page.
 void proc_mapstacks(pagetable_t kpgtbl) {
     struct proc *p;
-    void kvmmap_boot_only(pagetable_t,uint64,uint64,uint64,int);
+    void kvmmap_boot_only(struct map_context *ctx);
     for (p = proc; p < &proc[NPROC]; p++) {
         char *pa = kalloc_page();
         if (pa == 0) panic("kalloc");
         uint64 va = KSTACK((int)(p - proc));
         PROC_TRACE("proc %d: kernel_stack located at %llx\n", (int)(p-proc), va);
-        kvmmap_boot_only(kpgtbl, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+        kvmmap_boot_only(&(struct map_context){
+            .pagetable=kpgtbl,
+            .start_va=va,
+            .pa=(uint64)pa,
+            .size=PGSIZE,
+            .xperm=PTE_R | PTE_W,
+            .pt_lock=NULL
+        });
     }
 }
 
@@ -165,7 +175,7 @@ static void freeproc(struct proc *p) {
 #ifdef PROC_DEBUG
     PROC_TRACE("in freeproc oldpagetbale is %p\n", p->pagetable);
 #endif
-    if (p->pagetable)   proc_freepagetable(p->pagetable);
+    if (p->pagetable)   proc_freepagetable(&p->uvm_lock, p->pagetable);
 #ifdef PROC_DEBUG
     PROC_TRACE("Done free this process's memory!\n");
 #endif
@@ -196,22 +206,56 @@ pagetable_t proc_pagetable(struct proc *p) {
     // at the highest user virtual address.
     // only the supervisor uses it, on the way
     // to/from user space, so not PTE_U.
-    if (mappages(pagetable, TRAMPOLINE, PGSIZE, (uint64)trampoline, PTE_R | PTE_X) < 0) {
+    if(mappages(&(struct map_context)
+        {.pagetable=pagetable,
+        .start_va=TRAMPOLINE,
+        .size=PGSIZE,
+        .pa=(uint64)trampoline,
+        .xperm=PTE_R | PTE_X,
+        .pt_lock=&p->uvm_lock}) <0 ){
         freewalk(pagetable, 1, 2);
         return 0;
     }
-
-    // map the trapframe page just below the trampoline page, for trampoline.S.
-    if (mappages(pagetable, TRAPFRAME, PGSIZE, (uint64)(p->trapframe), PTE_R | PTE_W) < 0) {
-        uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+    //map the trapframe page just below the trampoline page, for trampoline.S.
+    if(mappages(&(struct map_context){
+        .pagetable=pagetable,
+        .start_va=TRAPFRAME,
+        .size=PGSIZE,
+        .pa=(uint64)(p->trapframe),
+        .xperm=PTE_R | PTE_W,
+        .pt_lock=&p->uvm_lock}) <0 ){
+        uvmunmap(&(struct map_context){
+            .pagetable=pagetable,
+            .start_va=TRAMPOLINE,
+            .size=PGSIZE,
+            .pt_lock=&p->uvm_lock,
+            .do_free=0
+        });
         freewalk(pagetable, 1, 2);
         return 0;
     }
-
     // establish a shared, read-only mapping at USYSCALL to speed up syscalls via direct memory address.
-    if(mappages(pagetable, USYSCALL, PGSIZE, (uint64)usyscall_pa, PTE_R | PTE_U)<0){
-        uvmunmap(pagetable, TRAMPOLINE, 1, 0);
-        uvmunmap(pagetable, TRAPFRAME,  1, 0);
+    if(mappages(&(struct map_context)
+        {.pagetable=pagetable,
+        .start_va=USYSCALL,
+        .size=PGSIZE,
+        .pa=(uint64)usyscall_pa,
+        .xperm=PTE_R | PTE_U,
+        .pt_lock=&p->uvm_lock}) <0 ){
+        uvmunmap(&(struct map_context){
+            .pagetable=pagetable,
+            .start_va=TRAMPOLINE,
+            .size=PGSIZE,
+            .pt_lock=&p->uvm_lock,
+            .do_free=0
+        });
+        uvmunmap(&(struct map_context){
+            .pagetable=pagetable,
+            .start_va=TRAPFRAME,
+            .size=PGSIZE,
+            .pt_lock=&p->uvm_lock,
+            .do_free=0
+        });
         freewalk(pagetable, 1, 2);
         return 0;
     }
@@ -221,10 +265,28 @@ pagetable_t proc_pagetable(struct proc *p) {
 }
 
 // Free a process's page table, and free the physical memory it refers to.
-void proc_freepagetable(pagetable_t pagetable) {
-    uvmunmap(pagetable, TRAMPOLINE, PGSIZE, 0);
-    uvmunmap(pagetable, TRAPFRAME, PGSIZE, 0);
-    uvmunmap(pagetable, USYSCALL, PGSIZE, 0);
+void proc_freepagetable(struct spinlock *pt_lock, pagetable_t pagetable) {
+    uvmunmap(&(struct map_context){
+        .pagetable=pagetable,
+        .start_va=TRAMPOLINE,
+        .size=PGSIZE,
+        .pt_lock=pt_lock,
+        .do_free=0
+    });
+    uvmunmap(&(struct map_context){
+        .pagetable=pagetable,
+        .start_va=TRAMPOLINE,
+        .size=PGSIZE,
+        .pt_lock=pt_lock,
+        .do_free=0
+    });
+    uvmunmap(&(struct map_context){
+        .pagetable=pagetable,
+        .start_va=TRAPFRAME,
+        .size=PGSIZE,
+        .pt_lock=pt_lock,
+        .do_free=0
+    });
     //All process share one usyscall page,so don' free here!
     freewalk(pagetable, 1, 2);       //Remove this pagetable completely.
 }
@@ -245,10 +307,11 @@ void userinit(void) {
     release(&p->lock);
 }
 
-// Shrink user memory by n bytes.
-// Return 0 on success, -1 on failure.
+// Shrink user memory by n bytes. Return 0 on success, -1 on failure.
+//(Eager allocation.!!)
 int growproc(int n) {       //Ensure enter this function holding two locks(uvmlock and mm_lock)
     struct proc *p = myproc();
+    pr_info("Entering growproc.");
     if(!holding(&p->uvm_lock)){
         pr_err("access user's pagetable without lock.\n");
         return -1;
@@ -269,11 +332,28 @@ int growproc(int n) {       //Ensure enter this function holding two locks(uvmlo
         return -1;
     }
     if (n > 0) {
-        if ((heap_end = uvmalloc(p->pagetable, heap_end, heap_end+n, PTE_W | PTE_R)) == 0)
+        int used_perm=PTE_R | PTE_W;    //Default permission
+    #ifdef COW  //Trigger the Copy-on-Write mechanism
+        if((p->mm->heap_vma->vm_flags & VM_WRITE) 
+            && !(p->mm->heap_vma->vm_flags & VM_SHARED))
+        used_perm=PTE_R | PTE_COW;
+    #endif
+        if((heap_end = uvmalloc(&(struct alloc_context){
+            .pagetable=p->pagetable,
+            .pt_lock=&p->uvm_lock,
+            .seg_start=heap_end,
+            .seg_end=heap_end + n,
+            .xperm=used_perm
+        }))==0)
             return -1;
     } 
     else if (n < 0) {
-        heap_end = uvmdealloc(p->pagetable, heap_end, heap_end + n);
+        heap_end = uvmdealloc(&(struct alloc_context){
+            .pagetable=p->pagetable,
+            .pt_lock=&p->uvm_lock,
+            .seg_start=heap_end,
+            .seg_end=heap_end+n,
+        });
     }
     p->mm->heap_vma->vm_end=heap_end; //update the heap boundary
     return 0;
@@ -281,7 +361,6 @@ int growproc(int n) {       //Ensure enter this function holding two locks(uvmlo
 
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.
-#define COW
 int kfork(void) {
     int i, pid;
     struct proc *new_child;

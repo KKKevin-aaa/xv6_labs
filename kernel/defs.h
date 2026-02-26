@@ -14,6 +14,8 @@ struct sleeplock;
 struct stat;
 struct superblock;
 struct vm_dupl_ctx;
+struct map_context;
+struct alloc_context;
 typedef struct rb_node rb_node_t;
 typedef struct rb_root rb_root_t;
 typedef struct vm_area_struct vm_area_struct_t;
@@ -161,7 +163,7 @@ int             kfork(void);
 int             growproc(int n);
 void            proc_mapstacks(pagetable_t kpgtbl);
 pagetable_t     proc_pagetable(struct proc *p);
-void            proc_freepagetable(pagetable_t pagetable);
+void            proc_freepagetable(struct spinlock *pt_lock, pagetable_t pagetable);
 int             kkill(int pid);
 int             killed(struct proc* p);
 void            setkilled(struct proc* p);
@@ -240,16 +242,16 @@ void            uartputc_sync(int c);
 int             uartgetc(void);
 
 // vm.c
-int             mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm);
+int             mappages(struct map_context *ctx1);
 pagetable_t     uvmcreate(void);
-uint64          uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int perm);
-uint64          uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz);
+uint64          uvmalloc(struct alloc_context *ctx1);
+uint64          uvmdealloc(struct alloc_context *ctx1);
 int             uvmcopy_range_private(struct vm_dupl_ctx *ctx1);
 int             uvmcopy_range_shared(struct vm_dupl_ctx *ctx1);
 int             uvmcopy_range_direct_shared(struct vm_dupl_ctx *ctx1);
 int             uvmcopy_range_cow(struct vm_dupl_ctx *ctx1);
 void            uvmfree_range(res_block *rb_array, pagetable_t pagetable, uint64 start, uint64 end);
-void            uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free);
+void            uvmunmap(struct map_context *ctx1);
 void            uvmclear(pagetable_t pagetable, uint64 va);
 pte_t *         walk(pagetable_t pagetable, uint64 va, int alloc, int target_level);
 uint64          walkaddr(pagetable_t pagetable, uint64 va);
@@ -265,10 +267,9 @@ void            vmprint(pagetable_t pagetable);
 pte_t*          pgpte(pagetable_t pagetable, uint64 va);
 // #endif
 void            init_res_array(res_block *rblocks, uint64 init_heap_start);
-uint64          alloc_res_memory(res_block *rb_array, pagetable_t pagetable, uint64 start_va, uint64 end_va, uint64 size, int perm);
-uint64          free_res_memory(res_block *rb_array, pagetable_t pagetable, uint64 start_va, uint64 end_va, uint64 size);
-void            reclaim_res_memory_range(res_block *rb_array, pagetable_t pagetable, uint64 start_va, uint64 end_va);
-uint64          Simp_alloc_res_memory(res_block *rb_array, pagetable_t pagetable, uint64 size, int perm);
+uint64          alloc_memory_res(struct alloc_context *ctx1);
+uint64          free_memory_res(struct alloc_context *ctx1);
+void            reclaim_memory_res_range(res_block *rb_array, pagetable_t pagetable, uint64 start_va, uint64 end_va);
 uint64          scan_contigous_map(pagetable_t paegetable, uint64 src_va);
 
 //rbtree_impl.c
@@ -304,7 +305,7 @@ int             do_munmap(munmap_context_t *ctx1);
 
 //kvm.c
 void            kvminit(void);
-int             kvmmap_safe(pagetable_t kpgtbl, uint64 va, uint64 pa, uint64 sz, int perm);
+int             kvmmap_safe(struct map_context *ctx1);
 void            kvminithart(void);
 vm_area_struct_t *alloc_kernel_vma(void);
 void*           kvmalloc(pagetable_t kpgtbl, uint64 size, int flags);
