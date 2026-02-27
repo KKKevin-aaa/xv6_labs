@@ -88,7 +88,7 @@ int kexec(char *path, char **argv) {
     if (readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf)) goto bad;
     if (elf.magic != ELF_MAGIC) goto bad;
     if ((new_pagetable = proc_pagetable(p)) == 0) goto bad;
-    
+    shadow_mm->pagetable=new_pagetable;
     vm_area_struct_t *prev_vma=NULL;
     //Loader will scan all program headers, select PT_LOAD segment.
     for (i = 0, off = elf.phoff; i < elf.phnum; i++, off += sizeof(ph)) {
@@ -121,14 +121,38 @@ int kexec(char *path, char **argv) {
             .seg_start=vma->vm_start,
             .seg_end=vma->vm_end,
             .pt_lock=NULL,
-            .xperm=vma->vm_page_prot
-        })) ==0 )   goto bad;
-        if (loadseg(new_pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0) goto bad;
+            .xperm=vma->vm_page_prot,
+            .rblocks=NULL
+        })) ==0 ){
+            vma_put(vma);
+            goto bad;
+        }
+        if (loadseg(new_pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0){
+            vma_put(vma);
+            uvmdealloc(&(struct alloc_context){
+                .pagetable=new_pagetable,
+                .pt_lock=NULL,
+                .rblocks=NULL,
+                .seg_start=vma->vm_end,
+                .seg_end=vma->vm_start
+            });
+            goto bad;
+        }
+
         pr_info("from elf,loading vma->vm_start=0x%llx, vma->vm_end=0x%llx and pg.filesz is 0x%llx",
             vma->vm_start, vma->vm_end, ph.filesz);
         acquiresleep(&shadow_mm->mm_lock);
+        //Thchnically, a lock is not required here.but one in included because the internal
+        //insertion logic performs a lock-validation check.
         if(insert_vma_fast(shadow_mm, vma, &(vma_context_t){.prev=prev_vma, .next=NULL})==-1){
             vma_put(vma);
+            uvmdealloc(&(struct alloc_context){
+                .pagetable=new_pagetable,
+                .pt_lock=NULL,
+                .rblocks=NULL,
+                .seg_start=vma->vm_end,
+                .seg_end=vma->vm_start,
+            });
             goto bad;
         }
         releasesleep(&shadow_mm->mm_lock);
@@ -165,7 +189,16 @@ int kexec(char *path, char **argv) {
     uvmclear(new_pagetable, stackbase+PGSIZE);
     // --- 创建 Stack VMA ---
     vm_area_struct_t *stack_vma = alloc_vma_node();
-    if (!stack_vma) goto bad;
+    if (!stack_vma){
+        uvmdealloc(&(struct alloc_context){
+            .pagetable=new_pagetable,
+            .pt_lock=NULL,
+            .rblocks=NULL,
+            .seg_start=stackbase+2*PGSIZE,
+            .seg_end=stackbase-PGSIZE
+        });
+        goto bad;
+    }
     stack_vma->vm_start = stackbase;     //Skip the guard pages.
     //This represents the static ownership of the memory region,
     // which remains constant regradless of stack utilization.
@@ -178,6 +211,13 @@ int kexec(char *path, char **argv) {
     stack_vma->vm_file = NULL;
     if(insert_vma_fast(shadow_mm, stack_vma, &(vma_context_t){.prev=prev_vma, .next=NULL})==-1){
         vma_put(stack_vma);
+        uvmdealloc(&(struct alloc_context){
+            .pagetable=shadow_mm->pagetable,
+            .pt_lock=NULL,
+            .seg_start=stackbase+2*PGSIZE,
+            .seg_end=stackbase-PGSIZE,
+            .rblocks=NULL
+        });
         goto bad;
     }
     shadow_mm->stack_vma = stack_vma;
@@ -196,6 +236,7 @@ int kexec(char *path, char **argv) {
     heap_vma->vm_file = NULL;     //Anonymous VMA
     if(insert_vma_fast(shadow_mm, heap_vma, &(vma_context_t){.prev=prev_vma, .next=NULL})==-1){
         vma_put(heap_vma);
+        //No allocated physical resource, empty heap
         goto bad;
     }
     shadow_mm->heap_vma = heap_vma;
@@ -222,26 +263,21 @@ int kexec(char *path, char **argv) {
         if (*s == '/') last = s + 1;
     safestrcpy(p->name, last, sizeof(p->name));
 
-    //Ownership handover(atomic exchange, Nullifying the source)
-    releasesleep(&shadow_mm->mm_lock);
     acquire(&p->uvm_lock);  //Top-level lock.
-    acquiresleep(&shadow_mm->mm_lock);
-    old_pagetable = p->pagetable;
-
     mm_struct_t *old_mm=p->mm;
-    if(old_mm!=NULL)    acquiresleep(&old_mm->mm_lock);  //Lock-Ordering:take the high-level lock first.
     p->mm=shadow_mm;
     p->pagetable = new_pagetable;
+    release(&p->uvm_lock);
+
     new_pagetable=0;        //Uint64*(Trivial Type)Invalid this pointer directly.
     p->trapframe->epc = elf.entry;
     p->trapframe->sp = sp;
-    if(old_mm!=NULL)    releasesleep(&old_mm->mm_lock);
-    releasesleep(&shadow_mm->mm_lock);
-    shadow_mm=NULL;
-    release(&p->uvm_lock);   //Release locks as early as possible to enhance system concurrency
 
+    releasesleep(&shadow_mm->mm_lock);
+    shadow_mm=NULL;     //Invalid this pointer copy.
+
+    //Essentially a replacement operatiorn,old pagetable and mm_struct must be cleaned up.
     if(old_mm!=NULL)    mm_put(old_mm);//reclaim the unused resource 
-    proc_freepagetable(NULL, old_pagetable);      //No process can get this outdated pagetable(Unreachability)
     //init the reserved area(after delete the previous resource)
     init_res_array(p->rb_array, p->mm->heap_vma->vm_start);
 
@@ -249,9 +285,7 @@ int kexec(char *path, char **argv) {
 bad:
     if(holdingsleep(&shadow_mm->mm_lock))    releasesleep(&shadow_mm->mm_lock);
     mm_put(shadow_mm);
-    if (new_pagetable!=0)
-        proc_freepagetable(NULL, new_pagetable);
-        //No process can get this temporary unpublished pagetable.
+    //No process can get this temporary unpublished pagetable.
     if(src_file!=NULL){
         if (ip!=NULL)   iunlock(ip);
         //Ownership have being handed over to the src_file.(No put.)

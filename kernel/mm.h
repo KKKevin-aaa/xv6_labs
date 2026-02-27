@@ -138,7 +138,8 @@ struct mm_struct{
     vm_area_struct_t *heap_vma; //start and end of the heap
     vm_area_struct_t *stack_vma; //tell us the start address of main block
     uint64 arg_start, arg_end;
-    uint64 env_start, env_end;  
+    uint64 env_start, env_end;
+    pagetable_t pagetable;
     atomic_t ref_count;
 };   //one process must have one tree
 #define REF_SATURATION      0XC0000000

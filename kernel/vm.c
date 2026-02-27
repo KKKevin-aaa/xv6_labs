@@ -50,7 +50,9 @@ void walk_all_page(uint64 start_va, pagetable_t pagetable, int level);
 // and stop while level equals to target_level(0 for 4kB, 1 for 2MB, 2 for 1GB)
 
 pte_t *walk_internal(pagetable_t pagetable, uint64 va, int alloc, int target_level, int *found_level) {
-    if (va >= MAXVA) panic("walk");
+    if (va >= MAXVA)    panic("Walk exceed virtual address boundary");
+    if(pagetable==NULL)
+        panic("Pass in an unvalid pagetable(Nullptr)");
     for (int level = 2; level > target_level; level--) {    //Tips: start level can be changed!
         pte_t *pte = &pagetable[PX(level, va)]; //math
         if (*pte & PTE_V) { //Locate the next level pagetable using pte(create and init if necessary)
@@ -194,6 +196,11 @@ int mappages(struct map_context *ctx1){
     uint64 basic_size=PGSIZE, target_level=0, prev_level=3;   //determine rewalk necessity
     if(ctx1->size%PGSIZE!=0)  panic("mappages: size not aligned");
     if (ctx1->size == 0) panic("mappages: size: 0");
+    int locked_by_me=0;
+    if(ctx1->pt_lock!=NULL && !holding(ctx1->pt_lock)){
+        acquire(ctx1->pt_lock);
+        locked_by_me=1;
+    }
     while(ctx1->size>0){
         if(ctx1->start_va%GIGAPGSIZE==0 && ctx1->size>=GIGAPGSIZE){
             target_level=2;
@@ -222,12 +229,19 @@ int mappages(struct map_context *ctx1){
         ctx1->pa+=basic_size;
         //update basic_size(and target level) based on the current maximum alignment value.
     }
+    sfence_vma();   //tlb flush once prevent overhead of TLB shootdown.
+    if(locked_by_me==1)
+        release(ctx1->pt_lock);
     return 0;
 }
 
 void split_into_blocks(res_block * rblocks, pagetable_t pagetable, uint64 va, uint64 cur_level){
+    if(rblocks==NULL || pagetable==NULL)
+        panic("Invalid argument");
     uint16 idx=(va-rblocks[0].va)/SUPERPGSIZE;
     pte_t *old_pte=walk(pagetable, va, 0, cur_level);
+    if(old_pte==NULL || *old_pte==0)
+        panic("Incomplete or missing page table structure for the given address");
     pagetable_t new_pagetable=alloc_memory(PGSIZE);
     if(new_pagetable==NULL) panic("Split-into-blocks:OOM");
     memset((void *)new_pagetable, 0, PGSIZE);
@@ -319,7 +333,7 @@ uint64 uvmunmap_helper(struct map_context *ctx1){
         panic("uvmunmap_helper!");
         return -1;
     }
-    uint64 pa, vpn_incr, cur_order=0, del_size=0, pending;
+    uint64 pa, del_size=0, pending;
     uint64 delete_pa[32]={0}, delete_size[32]={0};
     //store pa to be deleted(also with its size) and process them in a batch,
     //followed by a TLB flush to improve efficiency.
@@ -383,66 +397,35 @@ uint64 uvmunmap_helper(struct map_context *ctx1){
                 pte_t tmp_pte=0;
                 int inc_vpn=1;
                 while(cur_vpn+inc_vpn < 512 && max_cont_len < (ctx1->size - del_size)){
-                    inc_vpn=1;
-                    max_cont_len=basic_stride;  ???fixme:
-                    while(cur_vpn+inc_vpn < 512 && max_cont_len < (ctx1->size - del_size)){
-                        tmp_pte=ctx1->pagetable[cur_vpn+inc_vpn];
-                        if((tmp_pte & PTE_V) == 0)  break;
-                        if(PTE2PA(tmp_pte) != pa + inc_vpn * basic_stride)
-                            break;
-                        if(PTE_FLAGS(tmp_pte) != cmp_perm)
-                            break;
-                        inc_vpn++;
-                        max_cont_len+=basic_stride;
-                    }
-                    for(int i=0;i<inc_vpn;i++)
-                        if(cur_vpn+i<end_vpn) pte[i]=0;
-                    if(ctx1->do_free!=0){
-                        delete_pa[delete_idx]=pa;
-                        delete_size[delete_idx++]=max_cont_len;
-                        if(delete_idx>=32){
-                            sfence_vma();
-                            for(int i=0;i<32;i++)
-                                free_pages((void *)delete_pa[i], delete_size[i]);
-                            memset((void *)delete_pa, 0, sizeof(uint64)*32);
-                            memset((void *)delete_size, 0, sizeof(uint64)*32);
-                            delete_idx=0;
-                        }
-                    }
-                    del_size+=max_cont_len;
-                    ctx1->start_va+=max_cont_len;
-                    cur_vpn+=inc_vpn;
+                    tmp_pte=ctx1->pagetable[cur_vpn+inc_vpn];
+                    if((tmp_pte & PTE_V) == 0)  break;
+                    if(PTE2PA(tmp_pte) != pa + inc_vpn * basic_stride)
+                        break;
+                    if(PTE_FLAGS(tmp_pte) != cmp_perm)
+                        break;
+                    inc_vpn++;
+                    max_cont_len+=basic_stride;
                 }
+                for(int i=0;i<inc_vpn;i++)
+                    if(cur_vpn+i<end_vpn) pte[i]=0;
+                if(ctx1->do_free!=0){
+                    delete_pa[delete_idx]=pa;
+                    delete_size[delete_idx++]=max_cont_len;
+                    if(delete_idx>=32){
+                        sfence_vma();
+                        for(int i=0;i<32;i++)
+                            free_pages((void *)delete_pa[i], delete_size[i]);
+                        memset((void *)delete_pa, 0, sizeof(uint64)*32);
+                        memset((void *)delete_size, 0, sizeof(uint64)*32);
+                        //clear the deleted address and size immediately to prevent double free.
+                        delete_idx=0;
+                    }
+                }
+                del_size+=max_cont_len;
+                ctx1->start_va+=max_cont_len;
+                cur_vpn+=inc_vpn;
             }
         }
-                // cur_order=get_order(pa);    //Return 0 while pa located in a huge page
-                // uint64 max_phy_size=1ull<<(cur_order + ORDER_BASE);
-                // pending=max_phy_size;
-                // while(pending > max_cont_len && pending > basic_stride){
-                //     pending /= 2;
-                //     inc_vpn /=2;
-                // }
-                // if(cur_order < ctx1->cur_level*9) 
-                //     panic("dismatch\n");    //Only allocte a single smaller page
-
-                // vpn_incr=1ull << (cur_order - ctx1->cur_level*9);
-                // for(int i=0;i<vpn_incr;i++)
-                //     if(cur_vpn+i<end_vpn) pte[i]=0;
-                // if(ctx1->do_free!=0){
-                //     delete_pa[delete_idx]=pa;
-                //     delete_size[delete_idx++]=pending;
-                //     if(delete_idx>=32){
-                //         sfence_vma();
-                //         for(int i=0;i<32;i++)
-                //             free_pages((void *)delete_pa[i], delete_size[i]);
-                //         memset((void *)delete_pa, 0, sizeof(uint64)*32);
-                //         memset((void *)delete_size, 0, sizeof(uint64)*32);
-                //         delete_idx=0;
-                //     }
-                // }
-                // del_size+=pending;
-                // ctx1->start_va+=pending;
-                // cur_vpn+=vpn_incr;
         else{   //directory page:Split and delegate the task to the next-level page table! 
             pending=MIN(basic_stride-page_offset, ctx1->size-del_size);
             uvmunmap_helper(&(struct map_context){
@@ -898,7 +881,7 @@ uint64 uvmalloc(struct alloc_context * ctx1){
 //-------------------DEALLOC------------------------------
 //Keep the same logic as uvmalloc(Binary Buddy Decomposition!)
 //A User/Kernel agnostic function.
-
+//TIPS: for dealloc, passed-in seg_end < seg_start.
 uint64 uvmdealloc(struct alloc_context *ctx1){
 #ifdef DEBUG_VM
     VM_TRACE("oldsz=0x%llx newsz=0x%llx\n", oldsz, newsz);
@@ -1665,7 +1648,7 @@ int copywalk_shared(struct vm_dupl_ctx *v1){
 // Even though the release process itself does not requires the sz parameter.
 // Must free page-table pages.
 void uvmfree_range(res_block *rblocks, pagetable_t pagetable, uint64 start_va, uint64 sz) {
-    reclaim_res_memory_range(rblocks, pagetable, 0, sz);
+    reclaim_memory_res_range(rblocks, pagetable, 0, sz);
     if (sz > 0) freewalk_limit(pagetable, 1, start_va, sz, 2);
     else    freewalk_limit(pagetable, 0, start_va, sz, 2);
 }
@@ -1762,7 +1745,10 @@ void uvmclear(pagetable_t pagetable, uint64 va) {
     pte_t *pte;
 
     pte = walk(pagetable, va, 0, 0);
-    if (pte == 0) panic("uvmclear");
+    if (pte == NULL)
+        panic("Imcomplete page table structure while clear 0x%llx", va);
+    if(*pte==0)
+        pr_err("The detected pte is empty.");
     *pte &= ~PTE_U;
 }
 
@@ -2260,10 +2246,11 @@ error:
 // that was lazily allocated in sys_sbrk().
 // returns 0 if va is invalid or already mapped, or if out of physical memory, 
 // and return physical address if successful.
-uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
+// NOTE: for argument "read" means Load page fault while 1, and means store error whne 0.
+uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read_error) {
     struct proc *p = myproc();
     uint64 ret_pa=0;
-
+    int locked_by_me=0;
     //Pass arugment rblocks etc explicitly instead of implicitly retriving them via myproc()
     if(p->mm==NULL){
         pr_err("Fatal error: proc's mm is NULL.\n");
@@ -2277,17 +2264,29 @@ uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
         pr_err("Cannot find the corresponding vma.\n");
         goto release_and_ret;
     }
-    if((read==1 && !(vma->vm_flags & VM_READ)) || (read==0 && !(vma->vm_flags & VM_WRITE))){
+    if((read_error==1 && !(vma->vm_flags & VM_READ)) || (read_error==0 && !(vma->vm_flags & VM_WRITE))){
         pr_warn("Inconsisent permission.\n");
         goto release_and_ret;
     }
-    acquire(&p->uvm_lock);      //Acquiring, for modifying PTE absolutely
-    //Valid vma, categorization and dispatching.
+    if(!holding(&p->uvm_lock)){
+        acquire(&p->uvm_lock);      //Acquiring, for modifying PTE absolutely.
+        locked_by_me=1;
+    }
+    //Other threads operating on the page table can proceed normally.
+    //Current threads will spin-wait.
     pte_t *pte=walk(p->pagetable, va, 0, 0);
-    if(pte==NULL){      //Lazy allocation.
+    if(pte!=NULL && (*pte & PTE_V)){
+        //double check, for shared pagetable in multicore changed
+        if((read_error==0 && (*pte & PTE_W)) || read_error==1)
+            goto release_and_ret;
+        //Page Fault have already handled by other thread prior to this, just return.
+    }
+    //Valid vma, categorization and dispatching.
+    if(pte==NULL || *pte==0){
+        //Lack basic directory pte or PTE is empty.do Lazy allocation.
         if(vma->vm_file==NULL){     //Anonymous Fault.(.bss or heap or stack), mayeb mmap
         #ifdef RESERVE
-            ret_pa=alloc_res_memory(&(struct alloc_context){
+            ret_pa=alloc_memory_res(&(struct alloc_context){
                 .pagetable=pagetable,
                 .seg_start=va,
                 .seg_end=va+PGSIZE,
@@ -2330,11 +2329,19 @@ uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
                 ret_pa=0;
             }
             else{
-                acquiresleep(&p->mm->mm_lock);
                 acquire(&p->uvm_lock);
+                acquiresleep(&p->mm->mm_lock);
+                if(vma->vm_mm != p->mm){
+                    pr_warn("handle page fault(0x%llx) occur error during reacquire lock"
+                        "previous vma have unmapped.", va);
+                    free_pages((void *)ret_pa, PGSIZE);
+                    ret_pa=0;
+                    goto release_and_ret;
+                }
                 pte=walk(pagetable, va, 0, 0);
-                if(pte!=NULL && ((*pte & PTE_V) || vma->vm_mm!=p->mm)){
-                    //Current page fault has already been handled,Release original resources.
+                if(pte==NULL)   panic("Destory pagetable structure.");
+                else if(*pte & PTE_V){
+                    //Current page fault has already been handled just Release original resources.
                     free_pages((void *)ret_pa, PGSIZE);
                     pr_info("Other concurrent process have resolved.");
                     ret_pa=PTE2PA(*pte);
@@ -2348,9 +2355,8 @@ uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
                 }) !=0 ) {
                     VM_TRACE("Mappage %llx fail", va);
                     free_pages((void *)ret_pa, PGSIZE);
-                    ret_pa=PTE2PA(*pte);
+                    ret_pa=0;
                 }
-                releasesleep(&p->mm->mm_lock);
             }
         }
     }
@@ -2365,7 +2371,13 @@ uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
                 panic("Dismatch between PTE amd vm_flag in COW.");
             uint64 old_pa=PTE2PA(*pte), src_flag=PTE_FLAGS(*pte);
             if(get_page_ref_count((void *)old_pa)!=1){
-                ret_pa=(uint64)alloc_memory(PGSIZE);
+                ret_pa=(uint64)alloc_memory_res(&(struct alloc_context){
+                    .pagetable=p->pagetable,
+                    .pt_lock=&p->uvm_lock,
+                    .rblocks=p->rb_array,
+                    .seg_start=va,
+                    .seg_end=va+PGSIZE,
+                });
                 if(ret_pa==0){
                     pr_warn("COW:alloc memory fail.\n");
                     goto release_and_ret;
@@ -2384,8 +2396,12 @@ uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, int read) {
     }
 release_and_ret:
     if(vma!=NULL)   vma_put(vma);
-    if(holding(&p->uvm_lock))    release(&p->uvm_lock);
-    sfence_vma();
+    //About lock releasing, Obey first in last out.
+    if(locked_by_me==1 && holding(&p->uvm_lock))
+        release(&p->uvm_lock);
+    if(holdingsleep(&p->mm->mm_lock))
+        releasesleep(&p->mm->mm_lock);
+    if(ret_pa!=0)   sfence_vma();   //Flush tlb Only if pagetable has fixed up.
     return ret_pa;
 }
 
@@ -2645,7 +2661,6 @@ uint64 free_memory_res(struct alloc_context *ctx1){
             split_into_blocks(ctx1->rblocks, ctx1->pagetable, start_va, 1);  // Demotion for partial uvmunmap
             ctx1->rblocks[idx].promoted=0;
         }
-        uint64 bp_idx=start_vpn;
         for(uint64 bp_idx=start_vpn;bp_idx<start_vpn+vpn_step;bp_idx++){
             if(ctx1->rblocks[idx].bitmap[bp_idx]!=0)
                 ctx1->rblocks[idx].pop_count--;

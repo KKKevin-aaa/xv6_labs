@@ -175,7 +175,7 @@ static void freeproc(struct proc *p) {
 #ifdef PROC_DEBUG
     PROC_TRACE("in freeproc oldpagetbale is %p\n", p->pagetable);
 #endif
-    if (p->pagetable)   proc_freepagetable(&p->uvm_lock, p->pagetable);
+    mm_put(p->mm);      //free the pagetable at the same time.
 #ifdef PROC_DEBUG
     PROC_TRACE("Done free this process's memory!\n");
 #endif
@@ -307,9 +307,64 @@ void userinit(void) {
     release(&p->lock);
 }
 
+#ifdef RESERVE
 // Shrink user memory by n bytes. Return 0 on success, -1 on failure.
 //(Eager allocation.!!)
 int growproc(int n) {       //Ensure enter this function holding two locks(uvmlock and mm_lock)
+    struct proc *p = myproc();
+    pr_info("Entering growproc.");
+    if(!holding(&p->uvm_lock)){
+        pr_err("access user's pagetable without lock.\n");
+        return -1;
+    }
+    if(p->mm==NULL){
+        pr_err("Fatal error: proc's mm shouldn't be NULL.\n");
+        return -1;
+    }
+    if(!holdingsleep(&p->mm->mm_lock))
+        pr_err("[Warning]Access process's mm_struct_t without lock(Protected by uvmlock).\n");
+    if(p->mm->heap_vma==NULL){      //check the heap vma
+        PROC_TRACE("Fatal error: proc's heap_vma shouldn't be NULL.\n");
+        return -1;
+    }
+    uint64 heap_end=p->mm->heap_vma->vm_end;
+    if(p->mm->heap_vma->vm_start > heap_end + n){
+        PROC_TRACE("shrink heap fail, hitting the lower bound.\n");
+        return -1;
+    }
+    if (n > 0) {
+        int used_perm=PTE_R | PTE_W;    //Default permission
+    #ifdef COW  //Trigger the Copy-on-Write mechanism
+        if((p->mm->heap_vma->vm_flags & VM_WRITE) 
+            && !(p->mm->heap_vma->vm_flags & VM_SHARED))
+        used_perm=PTE_R | PTE_COW;
+    #endif
+        if((heap_end = alloc_memory_res(&(struct alloc_context){
+            .pagetable=p->pagetable,
+            .pt_lock=&p->uvm_lock,
+            .rblocks=p->rb_array,
+            .seg_start=heap_end,
+            .seg_end=heap_end + n,
+            .xperm=used_perm
+        }))==0)
+            return -1;
+    } 
+    else if (n < 0) {
+        heap_end = free_memory_res(&(struct alloc_context){
+            .pagetable=p->pagetable,
+            .pt_lock=&p->uvm_lock,
+            .rblocks=p->rb_array,
+            .seg_start=heap_end,
+            .seg_end=heap_end+n,
+        });
+        if(heap_end != p->mm->heap_vma->vm_end+n)
+            return -1;
+    }
+    p->mm->heap_vma->vm_end=heap_end; //update the heap boundary
+    return 0;
+}
+#else
+int growproc_res(int n) {       //Ensure enter this function holding two locks(uvmlock and mm_lock)
     struct proc *p = myproc();
     pr_info("Entering growproc.");
     if(!holding(&p->uvm_lock)){
@@ -358,6 +413,7 @@ int growproc(int n) {       //Ensure enter this function holding two locks(uvmlo
     p->mm->heap_vma->vm_end=heap_end; //update the heap boundary
     return 0;
 }
+#endif
 
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.
@@ -378,15 +434,16 @@ int kfork(void) {
         return -1;
     }
     release(&new_child->lock);
-    //release this lock firstly, 'Casue it's guaranteed not be used by any other function.
+    //'Casue it's guaranteed not be used by any other function(Special statement)
+    //SO we can release this lock firstly, 
 
     // Copy user memory from parent to child.
     memmove(new_child->rb_array, cur_parent->rb_array, sizeof(struct Reservation)*MAX_RES_BLOCK);
     //copy the rb_array first
-    acquire(&cur_parent->uvm_lock);
-    acquire(&new_child->uvm_lock);      //Locks required for pagetable cloning
     acquiresleep(&cur_parent->mm->mm_lock);
     acquiresleep(&new_child->mm->mm_lock);   //Locks required for mm_struct_t cloning
+    acquire(&cur_parent->uvm_lock);
+    acquire(&new_child->uvm_lock);      //Locks required for pagetable cloning
     //Create a new one mm_struct(value copy/Deep copy)--Metadata
     vm_area_struct_t *copy_vma=cur_parent->mm->mmap , *tmp_next=NULL, *prev_vma=NULL;
     vm_area_struct_t *new_vma=NULL;
@@ -450,10 +507,10 @@ int kfork(void) {
     new_child->mm->start_data=cur_parent->mm->start_data;
     new_child->mm->end_data=cur_parent->mm->end_data;
     
-    releasesleep(&new_child->mm->mm_lock);
-    releasesleep(&cur_parent->mm->mm_lock);
     release(&new_child->uvm_lock);
     release(&cur_parent->uvm_lock);
+    releasesleep(&new_child->mm->mm_lock);
+    releasesleep(&cur_parent->mm->mm_lock);
     // Copy saved user registers.
     *(new_child->trapframe) = *(cur_parent->trapframe);
     // NOTE: Duplicate all user stacks and registers,only modifying the a0 register
@@ -490,13 +547,12 @@ int kfork(void) {
 
     return pid;
 error_on_copy:
-    releasesleep(&new_child->mm->mm_lock);
-    releasesleep(&cur_parent->mm->mm_lock);
     release(&cur_parent->uvm_lock);
     release(&new_child->uvm_lock);
+    releasesleep(&new_child->mm->mm_lock);
+    releasesleep(&cur_parent->mm->mm_lock);
 
-    if(!holding(&new_child->lock))
-        acquire(&new_child->lock);  //acquire the child'lock for reclaim its resource.
+    acquire(&new_child->lock);  //acquire the child'lock for reclaim its resource.
     freeproc(new_child);        //remove complete pagetable and mm_struct
     release(&new_child->lock);
     pr_err("Error in kfrok.");

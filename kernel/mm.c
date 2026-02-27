@@ -224,6 +224,9 @@ int remove_mm(mm_struct_t *mm){
     }
     releasesleep(&mm->mm_lock);
     //The cpu cannot unlock a memory area that has already been deallocated
+    //And mm_struct is bound to pagetable, so free associated pagetable,
+    proc_freepagetable(NULL, mm->pagetable);
+    //No process can get this outdated pagetable(Unreachability), lock-free.
     return slab_free((void *)mm);
 }
 

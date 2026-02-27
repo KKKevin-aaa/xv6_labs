@@ -37,10 +37,9 @@ uint64 sys_wait(void) {
 
 //Different from vmfault(Explicitly invoked by the user.)
 uint64 sys_sbrk(void) {
-    uint64 addr;
+    uint64 addr, retval;
     int t;
     int n;
-    uint64 tmp_ret=0;
     struct proc *cur_proc=myproc();
     argint(0, &n);
     argint(1, &t);
@@ -52,6 +51,7 @@ uint64 sys_sbrk(void) {
         goto release_and_ret;
     }
     addr = cur_proc->mm->heap_vma->vm_end;
+    retval=addr;    //Assuming it executes successfully as a baseline.
     if(n==0)    goto release_and_ret;   //No need to grow explicity
     uint64 limit=0;
     if(n>0){
@@ -60,58 +60,35 @@ uint64 sys_sbrk(void) {
             limit=UPPER_LIMIT;
         else
             limit=next_vma->vm_start;       //Mmap vma
-        if(addr +n > limit){
+        if(addr +n > limit || addr + n <addr){
             //Prevent excessive n from overwriting kernel memory
+            //Alos prevent integer overflow.
             pr_warn("No space to grow, remain space is %llx\n.\n", limit-addr);
-            tmp_ret=-1;
+            retval=-1;
             goto release_and_ret;
         }
     }
     else{   //The case where n==0 has been explicitly excluded.
-        vm_area_struct_t *prev_vma=cur_proc->mm->heap_vma->vm_prev;
-        if(prev_vma==NULL)
-            limit=cur_proc->mm->heap_vma->vm_start;     //Only one heap_vma???
-        else    limit=prev_vma->vm_end;
-        if(addr + n < limit){
+        limit=cur_proc->mm->heap_vma->vm_start;
+        if(-n > addr - limit){
+            //Avoid direct arithmetic between unsigned and signed number.
             pr_warn("Reached the prev_vma boundary, can't shrink to that position.");
-            tmp_ret=-1;
+            retval=-1;
             goto release_and_ret;
         }
     }
     //Pass defined position verfication.
-    if (t == SBRK_EAGER) {
-        acquire(&cur_proc->uvm_lock);       //blocks operations like Page fault, exec, exit ...
-        if (growproc(n) < 0) {      //Update heap_vma boundary in growproc already
-            tmp_ret=-1;
-        }
+    if(t==SBRK_EAGER || n <0){
+        acquire(&cur_proc->uvm_lock);
+        if(growproc(n)<0)
+            retval=-1;
         release(&cur_proc->uvm_lock);
-    } 
-    else {
-        // Lazily allocate memory for this process: increase its memory
-        // size but don't allocate memory. If the processes uses the
-        // memory, vmfault() will allocate it.
-        if(n<0){
-            acquire(&cur_proc->uvm_lock);
-        #ifdef RESERVE
-            uint64 start_va=cur_proc->mm->heap_vma->vm_end;
-            uint64 end_va=start_va+n;
-            free_res_memory(cur_proc->rb_array, cur_proc->pagetable, 
-                            cur_proc->rb_array[0].va, start_va, end_va);
-            cur_proc->mm->heap_vma->vm_end+=n;
-        #else
-            if(growproc(n)<0){
-                tmp_ret=-1;
-                goto release_and_ret;
-            }  //non-reserve
-        #endif
-            release(&cur_proc->uvm_lock);
-        }
-        else    cur_proc->mm->heap_vma->vm_end += n; //In lazy grow
     }
-    tmp_ret=addr;
+    else    cur_proc->mm->heap_vma->vm_end += n;    //Lazy grow.
+
 release_and_ret:
     releasesleep(&cur_proc->mm->mm_lock);
-    return tmp_ret;
+    return retval;
 }
 
 uint64 sys_pause(void) {

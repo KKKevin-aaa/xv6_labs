@@ -41,13 +41,10 @@ uint64 usertrap(void) {
 
     if (r_scause() == 8) {
         // system call(Environment call from U-mode!)
-
         if (killed(p)) kexit(-1);
-
         // sepc points to the ecall instruction,
         // but we want to return to the next instruction.
         p->trapframe->epc += 4;
-
         // an interrupt will change sepc, scause, and sstatus,
         // so enable only now that we're done with those registers.
         intr_on();
@@ -58,6 +55,7 @@ uint64 usertrap(void) {
     } else if ((r_scause() == 15 || r_scause() == 13) &&
                vmfault(p->rb_array, p->pagetable, r_stval(), (r_scause() == 13) ? 1 : 0) != 0) {
         // page fault on lazily-allocated page
+        // Specific error code:13--Load page fault, 15--Store/AMO page fault, and 12--Instruction Page Fault.
     } else {
         // Unhandle Trap
         pte_t *invalid_pte=walk(p->pagetable, r_stval(), 0, 0);
@@ -147,8 +145,8 @@ void kerneltrap() {
             uint64 stval=r_stval();
             if(stval<MAXVA && p!=NULL && p->mm!=NULL){
                 //Perform pre-checks to avoid unnecessary page fault handling
-                int is_write=(scause ==13)?1:0;
-                if(vmfault(p->rb_array, p->pagetable, r_stval(), is_write) != 0){
+                int read_error=(scause ==13)?1:0;
+                if(vmfault(p->rb_array, p->pagetable, r_stval(), read_error) != 0){
                     //Post-fix Verification
                     pte_t *new_pte=walk(p->pagetable, stval, 0, 0);
                     if(scause==15 && (!(*new_pte & PTE_W) || !(*new_pte & PTE_V)))
