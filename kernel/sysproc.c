@@ -54,7 +54,14 @@ uint64 sys_sbrk(void) {
     retval=addr;    //Assuming it executes successfully as a baseline.
     if(n==0)    goto release_and_ret;   //No need to grow explicity
     uint64 limit=0;
-    if(n>0){
+    //Pass defined position verfication.
+    if(t==SBRK_EAGER || n <0){
+        acquire(&cur_proc->uvm_lock);
+        if(growproc(n)<0)
+            retval=-1;
+        release(&cur_proc->uvm_lock);
+    }
+    else{   //lazy grow, check the boundary firstly
         vm_area_struct_t *next_vma=cur_proc->mm->heap_vma->vm_next;
         if(next_vma==NULL)
             limit=UPPER_LIMIT;
@@ -65,26 +72,9 @@ uint64 sys_sbrk(void) {
             //Alos prevent integer overflow.
             pr_warn("No space to grow, remain space is %llx\n.\n", limit-addr);
             retval=-1;
-            goto release_and_ret;
         }
+        else    cur_proc->mm->heap_vma->vm_end += n;    //Lazy grow.
     }
-    else{   //The case where n==0 has been explicitly excluded.
-        limit=cur_proc->mm->heap_vma->vm_start;
-        if(-n > addr - limit){
-            //Avoid direct arithmetic between unsigned and signed number.
-            pr_warn("Reached the prev_vma boundary, can't shrink to that position.");
-            retval=-1;
-            goto release_and_ret;
-        }
-    }
-    //Pass defined position verfication.
-    if(t==SBRK_EAGER || n <0){
-        acquire(&cur_proc->uvm_lock);
-        if(growproc(n)<0)
-            retval=-1;
-        release(&cur_proc->uvm_lock);
-    }
-    else    cur_proc->mm->heap_vma->vm_end += n;    //Lazy grow.
 
 release_and_ret:
     releasesleep(&cur_proc->mm->mm_lock);

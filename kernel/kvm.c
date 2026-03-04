@@ -139,7 +139,7 @@ void free_initmem(){
     //So we just reverse this progress.(And perform minimal checks)
     uint64 Simp_uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int cur_level);
     Simp_uvmunmap(kernel_pagetable, start, size, 2);    //scan from the highest level
-    sfence_vma();
+    sfence_vma(0, 0);
     release(&kvm_lock);
 }
 
@@ -251,6 +251,7 @@ void __init_code kvminit(void) {
     KVM_TRACE("void\n");
 #endif
     init_mm();
+    init_tlb_data_cache();
     initlock(&kvm_lock, "kvm_pagetable lock");
     global_mm=mm_create();
     initsleeplock(&global_mm->mm_lock, "kernel's mm_lock");
@@ -260,9 +261,11 @@ void __init_code kvminit(void) {
     //Init lock
     global_mm->rb_root.rb_parent=NULL;
     vm_area_struct_t *tmp_vma=kernel_insert_vma_helper(global_mm, UART0, PGSIZE, PTE_R | PTE_W);
-    tmp_vma->vm_flags |= VM_IO;
+    tmp_vma->vm_flags |= VM_IO;     //Modify the inserted_vma 's permission.
+
     tmp_vma=kernel_insert_vma_helper(global_mm, VIRTIO0, PGSIZE, PTE_R | PTE_W);
     tmp_vma->vm_flags |= VM_IO;
+
     tmp_vma=kernel_insert_vma_helper(global_mm, PLIC, 0x4000000, PTE_R | PTE_W);
     tmp_vma->vm_flags |= VM_IO;
     kernel_insert_vma_helper(global_mm, KERNBASE, (uint64)etext - KERNBASE, PTE_R | PTE_X);
@@ -283,11 +286,11 @@ void kvminithart() {
     //Cons:Memory overhead, Synchronization Complexity.Performance Hit on fork/exit.
     // wait for any previous writes to the page table memory to finish.
     acquire(&kvm_lock);
-    sfence_vma();
+    sfence_vma(0, 0);
 
     w_satp(MAKE_SATP(kernel_pagetable));
     // flush stale entries from the TLB.
-    sfence_vma();
+    sfence_vma(0, 0);
     release(&kvm_lock);
 }
 
@@ -544,7 +547,7 @@ uint64 kvmdealloc_range(struct alloc_context *ctx){
         .size = align_end - align_start,
         .do_free = 1
     });
-    sfence_vma();
+    sfence_vma(0, 0);
 
     vma_put(find_ret);    //local reference from find_vma_and_get
     release(ctx->pt_lock);
@@ -605,7 +608,7 @@ uint64 kvmdealloc_range2(struct alloc_context *ctx){
         .size = del_size, // align_end - align_start
         // .do_free = 0  // Implicit? original kvmunmap_safe was called with 0
     });    //zap page_range
-    sfence_vma();
+    sfence_vma(0, 0);
     //Logical Detach
     if(find_ret->vm_start==align_start && find_ret->vm_end==align_end){
         if(remove_vma(global_mm, find_ret)==-1){   

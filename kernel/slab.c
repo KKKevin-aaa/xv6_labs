@@ -310,7 +310,8 @@ pick_from_array:
     return ret;
 }
 
-int slab_free(void *obj){      //Also accept Destructor function pointer
+int slab_free(void *obj){
+    //Use Destructor function pointer to destructor firstly.
     if(obj==NULL){
         SLAB_TRACE("free NULL.Invalid parameter\n");
         return 0;

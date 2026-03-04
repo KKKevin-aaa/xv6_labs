@@ -93,7 +93,6 @@ struct trapframe {
 
 enum procstate { PROC_UNUSED, PROC_USED, PROC_SLEEPING, 
             PROC_RUNNABLE, PROC_RUNNING, PROC_ZOMBIE };
-
 // Per-process state
 struct proc {              // Process control block(PCB)
     struct spinlock lock;  // Any operation that modifies this struct must hold this lock.
@@ -131,6 +130,49 @@ struct proc {              // Process control block(PCB)
     struct mm_struct *mm;
 };
 
+enum box_state {
+    BOX_PENDING, BOX_DONE, BOX_EMPTY, BOX_CLAIMED
+};
+struct tlb_shootdown_req{
+    uint64 start_va;
+    uint64 len;
+    pagetable_t target_pgdir;
+};
+
+struct mmu_free_batch_entry{
+    uint64 start_va;
+    uint64 len;
+    uint64 delete_pa;
+};
+
+#define MMU_BATCH_SIZE  32
+struct mmu_gather{
+    pagetable_t root_pg;
+    struct mmu_free_batch_entry data_page_batch[MMU_BATCH_SIZE];
+    uint64 dir_pa_batch[MMU_BATCH_SIZE];
+    uint64 batch_start_va;
+    uint64 batch_flush_len;
+    int fullmm;     //fully unmap(1) or partial(0)
+    uint8 data_idx;
+    uint8 dir_idx;
+};
+
+struct ipi_message{
+    void (*func)(void *);
+    void *args;
+    enum box_state status;
+};
+
+
+//Use extension prevent false sharing(in CPU cahce Line)
+struct mailbox{
+    struct spinlock lock;
+    struct ipi_message reqs[MAX_MAIL];
+    uint64 head, tail;   //Circular buffer.
+}__attribute__((aligned(64)));
+_Static_assert(sizeof(struct mailbox) % 64==0, "Unaligned to 64");
+
+
 struct vm_dupl_ctx {
     pagetable_t src_pg;
     pagetable_t dst_pg;
@@ -140,6 +182,8 @@ struct vm_dupl_ctx {
     int dst_level;
     res_block *old_rblocks;
     res_block *new_rblocks;
+    struct spinlock *dst_pt_lock;
+    struct spinlock *src_pt_lock;
 };
 
 //Used for copywalk, store the basic info about two pagetable and e.t.c
@@ -150,8 +194,11 @@ struct vm_sub_copy_ctx{
     uint64 size;
     res_block *old_rblocks;
     res_block *new_rblocks;
+    struct spinlock *dst_pt_lock;
+    struct spinlock *src_pt_lock;
     int dst_level;
 };
+
 
 #ifdef DEBUG_PROC
 #define PROC_TRACE(fmt, ...) \

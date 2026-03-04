@@ -1,14 +1,142 @@
 
 xv6 kernel is booting
 
-[36m[INFO]  Freeing unused kernel memory: 4 KB[0m
+[36m[INFO]  proc 0: kernel_stack located from 3fffffc000 to 0x3fffffd000[0m
+[36m[INFO]  while guard page located from 0x3fffffd000 to 0x3fffffe000[0m
+[36m[INFO]  proc 1: kernel_stack located from 3fffffa000 to 0x3fffffb000[0m
+[36m[INFO]  while guard page located from 0x3fffffb000 to 0x3fffffc000[0m
+[36m[INFO]  proc 2: kernel_stack located from 3fffff8000 to 0x3fffff9000[0m
+[36m[INFO]  while guard page located from 0x3fffff9000 to 0x3fffffa000[0m
+[36m[INFO]  proc 3: kernel_stack located from 3fffff6000 to 0x3fffff7000[0m
+[36m[INFO]  while guard page located from 0x3fffff7000 to 0x3fffff8000[0m
+[36m[INFO]  proc 4: kernel_stack located from 3fffff4000 to 0x3fffff5000[0m
+[36m[INFO]  while guard page located from 0x3fffff5000 to 0x3fffff6000[0m
+[36m[INFO]  proc 5: kernel_stack located from 3fffff2000 to 0x3fffff3000[0m
+[36m[INFO]  while guard page located from 0x3fffff3000 to 0x3fffff4000[0m
+[36m[INFO]  proc 6: kernel_stack located from 3fffff0000 to 0x3fffff1000[0m
+[36m[INFO]  while guard page located from 0x3fffff1000 to 0x3fffff2000[0m
+[36m[INFO]  proc 7: kernel_stack located from 3ffffee000 to 0x3ffffef000[0m
+[36m[INFO]  while guard page located from 0x3ffffef000 to 0x3fffff0000[0m
+[36m[INFO]  proc 8: kernel_stack located from 3ffffec000 to 0x3ffffed000[0m
+[36m[INFO]  while guard page located from 0x3ffffed000 to 0x3ffffee000[0m
+[36m[INFO]  proc 9: kernel_stack located from 3ffffea000 to 0x3ffffeb000[0m
+[36m[INFO]  while guard page located from 0x3ffffeb000 to 0x3ffffec000[0m
+[36m[INFO]  proc 10: kernel_stack located from 3ffffe8000 to 0x3ffffe9000[0m
+[36m[INFO]  while guard page located from 0x3ffffe9000 to 0x3ffffea000[0m
+[36m[INFO]  proc 11: kernel_stack located from 3ffffe6000 to 0x3ffffe7000[0m
+[36m[INFO]  while guard page located from 0x3ffffe7000 to 0x3ffffe8000[0m
+[36m[INFO]  proc 12: kernel_stack located from 3ffffe4000 to 0x3ffffe5000[0m
+[36m[INFO]  while guard page located from 0x3ffffe5000 to 0x3ffffe6000[0m
+[36m[INFO]  proc 13: kernel_stack located from 3ffffe2000 to 0x3ffffe3000[0m
+[36m[INFO]  while guard page located from 0x3ffffe3000 to 0x3ffffe4000[0m
+[36m[INFO]  proc 14: kernel_stack located from 3ffffe0000 to 0x3ffffe1000[0m
+[36m[INFO]  while guard page located from 0x3ffffe1000 to 0x3ffffe2000[0m
+[36m[INFO]  proc 15: kernel_stack located from 3ffffde000 to 0x3ffffdf000[0m
+[36m[INFO]  while guard page located from 0x3ffffdf000 to 0x3ffffe0000[0m
+[36m[INFO]  proc 16: kernel_stack located from 3ffffdc000 to 0x3ffffdd000[0m
+[36m[INFO]  while guard page located from 0x3ffffdd000 to 0x3ffffde000[0m
+[36m[INFO]  proc 17: kernel_stack located from 3ffffda000 to 0x3ffffdb000[0m
+[36m[INFO]  while guard page located from 0x3ffffdb000 to 0x3ffffdc000[0m
+[36m[INFO]  proc 18: kernel_stack located from 3ffffd8000 to 0x3ffffd9000[0m
+[36m[INFO]  while guard page located from 0x3ffffd9000 to 0x3ffffda000[0m
+[36m[INFO]  proc 19: kernel_stack located from 3ffffd6000 to 0x3ffffd7000[0m
+[36m[INFO]  while guard page located from 0x3ffffd7000 to 0x3ffffd8000[0m
+[36m[INFO]  proc 20: kernel_stack located from 3ffffd4000 to 0x3ffffd5000[0m
+[36m[INFO]  while guard page located from 0x3ffffd5000 to 0x3ffffd6000[0m
+[36m[INFO]  proc 21: kernel_stack located from 3ffffd2000 to 0x3ffffd3000[0m
+[36m[INFO]  while guard page located from 0x3ffffd3000 to 0x3ffffd4000[0m
+[36m[INFO]  proc 22: kernel_stack located from 3ffffd0000 to 0x3ffffd1000[0m
+[36m[INFO]  while guard page located from 0x3ffffd1000 to 0x3ffffd2000[0m
+[36m[INFO]  proc 23: kernel_stack located from 3ffffce000 to 0x3ffffcf000[0m
+[36m[INFO]  while guard page located from 0x3ffffcf000 to 0x3ffffd0000[0m
+[36m[INFO]  proc 24: kernel_stack located from 3ffffcc000 to 0x3ffffcd000[0m
+[36m[INFO]  while guard page located from 0x3ffffcd000 to 0x3ffffce000[0m
+[36m[INFO]  proc 25: kernel_stack located from 3ffffca000 to 0x3ffffcb000[0m
+[36m[INFO]  while guard page located from 0x3ffffcb000 to 0x3ffffcc000[0m
+[36m[INFO]  proc 26: kernel_stack located from 3ffffc8000 to 0x3ffffc9000[0m
+[36m[INFO]  while guard page located from 0x3ffffc9000 to 0x3ffffca000[0m
+[36m[INFO]  proc 27: kernel_stack located from 3ffffc6000 to 0x3ffffc7000[0m
+[36m[INFO]  while guard page located from 0x3ffffc7000 to 0x3ffffc8000[0m
+[36m[INFO]  proc 28: kernel_stack located from 3ffffc4000 to 0x3ffffc5000[0m
+[36m[INFO]  while guard page located from 0x3ffffc5000 to 0x3ffffc6000[0m
+[36m[INFO]  proc 29: kernel_stack located from 3ffffc2000 to 0x3ffffc3000[0m
+[36m[INFO]  while guard page located from 0x3ffffc3000 to 0x3ffffc4000[0m
+[36m[INFO]  proc 30: kernel_stack located from 3ffffc0000 to 0x3ffffc1000[0m
+[36m[INFO]  while guard page located from 0x3ffffc1000 to 0x3ffffc2000[0m
+[36m[INFO]  proc 31: kernel_stack located from 3ffffbe000 to 0x3ffffbf000[0m
+[36m[INFO]  while guard page located from 0x3ffffbf000 to 0x3ffffc0000[0m
+[36m[INFO]  proc 32: kernel_stack located from 3ffffbc000 to 0x3ffffbd000[0m
+[36m[INFO]  while guard page located from 0x3ffffbd000 to 0x3ffffbe000[0m
+[36m[INFO]  proc 33: kernel_stack located from 3ffffba000 to 0x3ffffbb000[0m
+[36m[INFO]  while guard page located from 0x3ffffbb000 to 0x3ffffbc000[0m
+[36m[INFO]  proc 34: kernel_stack located from 3ffffb8000 to 0x3ffffb9000[0m
+[36m[INFO]  while guard page located from 0x3ffffb9000 to 0x3ffffba000[0m
+[36m[INFO]  proc 35: kernel_stack located from 3ffffb6000 to 0x3ffffb7000[0m
+[36m[INFO]  while guard page located from 0x3ffffb7000 to 0x3ffffb8000[0m
+[36m[INFO]  proc 36: kernel_stack located from 3ffffb4000 to 0x3ffffb5000[0m
+[36m[INFO]  while guard page located from 0x3ffffb5000 to 0x3ffffb6000[0m
+[36m[INFO]  proc 37: kernel_stack located from 3ffffb2000 to 0x3ffffb3000[0m
+[36m[INFO]  while guard page located from 0x3ffffb3000 to 0x3ffffb4000[0m
+[36m[INFO]  proc 38: kernel_stack located from 3ffffb0000 to 0x3ffffb1000[0m
+[36m[INFO]  while guard page located from 0x3ffffb1000 to 0x3ffffb2000[0m
+[36m[INFO]  proc 39: kernel_stack located from 3ffffae000 to 0x3ffffaf000[0m
+[36m[INFO]  while guard page located from 0x3ffffaf000 to 0x3ffffb0000[0m
+[36m[INFO]  proc 40: kernel_stack located from 3ffffac000 to 0x3ffffad000[0m
+[36m[INFO]  while guard page located from 0x3ffffad000 to 0x3ffffae000[0m
+[36m[INFO]  proc 41: kernel_stack located from 3ffffaa000 to 0x3ffffab000[0m
+[36m[INFO]  while guard page located from 0x3ffffab000 to 0x3ffffac000[0m
+[36m[INFO]  proc 42: kernel_stack located from 3ffffa8000 to 0x3ffffa9000[0m
+[36m[INFO]  while guard page located from 0x3ffffa9000 to 0x3ffffaa000[0m
+[36m[INFO]  proc 43: kernel_stack located from 3ffffa6000 to 0x3ffffa7000[0m
+[36m[INFO]  while guard page located from 0x3ffffa7000 to 0x3ffffa8000[0m
+[36m[INFO]  proc 44: kernel_stack located from 3ffffa4000 to 0x3ffffa5000[0m
+[36m[INFO]  while guard page located from 0x3ffffa5000 to 0x3ffffa6000[0m
+[36m[INFO]  proc 45: kernel_stack located from 3ffffa2000 to 0x3ffffa3000[0m
+[36m[INFO]  while guard page located from 0x3ffffa3000 to 0x3ffffa4000[0m
+[36m[INFO]  proc 46: kernel_stack located from 3ffffa0000 to 0x3ffffa1000[0m
+[36m[INFO]  while guard page located from 0x3ffffa1000 to 0x3ffffa2000[0m
+[36m[INFO]  proc 47: kernel_stack located from 3ffff9e000 to 0x3ffff9f000[0m
+[36m[INFO]  while guard page located from 0x3ffff9f000 to 0x3ffffa0000[0m
+[36m[INFO]  proc 48: kernel_stack located from 3ffff9c000 to 0x3ffff9d000[0m
+[36m[INFO]  while guard page located from 0x3ffff9d000 to 0x3ffff9e000[0m
+[36m[INFO]  proc 49: kernel_stack located from 3ffff9a000 to 0x3ffff9b000[0m
+[36m[INFO]  while guard page located from 0x3ffff9b000 to 0x3ffff9c000[0m
+[36m[INFO]  proc 50: kernel_stack located from 3ffff98000 to 0x3ffff99000[0m
+[36m[INFO]  while guard page located from 0x3ffff99000 to 0x3ffff9a000[0m
+[36m[INFO]  proc 51: kernel_stack located from 3ffff96000 to 0x3ffff97000[0m
+[36m[INFO]  while guard page located from 0x3ffff97000 to 0x3ffff98000[0m
+[36m[INFO]  proc 52: kernel_stack located from 3ffff94000 to 0x3ffff95000[0m
+[36m[INFO]  while guard page located from 0x3ffff95000 to 0x3ffff96000[0m
+[36m[INFO]  proc 53: kernel_stack located from 3ffff92000 to 0x3ffff93000[0m
+[36m[INFO]  while guard page located from 0x3ffff93000 to 0x3ffff94000[0m
+[36m[INFO]  proc 54: kernel_stack located from 3ffff90000 to 0x3ffff91000[0m
+[36m[INFO]  while guard page located from 0x3ffff91000 to 0x3ffff92000[0m
+[36m[INFO]  proc 55: kernel_stack located from 3ffff8e000 to 0x3ffff8f000[0m
+[36m[INFO]  while guard page located from 0x3ffff8f000 to 0x3ffff90000[0m
+[36m[INFO]  proc 56: kernel_stack located from 3ffff8c000 to 0x3ffff8d000[0m
+[36m[INFO]  while guard page located from 0x3ffff8d000 to 0x3ffff8e000[0m
+[36m[INFO]  proc 57: kernel_stack located from 3ffff8a000 to 0x3ffff8b000[0m
+[36m[INFO]  while guard page located from 0x3ffff8b000 to 0x3ffff8c000[0m
+[36m[INFO]  proc 58: kernel_stack located from 3ffff88000 to 0x3ffff89000[0m
+[36m[INFO]  while guard page located from 0x3ffff89000 to 0x3ffff8a000[0m
+[36m[INFO]  proc 59: kernel_stack located from 3ffff86000 to 0x3ffff87000[0m
+[36m[INFO]  while guard page located from 0x3ffff87000 to 0x3ffff88000[0m
+[36m[INFO]  proc 60: kernel_stack located from 3ffff84000 to 0x3ffff85000[0m
+[36m[INFO]  while guard page located from 0x3ffff85000 to 0x3ffff86000[0m
+[36m[INFO]  proc 61: kernel_stack located from 3ffff82000 to 0x3ffff83000[0m
+[36m[INFO]  while guard page located from 0x3ffff83000 to 0x3ffff84000[0m
+[36m[INFO]  proc 62: kernel_stack located from 3ffff80000 to 0x3ffff81000[0m
+[36m[INFO]  while guard page located from 0x3ffff81000 to 0x3ffff82000[0m
+[36m[INFO]  proc 63: kernel_stack located from 3ffff7e000 to 0x3ffff7f000[0m
+[36m[INFO]  while guard page located from 0x3ffff7f000 to 0x3ffff80000[0m
 hart 2 starting
+[36m[INFO]  Freeing unused kernel memory: 4 KB[0m
 hart 3 starting
 hart 1 starting
 [36m[INFO]  Freeing unused kernel memory: 4 KB[0m
-[36m[INFO]  Freeing unused kernel memory: 4 KB[0m
-[36m[INFO]  Freeing unused kernel memory: 4 KB[0m
 Swap out started on pid 1
+[36m[INFO]  Freeing unused kernel memory: 4 KB[0m
+[36m[INFO]  Freeing unused kernel memory: 4 KB[0m
 [36m[INFO]  uvmalloc -> mappages cur_ctx1->seg_start=0x1000 alloc_size=0x1000
 [0m
 [36m[INFO]  uvmalloc -> mappages cur_ctx1->seg_start=0x2000 alloc_size=0x2000
@@ -21,7 +149,7 @@ Swap out started on pid 1
 [0m
 [36m[INFO]  uvmalloc -> mappages cur_ctx1->seg_start=0x6000 alloc_size=0x2000
 [0m
-[36m[INFO]  Now alloc and mappage a new stack area in 0x877f0000[0m
+[36m[INFO]  Now alloc and mappage a new stack area in 0x877fc000[0m
 [36m[INFO]  stack_vma->vm_start=0x6000, stack_vma->vm_end=0x7000[0m
 [36m[INFO]  heap_vma->vm_start=0x8000, heap_vma->vm_end=0x8000[0m
 now the allocated data is 0x10000, and str_len is 0x1000
@@ -50,6 +178,10 @@ init: starting sh
 [36m[INFO]  Now alloc and mappage a new stack area in 0x86fff000[0m
 [36m[INFO]  stack_vma->vm_start=0xa000, stack_vma->vm_end=0xb000[0m
 [36m[INFO]  heap_vma->vm_start=0xc000, heap_vma->vm_end=0xc000[0m
-$ ecgi  ho 123
+[1;31m[ERROR] vmfault:2262: Cannot find the corresponding vma.
+[0m
+
+PANIC at address 0x000000008000b482 in vmfault at kernel/vm.c:2262
+pr_err
 QEMU: Terminated
 

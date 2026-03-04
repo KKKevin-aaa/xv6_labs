@@ -1,107 +1,28 @@
 ++echo log reset to ./logs/crash_dump.log
-log reset to ./logs/crash_dump.log+next
-+next
-+next
-+next
-+next
-+next
-+next
-kfork () at kernel/proc.c:426
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-
-Thread 2 hit Breakpoint 2, uvmcopy_range_cow (ctx1=0x3fffffada8) at kernel/vm.c:1667
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-kfork () at kernel/proc.c:426
-+c
-Continuing.
-
-Thread 2 hit Breakpoint 2, uvmcopy_range_cow (ctx1=0x3fffffada8) at kernel/vm.c:1667
-+c
-Continuing.
-[Switching to Thread 1.1]
-
-Thread 1 hit Breakpoint 2, uvmcopy_range_cow (ctx1=0x3fffff8da8) at kernel/vm.c:1667
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-kfork () at kernel/proc.c:426
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-+next
-
-Thread 1 hit Breakpoint 2, uvmcopy_range_cow (ctx1=0x3fffff8da8) at kernel/vm.c:1667
-+next
-+next
-+next
-+c
-Continuing.
-
-Thread 1 hit Breakpoint 2, uvmcopy_range_cow (ctx1=0x3fffff8da8) at kernel/vm.c:1667
-+c
-Continuing.
-
-Thread 1 received signal SIGINT, Interrupt.
-__panic (file_name=0x80028818 "kernel/vm.c", line_no=0x8f6, func_name=0x80028020 <__func__.7> "vmfault", s=0x80029608 "Dismatch between PTE amd vm_flag in COW.") at kernel/printf.c:535
-+bt
-#0  __panic (file_name=0x80028818 "kernel/vm.c", line_no=0x8f6, 
-    func_name=0x80028020 <__func__.7> "vmfault", 
-    s=0x80029608 "Dismatch between PTE amd vm_flag in COW.")
+log reset to ./logs/crash_dump.log+bt
+#0  __panic (file_name=0x80028838 "kernel/vm.c", line_no=0x8d6, 
+    func_name=0x80028020 <__func__.6> "vmfault", s=0x80028920 "pr_err")
     at kernel/printf.c:535
-#1  0x000000008000b4e4 in vmfault (
-    rblocks=0x80041578 <proc+55032>, pagetable=0x85fff000, 
-    va=0xc000, read=0x0) at kernel/vm.c:2294
-#2  0x000000008000fc0c in usertrap () at kernel/trap.c:59
-#3  0x0000003ffffff09c in ?? ()
+#1  0x000000008000b482 in vmfault (rblocks=0x8003d2a8 <proc+36856>, 
+    pagetable=0x86fff000, va=0x3fffff7000, read_error=0x0) at kernel/vm.c:2262
+#2  0x0000000080010480 in kerneltrap () at kernel/trap.c:149
+#3  <signal handler called>
+   0x0000000080016f24 <kernelvec+52>:	82 60	ld	ra,0(sp)
+#4  0x0000000000000000 in ?? ()
+#5  0x0000000080004e58 in uvmunmap_helper (
+    ctx1=<error reading variable: Cannot access memory at address 0x3fffff7f48>)
+    at kernel/vm.c:430
+#6  0x0000000080004e58 in uvmunmap_helper (ctx1=0x3fffff8578) at kernel/vm.c:430
+#7  0x0000000080004e58 in uvmunmap_helper (ctx1=0x3fffff8938) at kernel/vm.c:430
+#8  0x00000000800052f6 in uvmunmap (ctx1=0x3fffff8938) at kernel/vm.c:521
+#9  0x000000008000df46 in proc_freepagetable (pt_lock=0x0, pagetable=0x86f00000)
+    at kernel/proc.c:276
+#10 0x000000008001e20c in remove_mm (mm=0x87d50100) at kernel/mm.c:228
+#11 0x000000008001dca6 in mm_put (mm=0x87d50100) at kernel/mm.c:118
+#12 0x0000000080015a90 in kexec (path=0x3fffff8dd8 "sh", argv=0x3fffff8cd8)
+    at kernel/exec.c:280
+#13 0x0000000080016bbe in sys_exec () at kernel/sysfile.c:415
+#14 0x0000000080010e2a in syscall () at kernel/syscall.c:230
+#15 0x000000008000fe32 in usertrap () at kernel/trap.c:52
+#16 0x0000003ffffff09c in ?? ()
 +q

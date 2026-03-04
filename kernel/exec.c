@@ -62,7 +62,7 @@ int kexec(char *path, char **argv) {
     struct inode *ip;
     struct proghdr ph;
     struct file *src_file=NULL;
-    pagetable_t new_pagetable = 0, old_pagetable=0;
+    pagetable_t new_pagetable = 0;
     struct proc *p = myproc();
     //TIPS: Use Shadow MM(A Temporary memory descriptor)
     mm_struct_t *shadow_mm=mm_create();

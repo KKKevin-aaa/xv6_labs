@@ -1,5 +1,6 @@
 #include "types.h"
 #include "param.h"
+#include "atomic.h"
 #include "memlayout.h"
 #include "riscv.h"
 #include "spinlock.h"
@@ -11,6 +12,7 @@
 #include "slab.h"
 #include "fcntl.h"
 #include "mm.h"
+#include "sbi.h"
 #include "colors.h"
 
 //Enable COW 
@@ -18,6 +20,8 @@
 
 // #define PROC_TEST_TIME 
 struct cpu cpus[NCPU];
+struct mailbox req_mailbox[NCPU];
+static slab_cache_t * tlb_data_cache=NULL;
 
 /// @brief static pcb array
 struct proc proc[NPROC];
@@ -50,7 +54,10 @@ void proc_mapstacks(pagetable_t kpgtbl) {
         char *pa = kalloc_page();
         if (pa == 0) panic("kalloc");
         uint64 va = KSTACK((int)(p - proc));
-        PROC_TRACE("proc %d: kernel_stack located at %llx\n", (int)(p-proc), va);
+        pr_info("proc %d: kernel_stack located from %llx to 0x%llx", 
+            (int)(p-proc), va, va+PGSIZE);
+        pr_info("while guard page located from 0x%llx to 0x%llx", 
+            va+PGSIZE, va+2*PGSIZE);
         kvmmap_boot_only(&(struct map_context){
             .pagetable=kpgtbl,
             .start_va=va,
@@ -72,6 +79,7 @@ void procinit(void) {
         initlock(&p->lock, "proc");
         p->state = PROC_UNUSED;
         p->kstack = KSTACK((int)(p - proc));
+        initlock(&p->uvm_lock, "proc pagetable");
     }
     swap_kthread=kthread_create("swap_worker", swap_out);
     #ifdef DEBUG_KALLOC
@@ -152,6 +160,8 @@ found:
         release(&p->lock);
         return 0;
     }
+    // Build the relationship between mm_struct and pagetable
+    p->mm->pagetable=p->pagetable;  //An empty pagetable.
 
     // Set up new context to start executing at forkret,
     // which returns to user space.
@@ -175,7 +185,8 @@ static void freeproc(struct proc *p) {
 #ifdef PROC_DEBUG
     PROC_TRACE("in freeproc oldpagetbale is %p\n", p->pagetable);
 #endif
-    mm_put(p->mm);      //free the pagetable at the same time.
+    if(p->mm!=NULL)     mm_put(p->mm);
+    //free the pagetable at the same time.(double -check)
 #ifdef PROC_DEBUG
     PROC_TRACE("Done free this process's memory!\n");
 #endif
@@ -311,106 +322,132 @@ void userinit(void) {
 // Shrink user memory by n bytes. Return 0 on success, -1 on failure.
 //(Eager allocation.!!)
 int growproc(int n) {       //Ensure enter this function holding two locks(uvmlock and mm_lock)
-    struct proc *p = myproc();
+    struct proc *cur_proc = myproc();
     pr_info("Entering growproc.");
-    if(!holding(&p->uvm_lock)){
+    if(!holding(&cur_proc->uvm_lock)){
         pr_err("access user's pagetable without lock.\n");
         return -1;
     }
-    if(p->mm==NULL){
+    if(cur_proc->mm==NULL){
         pr_err("Fatal error: proc's mm shouldn't be NULL.\n");
         return -1;
     }
-    if(!holdingsleep(&p->mm->mm_lock))
+    if(!holdingsleep(&cur_proc->mm->mm_lock))
         pr_err("[Warning]Access process's mm_struct_t without lock(Protected by uvmlock).\n");
-    if(p->mm->heap_vma==NULL){      //check the heap vma
+    if(cur_proc->mm->heap_vma==NULL){      //check the heap vma
         PROC_TRACE("Fatal error: proc's heap_vma shouldn't be NULL.\n");
         return -1;
     }
-    uint64 heap_end=p->mm->heap_vma->vm_end;
-    if(p->mm->heap_vma->vm_start > heap_end + n){
-        PROC_TRACE("shrink heap fail, hitting the lower bound.\n");
-        return -1;
-    }
-    if (n > 0) {
+
+    if(n==0)    return 0;
+    uint64 heap_end=cur_proc->mm->heap_vma->vm_end, limit;
+    //Prevent arithmetic overflow caused by an excessively large n.
+    if(n>0){
+        vm_area_struct_t *next_vma=cur_proc->mm->heap_vma->vm_next;
+        if(next_vma==NULL)  limit=UPPER_LIMIT;
+        else    limit=next_vma->vm_start;       //Mmap vma
+        if(heap_end + n > limit || heap_end + n < heap_end){
+            //Prevent excessive n from overwriting kernel memory
+            //Alos prevent integer overflow.
+            pr_warn("No space to grow, remain space is %llx\n.\n", limit-heap_end);
+            return -1;
+        }
         int used_perm=PTE_R | PTE_W;    //Default permission
-    #ifdef COW  //Trigger the Copy-on-Write mechanism
-        if((p->mm->heap_vma->vm_flags & VM_WRITE) 
-            && !(p->mm->heap_vma->vm_flags & VM_SHARED))
-        used_perm=PTE_R | PTE_COW;
-    #endif
-        if((heap_end = alloc_memory_res(&(struct alloc_context){
-            .pagetable=p->pagetable,
-            .pt_lock=&p->uvm_lock,
-            .rblocks=p->rb_array,
+        // Allocate immediately, bypassing the special case of COW.
+        if((heap_end = uvmalloc_thp_region(&(struct alloc_context){
+            .pagetable=cur_proc->pagetable,
+            .pt_lock=&cur_proc->uvm_lock,
+            .rblocks=cur_proc->rb_array,
             .seg_start=heap_end,
             .seg_end=heap_end + n,
             .xperm=used_perm
         }))==0)
             return -1;
-    } 
-    else if (n < 0) {
-        heap_end = free_memory_res(&(struct alloc_context){
-            .pagetable=p->pagetable,
-            .pt_lock=&p->uvm_lock,
-            .rblocks=p->rb_array,
+    }
+    else{   //The case where n==0 has been explicitly excluded.
+        // (n can only be less than zero.)
+        limit=cur_proc->mm->heap_vma->vm_start;
+        if(-n > heap_end - limit){
+            //Avoid direct arithmetic between unsigned and signed number.
+            pr_warn("Reached the prev_vma boundary, can't shrink to that position.");
+            return -1;
+        }
+        heap_end = uvmdealloc_thp_region(&(struct alloc_context){
+            .pagetable=cur_proc->pagetable,
+            .pt_lock=&cur_proc->uvm_lock,
+            .rblocks=cur_proc->rb_array,
             .seg_start=heap_end,
             .seg_end=heap_end+n,
         });
-        if(heap_end != p->mm->heap_vma->vm_end+n)
+        if(heap_end != cur_proc->mm->heap_vma->vm_end+n)
             return -1;
     }
-    p->mm->heap_vma->vm_end=heap_end; //update the heap boundary
+    cur_proc->mm->heap_vma->vm_end=heap_end; //update the heap boundary
     return 0;
 }
 #else
-int growproc_res(int n) {       //Ensure enter this function holding two locks(uvmlock and mm_lock)
-    struct proc *p = myproc();
+int growproc(int n) {       //Ensure enter this function holding two locks(uvmlock and mm_lock)
+    struct proc *cur_proc = myproc();
     pr_info("Entering growproc.");
-    if(!holding(&p->uvm_lock)){
+    if(!holding(&cur_proc->uvm_lock)){
         pr_err("access user's pagetable without lock.\n");
         return -1;
     }
-    if(p->mm==NULL){
+    if(cur_proc->mm==NULL){
         pr_err("Fatal error: proc's mm shouldn't be NULL.\n");
         return -1;
     }
-    if(!holdingsleep(&p->mm->mm_lock))
+    if(!holdingsleep(&cur_proc->mm->mm_lock))
         pr_err("[Warning]Access process's mm_struct_t without lock(Protected by uvmlock).\n");
-    if(p->mm->heap_vma==NULL){      //check the heap vma
+    if(cur_proc->mm->heap_vma==NULL){      //check the heap vma
         PROC_TRACE("Fatal error: proc's heap_vma shouldn't be NULL.\n");
         return -1;
     }
-    uint64 heap_end=p->mm->heap_vma->vm_end;
-    if(p->mm->heap_vma->vm_start > heap_end + n){
-        PROC_TRACE("shrink heap fail, hitting the lower bound.\n");
-        return -1;
-    }
-    if (n > 0) {
+
+    if(n==0)    return 0;
+    uint64 heap_end=cur_proc->mm->heap_vma->vm_end, limit;
+    //Prevent arithmetic overflow caused by an excessively large n.
+    if(n>0){
+        vm_area_struct_t *next_vma=cur_proc->mm->heap_vma->vm_next;
+        if(next_vma==NULL)  limit=UPPER_LIMIT;
+        else    limit=next_vma->vm_start;       //Mmap vma
+        if(heap_end + n > limit || heap_end + n < heap_end){
+            //Prevent excessive n from overwriting kernel memory
+            //Alos prevent integer overflow.
+            pr_warn("No space to grow, remain space is %llx\n.\n", limit-heap_end);
+            return -1;
+        }
         int used_perm=PTE_R | PTE_W;    //Default permission
-    #ifdef COW  //Trigger the Copy-on-Write mechanism
-        if((p->mm->heap_vma->vm_flags & VM_WRITE) 
-            && !(p->mm->heap_vma->vm_flags & VM_SHARED))
-        used_perm=PTE_R | PTE_COW;
-    #endif
+        // Allocate immediately, bypassing the special case of COW.
         if((heap_end = uvmalloc(&(struct alloc_context){
-            .pagetable=p->pagetable,
-            .pt_lock=&p->uvm_lock,
+            .pagetable=cur_proc->pagetable,
+            .pt_lock=&cur_proc->uvm_lock,
+            .rblocks=cur_proc->rb_array,
             .seg_start=heap_end,
             .seg_end=heap_end + n,
             .xperm=used_perm
         }))==0)
             return -1;
-    } 
-    else if (n < 0) {
+    }
+    else{   //The case where n==0 has been explicitly excluded.
+        // (n can only be less than zero.)
+        limit=cur_proc->mm->heap_vma->vm_start;
+        if(-n > heap_end - limit){
+            //Avoid direct arithmetic between unsigned and signed number.
+            pr_warn("Reached the prev_vma boundary, can't shrink to that position.");
+            return -1;
+        }
         heap_end = uvmdealloc(&(struct alloc_context){
-            .pagetable=p->pagetable,
-            .pt_lock=&p->uvm_lock,
+            .pagetable=cur_proc->pagetable,
+            .pt_lock=&cur_proc->uvm_lock,
+            .rblocks=cur_proc->rb_array,
             .seg_start=heap_end,
             .seg_end=heap_end+n,
         });
+        if(heap_end != cur_proc->mm->heap_vma->vm_end+n)
+            return -1;
     }
-    p->mm->heap_vma->vm_end=heap_end; //update the heap boundary
+    cur_proc->mm->heap_vma->vm_end=heap_end; //update the heap boundary
     return 0;
 }
 #endif
@@ -447,6 +484,7 @@ int kfork(void) {
     //Create a new one mm_struct(value copy/Deep copy)--Metadata
     vm_area_struct_t *copy_vma=cur_parent->mm->mmap , *tmp_next=NULL, *prev_vma=NULL;
     vm_area_struct_t *new_vma=NULL;
+    int cow_occur=0;  //Ensure the IPI is triggered only once via a flag.
     while(copy_vma!=NULL){
         tmp_next=copy_vma->vm_next;
         new_vma=vma_dup(copy_vma);
@@ -466,8 +504,8 @@ int kfork(void) {
                 copy_vma->vm_start, copy_vma->vm_end - copy_vma->vm_start)<0){
             goto error_on_copy;
         }
-    #else   //Adopt sharing mechanism, Only VM_write+ VM_shared require COW intervention,
-    // While others can be unified as copying PTE and incrementing the physical reference count.
+    #else   //Adopt sharing mechanism, Only VM_write + VM_shared require COW intervention,
+    // While others can be unified as copying PTE and incrementing the physical reference count(Optional)
         struct vm_dupl_ctx ctx1={.base_va=new_vma->vm_start,
             .end_va=new_vma->vm_end,
             .src_pg=cur_parent->pagetable,
@@ -482,6 +520,9 @@ int kfork(void) {
         else if((new_vma->vm_flags & VM_WRITE) && !(new_vma->vm_flags & VM_SHARED)){
             if(uvmcopy_range_cow(&ctx1)<0)
                 goto error_on_copy;
+            // NOTE: PTE permission downgrade or page splitting detected.Cross-core TLB via IPI 
+            // is mandatory to ensure memory consistency.
+            cow_occur=1;
         }
         else{
             if(uvmcopy_range_shared(&ctx1)<0)
@@ -507,6 +548,8 @@ int kfork(void) {
     new_child->mm->start_data=cur_parent->mm->start_data;
     new_child->mm->end_data=cur_parent->mm->end_data;
     
+    if(cow_occur==1)
+        tlb_shootdown_issue_nolock(cur_parent->pagetable, 0, 2* IPI_REQ_THRESHOLD * PGSIZE);
     release(&new_child->uvm_lock);
     release(&cur_parent->uvm_lock);
     releasesleep(&new_child->mm->mm_lock);
@@ -544,7 +587,6 @@ int kfork(void) {
     new_child->state = PROC_RUNNABLE;
 
     release(&new_child->lock);
-
     return pid;
 error_on_copy:
     release(&cur_parent->uvm_lock);
@@ -594,8 +636,11 @@ void kexit(int status) {
     p->cwd = 0;
 
     //handle teardown involving potential file operations.
+    //Although mm_struct assoicated with pagetable, we use kernel pagetable here.
+    //And will not use its outdated pagetable anymore, so delete it is safe.
     mm_put(p->mm);      //Private variant.Immutable for external processes.
     //Use the lock from mm_struct_t itself. 
+
     p->mm=NULL; //Critical!Reset state explicitly.Pervent double-free or Use-after-free.
 
     acquire(&wait_lock);
@@ -983,4 +1028,140 @@ found:
     //NOTE: Must release process's lock immideately,other scheduler can acquire and 
     //execute it on a corresponding CPU once it is detected as runnable.
     return (void *)new_kthread;
+}
+
+void init_tlb_data_cache(void){
+    tlb_data_cache=create_slab_cache("tlb_data_pool", 
+        sizeof(struct tlb_shootdown_req), 8, NULL, NULL);
+    if(tlb_data_cache==NULL)
+        panic("init tlb_data_cache fail.Unable to establish data transport channel.");
+}
+
+void tlb_shootdown_issue(pagetable_t pgdir, uint64 va, uint64 len){
+    push_off();
+    int cur_cpuid=mycpu();
+    if(NCPU > 32)
+        panic("NCPU exceed the predefined length(32), plz expand!");
+    volatile int *check_pos[NCPU];
+    memset(check_pos, 0, sizeof(check_pos));
+    uint32 target_mask=0, nr_send_req=0;
+    int ready_quit=0;
+    struct tlb_shootdown_req * ptr_buf[NCPU];
+    memset(ptr_buf, 0, sizeof(ptr_buf));
+    struct mailbox *cur_box=NULL;
+    for(int i=0;i<NCPU;i++){
+        if(i==cur_cpuid)    continue;
+        if(cpus[i].proc->pagetable==pgdir){ //Optimistic Concurrency Control(OCC)
+            //read the statement without lock, double validate before use.
+            cur_box=&req_mailbox[i];
+            acquire(&cur_box->lock);
+            uint64 free_slot = cur_box->tail % MAX_MAIL;
+            while(cur_box->reqs[free_slot].status != BOX_EMPTY){
+                release(&cur_box->lock);
+                // asm volatile("nop");
+                asm volatile(".word 0x0100000f" : : : "memory");
+                acquire(&cur_box->lock);    //relock and check again
+            }
+            if(cur_box->reqs[free_slot].status != BOX_EMPTY)
+                panic("Memory corrupted.");
+            //Send one request to one mail(A single empty slot is enough)
+            ptr_buf[i]=slab_alloc(tlb_data_cache);
+            ptr_buf[i]->len=len;
+            ptr_buf[i]->start_va=va;
+            ptr_buf[i]->target_pgdir=pgdir;
+            cur_box->reqs[free_slot].args=ptr_buf[i];
+            cur_box->reqs[free_slot].func=do_flush_tlb;
+            cur_box->reqs[free_slot].status=BOX_PENDING;
+            check_pos[nr_send_req++]=&cur_box->reqs[free_slot].status;
+            cur_box->tail++;    //advance.
+            release(&cur_box->lock);
+            target_mask |= gen_bitfield_mask(i, i, 32, 0);
+        }
+    }
+    if(nr_send_req==0){
+        pop_off();
+        return;
+    }
+    if(sbi_send_ipi(target_mask, 0).error!=SBI_SUCCESS){
+        //Starting hartid set as zero.
+        panic("Tlb shootdown failed.");
+    }
+    while(ready_quit==0){
+        if(r_sip() & SOFTWARE_INTR_MASK)  software_intr_handler();
+        //Polling to handle incoming remote request.
+        for(int i=0;i<=nr_send_req;i++){
+            if(i==nr_send_req){
+                ready_quit=1;
+                break;
+            }
+            if(*check_pos[i] == BOX_PENDING)
+                break;
+            else if(*check_pos[i] == BOX_DONE)
+                *check_pos[i]=BOX_EMPTY;    //release the slot.
+        }
+    }
+    for(int i=0;i<NCPU;i++)
+        //reclaim tlb_data and its cache struct
+        if(ptr_buf[i]!=NULL)
+            slab_free((void *)ptr_buf[i]);
+    pop_off();  //Cannot assume interrupts are enabled.
+}
+
+
+void tlb_shootdown_issue_nolock(pagetable_t pgdir, uint64 va, uint64 len){
+    //CAS, without lock.
+    volatile int *check_pos[NCPU];
+    memset(check_pos, 0, sizeof(check_pos));
+    uint32 target_mask=0, nr_send_req=0;
+    int ready_quit=0;
+    struct tlb_shootdown_req * data1=slab_alloc(tlb_data_cache);
+    if(data1==NULL)
+        panic("OOM.");
+    data1->len=len;
+    data1->start_va=va;
+    data1->target_pgdir=pgdir;
+    struct mailbox *cur_box=NULL;
+    push_off();     //Inhibit preemption to ensure hartid stability during communication.
+    int cur_cpuid=cpuid(), tail=0;
+    for(int i=0;i<NCPU;i++){
+        if(i==cur_cpuid)    continue;
+        if(cpus[i].proc->pagetable==pgdir){
+            cur_box=&req_mailbox[i];
+            tail=atomic_add_and_ret((void *)&cur_box->tail, 1);
+            tail %= MAX_MAIL;
+            while(cur_box->reqs[tail].status != BOX_EMPTY){     //spin-wait
+                asm volatile(".word 0x0100000f" : : : "memory");
+            }
+            cur_box->reqs[tail].status=BOX_CLAIMED;
+            cur_box->reqs[tail].args=data1;
+            cur_box->reqs[tail].func=do_flush_tlb;
+            check_pos[nr_send_req++]=&cur_box->reqs[tail].status;
+            target_mask |= gen_bitfield_mask(i, i, 32, 0);
+            asm volatile("fence rw, w" : : : "memory");
+            cur_box->reqs[tail].status=BOX_PENDING;
+        }
+    }
+    if(nr_send_req==0){
+        slab_free((void *)data1);
+        pop_off();
+        return;
+    }
+    if(sbi_send_ipi(target_mask, 0).error != SBI_SUCCESS)
+        //Starting hartid set as zero.
+        panic("TLB shootdown failed.");
+    while(ready_quit==0){
+        if(r_sip() & SOFTWARE_INTR_MASK)    software_intr_handler_nolock();
+        //Polling to handle incoming remote request.
+        for(int i=0;i<=nr_send_req;i++){
+            if(i==nr_send_req){
+                ready_quit=1;
+                break;
+            }
+            if(*check_pos[i]==BOX_PENDING)  break;
+            else if(*check_pos[i]==BOX_DONE)
+                *check_pos[i]=BOX_EMPTY;
+        }
+    }
+    slab_free((void *)data1);
+    pop_off();
 }

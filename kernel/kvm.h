@@ -38,5 +38,13 @@ struct map_context{
     int xperm;
 };
 
+//Reduce some unused parameter on the basis of map_context
+struct map_iter_context{
+    pagetable_t pagetable;
+    uint64 cur_vpn;
+    uint64 end_vpn;
+    int cur_level;
+};
+
 #define MEM_TRANS_STACH_MAGIC 0x21792352
 

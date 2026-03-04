@@ -1,13 +1,17 @@
 #include "types.h"
 #include "param.h"
+#include "atomic.h"
 #include "memlayout.h"
 #include "riscv.h"
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
-
+#include "colors.h"
 struct spinlock tickslock;
 uint ticks;
+
+//IPI relevant variables
+extern struct mailbox req_mailbox[NCPU];
 
 extern char trampoline[], uservec[];
 extern void *usyscall_pa;
@@ -21,12 +25,158 @@ void trapinit(void) { initlock(&tickslock, "time"); }
 // set up to take exceptions and traps while in the kernel.
 void trapinithart(void) { w_stvec((uint64)kernelvec); }
 
+void do_flush_tlb(void * args){
+    (void )args;
+}
+
+uint64 cal_flush_num(struct tlb_shootdown_req ** buffer, int num, uint64 threshold){
+    pagetable_t cur_pg=get_pagetable();
+    uint64 start_offset, npages=0;
+    for(int i=0;i<num;i++){
+        if(buffer[i]->target_pgdir!=cur_pg){
+            pr_info("No.%d request:target pagetable is unrelated to the current one.", i);
+            continue;
+        }
+        if(buffer[i]->len ==0 ){
+            pr_info("No.%d request:len is zero.");
+            continue;
+        }
+        start_offset = buffer[i]->start_va % PGSIZE;
+        if(start_offset + buffer[i]->len <= PGSIZE)
+            npages ++;
+        else{
+            uint64 remain=buffer[i]->len - (PGSIZE - start_offset);
+            npages += (1 + MAX(1, remain / PGSIZE));
+        }
+        if(npages >= threshold) return threshold;
+    }
+    return npages;
+}
+
+void tlb_flush_handler(struct tlb_shootdown_req **buffer, int num, int global_flush){
+    pagetable_t cur_pg=get_pagetable();
+    uint64 npages=0, start_offset=0;
+    if(global_flush ==0 ){
+        uint64 cur_va;
+        for(int i=0;i<num;i++){
+            if(buffer[i]->target_pgdir != cur_pg || buffer[i]->len==0)
+                continue;
+            cur_va=PGROUNDDOWN(buffer[i]->start_va);
+            npages=1;
+            start_offset = buffer[i]->start_va % PGSIZE;
+            if(start_offset + buffer[i]->len > PGSIZE){
+                uint64 remain=buffer[i]->len - (PGSIZE - start_offset);
+                npages += MAX(1, remain / PGSIZE);
+            }
+            for(int j=0;j<npages;j++){
+                sfence_vma(cur_va, 0);  //disable asid
+                cur_va += PGSIZE;
+            }
+        }
+    }
+    else    sfence_vma(0, 0);
+}
+
+
+void software_intr_handler(){
+    //Interrupt(Unpreditable, caused by external hardware)
+    acquire(&req_mailbox[cpuid()].lock);
+    struct mailbox *cur_mailbox=&req_mailbox[cpuid()];
+    struct tlb_shootdown_req *batched_tlb_req[NCPU]=NULL;
+    int tlb_req_idx=0, did_flush=0;
+    uint64 accu_npages=0, tlb_thresh=64;
+    if(unlikely(cur_mailbox->tail < cur_mailbox->head))
+        panic("Wrapped, slot index has exhausted!");
+    for(int i=cur_mailbox->head;i!=cur_mailbox->tail;i++){
+        if(cur_mailbox->reqs[i % MAX_MAIL].status==BOX_CLAIMED)
+            panic("Unsupported now.");  //FIXME: 
+        else if(cur_mailbox->reqs[i % MAX_MAIL].status!=BOX_PENDING)
+            continue;
+        if(cur_mailbox->reqs[i % MAX_MAIL].func==do_flush_tlb){    //request batching
+            //extract valid element and concatenate valid data element.
+            struct tlb_shootdown_req *tlb_req=(struct tlb_shootdown_req *)cur_mailbox->reqs[i % MAX_MAIL].args;
+            if(did_flush==0){
+                batched_tlb_req[tlb_req_idx++]=tlb_req;
+                if(tlb_req_idx >= NCPU){
+                    accu_npages += cal_flush_num(batched_tlb_req, tlb_req_idx, tlb_thresh-accu_npages);
+                    if(accu_npages >= tlb_thresh){
+                        tlb_flush_handler(batched_tlb_req, tlb_req_idx, 1);
+                        did_flush=1;
+                    }
+                    else    tlb_flush_handler(batched_tlb_req, tlb_req_idx, 0);
+                    tlb_req_idx=0;
+                }
+            }
+            //Acknowledge completion to the initiator by resetting the request status.
+            cur_mailbox->reqs[i % MAX_MAIL].status=BOX_DONE;
+        }
+        else{
+            cur_mailbox->reqs[i % MAX_MAIL].func(cur_mailbox->reqs[i % MAX_MAIL].args);
+            cur_mailbox->reqs[i % MAX_MAIL].status=BOX_DONE;
+        }
+    }
+    //Clear the SSIP(Supervisor Software Interrupt Pending) bit to acknowledge
+    //the interrupt and prevent re-triggerring(Infinite loops)
+    asm volatile("csrc sip, %0" : : "r"(2));
+    //CSR read and clear bits(read first, then &= ~mask, write back)
+    cur_mailbox->head=cur_mailbox->tail;    // Index adjustment.
+    release(&cur_mailbox->lock);
+}
+
+void software_intr_handler_nolock(){
+    push_off();
+    int cur_id=cpuid();
+    struct mailbox *cur_mailbox=&req_mailbox[cur_id];
+    struct tlb_shootdown_req *batched_tlb_req[NCPU]=NULL;
+    int tlb_req_idx=0, did_flush=0;
+    uint64 cur_tail=*(volatile uint64 *)&cur_mailbox->tail;
+    uint64 accu_npages=0, tlb_thresh=64;
+    if(unlikely(cur_tail < cur_mailbox->head))
+        panic("Wrapped, slot index has exhausted!");
+    for(uint64 i=cur_mailbox->head;i!=cur_tail;i++){
+        if(cur_mailbox->reqs[i % MAX_MAIL].status!=BOX_PENDING){
+            cur_mailbox->head=i;
+            asm volatile("csrc sip, %0" : : "r"(2));
+            return;     //stop and return early
+            //(Once one request is not ready, we still have chance to back and deal the remaining)
+        }
+        asm volatile("fence r, rw" : : : "memory");
+        if(cur_mailbox->reqs[i % MAX_MAIL].func==do_flush_tlb){    //request batching
+            //extract valid element and concatenate valid data element.
+            struct tlb_shootdown_req *tlb_req=(struct tlb_shootdown_req *)cur_mailbox->reqs[i % MAX_MAIL].args;
+            if(did_flush==0){
+                batched_tlb_req[tlb_req_idx++]=tlb_req;
+                if(tlb_req_idx >= NCPU){
+                    accu_npages += cal_flush_num(batched_tlb_req, tlb_req_idx, tlb_thresh-accu_npages);
+                    if(accu_npages >= tlb_thresh){
+                        tlb_flush_handler(batched_tlb_req, tlb_req_idx, 1);
+                        did_flush=1;
+                    }
+                    else    tlb_flush_handler(batched_tlb_req, tlb_req_idx, 0);
+                    tlb_req_idx=0;
+                }
+            }
+            //Acknowledge completion to the initiator by resetting the request status.
+            cur_mailbox->reqs[i % MAX_MAIL].status=BOX_DONE;
+        }
+        else{
+            cur_mailbox->reqs[i % MAX_MAIL].func(cur_mailbox->reqs[i % MAX_MAIL].args);
+            cur_mailbox->reqs[i % MAX_MAIL].status=BOX_DONE;
+        }
+    }
+    //Clear the SSIP(Supervisor Software Interrupt Pending) bit to acknowledge
+    //the interrupt and prevent re-triggerring(Infinite loops)
+    asm volatile("csrc sip, %0" : : "r"(2));
+    //CSR read and clear bits(read first, then &= ~mask, write back)
+    cur_mailbox->head=cur_tail;    // Index adjustment.
+}
+
 //
 // handle an interrupt, exception, or system call from user space.
 // called from, and returns to, trampoline.S
 // return value is user satp for trampoline.S to switch to.
 //
-uint64 usertrap(void) {
+uint64 usertrap(void) { //NOTE: already in Supervisor-mode!!!!!!!!!!
     int which_dev = 0;
 
     if ((r_sstatus() & SSTATUS_SPP) != 0) panic("usertrap: not from user mode");
@@ -35,7 +185,7 @@ uint64 usertrap(void) {
     w_stvec((uint64)kernelvec);  //DOC: kernelvec
 
     struct proc *p = myproc();
-
+    uint64 scause = r_scause();
     // save user program counter.
     p->trapframe->epc = r_sepc();
 
@@ -52,19 +202,45 @@ uint64 usertrap(void) {
         syscall();
     } else if ((which_dev = devintr()) != 0) {//device interrupt
         // ok
-    } else if ((r_scause() == 15 || r_scause() == 13) &&
-               vmfault(p->rb_array, p->pagetable, r_stval(), (r_scause() == 13) ? 1 : 0) != 0) {
-        // page fault on lazily-allocated page
-        // Specific error code:13--Load page fault, 15--Store/AMO page fault, and 12--Instruction Page Fault.
-    } else {
-        // Unhandle Trap
-        pte_t *invalid_pte=walk(p->pagetable, r_stval(), 0, 0);
-        printf("usertrap(): unexpected scause 0x%llx pid=%d\n", r_scause(), p->pid);
-        printf("            sepc=0x%llx stval=0x%llx\n", r_sepc(), r_stval());
-        printf("            pagetable is %p, name is %s, pte is %llx, and pa is %llx\n", 
-            p->pagetable, p->name, *invalid_pte, PTE2PA(*invalid_pte));
-        setkilled(p);
-        panic("1");
+    } 
+    else{
+        //handle page fault and check if restore.(Fix-retry, )
+        if(scause == 13 || scause ==15){    //Synchronous Exception
+            // Specific error code:13--Load page fault, 15--Store/AMO page fault, 
+            //  and 12--Instruction Page Fault.
+            uint64 stval=r_stval();
+            if(stval<MAXVA && p!=NULL && p->mm!=NULL){
+                //Perform pre-checks to avoid unnecessary page fault handling
+                int read_error=(scause ==13)?1:0;
+                if(vmfault(p->rb_array, p->pagetable, r_stval(), read_error) != 0){
+                    //Post-fix Verification
+                    pte_t *new_pte=walk(p->pagetable, stval, 0, 0);
+                    if(scause==15 && (!(*new_pte & PTE_W) || !(*new_pte & PTE_V))){
+                        pr_err("Vmfualt lied.PTE is still read-only.");
+                        setkilled(p);
+                    }
+                    else if(scause==13 || !(*new_pte & PTE_V)){
+                        pr_err("Vmfault lied.PTE is still unreadable.");
+                        setkilled(p);
+                    }
+                }
+            }
+            else{
+                // Unhandle Trap
+                pte_t *invalid_pte=walk(p->pagetable, r_stval(), 0, 0);
+                printf("usertrap(): unexpected scause 0x%llx pid=%d\n", r_scause(), p->pid);
+                printf("            sepc=0x%llx stval=0x%llx\n", r_sepc(), r_stval());
+                printf("            pagetable is %p, name is %s, pte is %llx, and pa is %llx\n", 
+                    p->pagetable, p->name, *invalid_pte, PTE2PA(*invalid_pte));
+                setkilled(p);
+            }
+        }
+        else if(scause == (1ull << 63 | 1))     software_intr_handler_nolock();
+        else{
+            // interrupt or trap from an unknown source
+            printf("scause=0x%llx sepc=0x%llx stval=0x%llx\n", scause, r_sepc(), r_stval());
+            setkilled(p);
+        }
     }
 
     if (killed(p)) kexit(-1);
@@ -121,10 +297,13 @@ void prepare_return(void) {
 
     // set S Exception Program Counter to the saved user pc.
     w_sepc(p->trapframe->epc);
+    //for sret: Use the SPP in sstatus, copy SPIE into SIE, and copy sepc to pc
 }
 
 // interrupts and exceptions from kernel code go here via kernelvec,
 // on whatever the current kernel stack is.
+// NOTE: Any synchronous exception encountered outside of external hardware or 
+// IPI interrupt handling triggers an immediate system panic!
 void kerneltrap() {
     int which_dev = 0;
     uint64 sepc = r_sepc();
@@ -139,29 +318,13 @@ void kerneltrap() {
         if(which_dev==2 && myproc()!=0)     yield();
     }
     else{
-        //handle page fault and check if restore.(Fix-retry, )
-        if(scause == 13 || scause ==15){
-            struct proc *p=myproc();
-            uint64 stval=r_stval();
-            if(stval<MAXVA && p!=NULL && p->mm!=NULL){
-                //Perform pre-checks to avoid unnecessary page fault handling
-                int read_error=(scause ==13)?1:0;
-                if(vmfault(p->rb_array, p->pagetable, r_stval(), read_error) != 0){
-                    //Post-fix Verification
-                    pte_t *new_pte=walk(p->pagetable, stval, 0, 0);
-                    if(scause==15 && (!(*new_pte & PTE_W) || !(*new_pte & PTE_V)))
-                        panic("Vmfualt lied.PTE is still read-only.");
-                    else if(scause==13 || !(*new_pte & PTE_V))
-                        panic("Vmafail lied.PTE is still unreadable.");
-                    goto restore;
-                }
-            }
+        if(scause == (1ull << 63 | 1))     software_intr_handler_nolock();
+        else{
+            // interrupt or trap from an unknown source
+            printf("scause=0x%llx sepc=0x%llx stval=0x%llx\n", scause, r_sepc(), r_stval());
+            panic("kerneltrap");
         }
-        // interrupt or trap from an unknown source
-        printf("scause=0x%llx sepc=0x%llx stval=0x%llx\n", scause, r_sepc(), r_stval());
-        panic("kerneltrap");
     }
-restore:
     // the yield() may have caused some traps.
     // so restore trap registers for use by kernelvec.S's sepc instruction.
     w_sepc(sepc);

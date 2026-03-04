@@ -245,10 +245,30 @@ static inline uint64 __attribute__((always_inline)) r_ra() {
 }
 
 // flush the TLB.
-static inline void sfence_vma() {
+static inline void sfence_vma(uint64 va, uint64 asid) {
     // the zero, zero means flush all TLB entries.
-    asm volatile("sfence.vma zero, zero");
+    asm volatile("sfence.vma %0, %1"
+        : 
+        : "r"(va), "r"(asid)
+    );
 }
+
+#define SOFTWARE_INTR_MASK 1ull << 1
+#define TIMER_INTR_MASK    1ULL << 5
+#define EXTER_INTR_MASK    1ull << 9
+#define IPI_REQ_THRESHOLD  64
+static inline uint64 __attribute__((always_inline)) r_sip(){
+    //sip(supervisor Interrupt Pending) is CPU statement register
+    uint64 retval;
+    asm volatile("csrr %0, sip" : "=r"(retval) : : );
+    //Add = additionally to inform compiler this variable can be modified.
+    return retval;
+}
+
+//fence pred(predcessor), succ(successor)
+//NOTE: Ensure all preceding operations are completed 
+//      before any subsequent operations commence.
+
 
 typedef uint64 pte_t;
 typedef uint64 *pagetable_t;  // 512 PTEs
@@ -259,6 +279,8 @@ typedef uint64 *pagetable_t;  // 512 PTEs
 #define THRESHLOD 2
 #define MAX_RES_BLOCK 32
 #define MAX_ALLOWED_ALLOCATIONS 4
+#define MAX_MAIL    8
+
 typedef struct Reservation{
     uint64 pa, va;  //for the block header
     int promoted;   //upgrade to huge page or not

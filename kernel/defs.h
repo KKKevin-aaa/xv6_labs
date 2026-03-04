@@ -45,6 +45,24 @@ struct rwspinlock;
 #define POISON_BYTE 0X5A
 #define POISON_64 0x5a5a5a5a5a5a5a5aull
 
+static inline uint64 gen_bitfield_mask(uint8 low, uint8 high, uint8 total_bits, int invert){
+    if(low >high || high >=total_bits || low>= total_bits){
+        pr_err("Invalid mask range or bit width parameter.");
+        return 0;
+    }
+    uint8 length=high -low +1;
+    uint64 retval=(length ==64 ) ? ~0ULL : (1ull << length) -1;
+    retval <<= low;
+    if(invert==1){
+        retval = ~retval;
+        if(total_bits < 64){
+            uint64 inv_mask=(1ull << total_bits) -1;
+            retval &= inv_mask;
+        }
+    }
+    return retval;
+}
+
 
 // bio.c
 void            binit(void);
@@ -182,6 +200,10 @@ int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
 struct proc *   kthread_create(const char *name, void (*func)(void));
+void tlb_shootdown_issue_nolock(pagetable_t pgdir, uint64 va, uint64 len);
+void tlb_shootdown_issue(pagetable_t pgdir, uint64 va, uint64 len);
+void            init_tlb_data_cache(void);
+
 
 // swtch.S
 void            swtch(struct context *store_to, struct context *load_from);
@@ -229,6 +251,10 @@ void            syscall(void);
 
 // trap.c
 extern uint     ticks;
+void            do_flush_tlb(void * args);
+uint64          cal_flush_num(struct tlb_shootdown_req **buffer, int num, uint64 threshold);
+void            tlb_flush_handler(struct tlb_shootdown_req **buferr, int num, int global_flush);
+void            software_intr_handler(void);
 void            trapinit(void);
 void            trapinithart(void);
 extern struct spinlock tickslock;
@@ -267,9 +293,9 @@ void            vmprint(pagetable_t pagetable);
 pte_t*          pgpte(pagetable_t pagetable, uint64 va);
 // #endif
 void            init_res_array(res_block *rblocks, uint64 init_heap_start);
-uint64          alloc_memory_res(struct alloc_context *ctx1);
-uint64          free_memory_res(struct alloc_context *ctx1);
-void            reclaim_memory_res_range(res_block *rb_array, pagetable_t pagetable, uint64 start_va, uint64 end_va);
+uint64          uvmalloc_thp_region(struct alloc_context *ctx1);
+uint64          uvmdealloc_thp_region(struct alloc_context *ctx1);
+void            uvmdealloc_thp_region_range(res_block *rb_array, pagetable_t pagetable, uint64 start_va, uint64 end_va);
 uint64          scan_contigous_map(pagetable_t paegetable, uint64 src_va);
 
 //rbtree_impl.c
