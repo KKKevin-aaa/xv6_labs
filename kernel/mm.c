@@ -219,7 +219,8 @@ int remove_mm(mm_struct_t *mm){
     vm_area_struct_t *clear_vma=mm->mmap, *tmp_next;
     while(clear_vma!=NULL){
         tmp_next=clear_vma->vm_next;
-        remove_vma(mm, clear_vma);   //remove from the existing mm completely
+        if(tmp_next && tmp_next->vm_mm != mm)   panic("Foreign VMA detected in 0x%llx", (uint64)mm);
+        remove_vma(clear_vma);   //remove from the existing mm completely
         clear_vma=tmp_next;
     }
     releasesleep(&mm->mm_lock);
@@ -230,8 +231,8 @@ int remove_mm(mm_struct_t *mm){
     return slab_free((void *)mm);
 }
 
-vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr){
-    //Assuming hold mm->mm_lock(Lock-Prected Borrowing)
+vm_area_struct_t *find_contain_vma(mm_struct_t *mm, uint64 vaddr){
+    //Assuming hold mm->mm_lock(Lock-Protectdd Borrowing)
     //No refcount update is needed since the object isn't leaked out of the critical sections.
 #ifdef DEBUG_KVM
     KVM_TRACE("While mm=%p, try to find vaddr %llx\n", (void *)mm, vaddr);
@@ -265,10 +266,10 @@ vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr){
     return found; 
 }
 
-vm_area_struct_t *find_vma_and_get(mm_struct_t *mm, uint64 addr){
+vm_area_struct_t *find_contain_vma_and_get(mm_struct_t *mm, uint64 addr){
     if(!holdingsleep(&mm->mm_lock))
         panic("Race Conditions: Accessing mm without lock");
-    vm_area_struct_t *vma=find_vma(mm, addr);
+    vm_area_struct_t *vma=find_contain_vma(mm, addr);
     if(vma!=NULL)   vma_get(vma);
     else    MM_TRACE("Could not locate a node containd addr within vma pool.\n");
     return vma;
@@ -375,13 +376,7 @@ rb_node_t *rb_search(rb_node_t *node, vm_area_struct_t **predecessor,
     return parent;
 }
 
-int insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont){
-#ifdef DEBUG_KVM
-    KVM_TRACE("mm=%p vma=%p cont=%p\n", (void *)mm, (void *)vma, (void *)cont);
-    KVM_TRACE("trying to insert [%llx, %llx)\n", vma->vm_start, vma->vm_end);
-#endif
-    //Check if cont qualifies for the fast path,
-    //if not;fallback to the generic insetions.
+int precheck_valid(mm_struct_t *mm, vm_area_struct_t *vma){
     if(vma==NULL){
         pr_err("Insert an empty entry into vma_struct!\n");
         return -1;
@@ -394,6 +389,17 @@ int insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont)
         pr_err("try to insert vma to another new tree(maybe the tree have already replaced.\n)");
         return -1;
     }
+    return 0;
+}
+
+int insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont){
+#ifdef DEBUG_KVM
+    KVM_TRACE("mm=%p vma=%p cont=%p\n", (void *)mm, (void *)vma, (void *)cont);
+    KVM_TRACE("trying to insert [%llx, %llx)\n", vma->vm_start, vma->vm_end);
+#endif
+    //Check if cont qualifies for the fast path,
+    //if not;fallback to the generic insetions.
+    if(precheck_valid(mm, vma)==-1)     return -1;
     if(cont==NULL || (cont->prev==NULL && cont->next==NULL))
         return insert_vma(mm, vma);
     if((cont->prev && cont->prev->vm_end>vma->vm_start) ||
@@ -431,18 +437,11 @@ int insert_vma(mm_struct_t *mm, vm_area_struct_t *vma){
     //for some special cases: e.g. heap_vma,the(vm_start < vm_end) isn't strictly required.
     //Therefore, we relax this constraint and allow such configuraion.
 #ifdef DEBUG_KVM
-    KVM_TRACE("mm=%p vma=%p\n", (void *)mm, (void *)vma);
+    pr_info("mm=%p vma=%p\n", (void *)mm, (void *)vma);
 #endif
     //Builds the structure by linking the new VMA into both 
     //the RB-Tree and the linked list after checking for overlaps
-    if(vma->vm_mm!=mm){
-        pr_warn("try to insert vma to another new tree(maybe the tree have already replaced.\n)");
-        return -1;
-    }
-    if(mm==NULL || vma==NULL || vma->vm_start%PGSIZE!=0 || vma->vm_end%PGSIZE!=0){
-        pr_err("pass an invalid argument!\n");
-        return -1;
-    }
+    if(precheck_valid(mm, vma)==-1)     return -1;
     if(!holdingsleep(&mm->mm_lock))
         panic("Race Condtions: access mm_struct without lock\n");
     rb_node_t *vma_node=&vma->vm_rb_node;
@@ -486,16 +485,14 @@ int insert_vma(mm_struct_t *mm, vm_area_struct_t *vma){
     return 0;
 }
 
-int remove_vma(mm_struct_t *mm, vm_area_struct_t *vma){
-#ifdef DEBUG_KVM
-    KVM_TRACE("mm=%p vma=%p\n", (void *)mm, (void *)vma);
-#endif
-    if(!holdingsleep(&mm->mm_lock))
-        panic("[remove_vma]Race Conditions: access mm without lock!");
-    if(vma->vm_mm!=mm){
-        pr_warn("try to remove vma from another tree(Dismatch mm_struct_t.\n)");
+int remove_vma(vm_area_struct_t *vma){
+    if(vma==NULL || vma->vm_mm==NULL){
+        pr_err("Invalid argument.");
         return -1;
     }
+    mm_struct_t *mm=vma->vm_mm;
+    if(!holdingsleep(&mm->mm_lock))
+        panic("Race Conditions: access mm without lock!");
     //Remove from the list,maintain mmap,also need to free the associated resource
     rb_node_t *vma_node=&vma->vm_rb_node;
     vm_area_struct_t *vm_prev=vma->vm_prev, *vm_next=vma->vm_next;
@@ -510,6 +507,135 @@ int remove_vma(mm_struct_t *mm, vm_area_struct_t *vma){
     vma->vm_prev=NULL;vma->vm_next=NULL;
     vma->vm_mm=NULL;
     return vma_put(vma);
+}
+
+int split_vma(mm_struct_t *mm, uint64 split_addr){
+    if(mm==NULL)    return -1;
+    if(!holdingsleep(&mm->mm_lock)){
+        pr_err("Race Conditions: access mm without lock");
+        return -1;
+    }
+    vm_area_struct_t *find_ret=find_contain_vma_and_get(mm, split_addr);
+    if(find_ret==NULL || find_ret->vm_start == split_addr){
+        pr_warn("No necessary to split 0x%llx mm_struct with 0x%llx(Missing corresponding vma)", 
+            (uint64)mm, split_addr);
+        vma_put(find_ret);
+        return 0;
+    }
+    vma_context_t cont1={.prev=find_ret, .next=find_ret->vm_next};
+    uint64 prev_end=find_ret->vm_end;
+    vm_area_struct_t *new_vma=vma_dup(find_ret);
+    if(new_vma==NULL){
+        pr_err("Spliting vma(0x%llx) range from 0x%llx to 0x%llx fail, unable copy existing vma.",
+            (uint64)find_ret, find_ret->vm_start, find_ret->vm_end);
+        vma_put(find_ret);
+        return -1;
+    }
+    //Fine-grained adjustment.
+    new_vma->vm_start=split_addr;
+    find_ret->vm_end=split_addr;
+    if(insert_vma_fast(mm, new_vma, &cont1)!=0){
+        pr_err("Insert new vma fail.");
+        find_ret->vm_end=prev_end;
+        vma_put(find_ret);
+        vma_put(new_vma);
+        return -1;
+    }
+    new_vma->vm_pgoff=find_ret->vm_pgoff + ((split_addr - find_ret->vm_start) >> PGSHIFT);
+    vma_put(find_ret);
+    return 0;
+}
+
+int shrink_vma(vm_area_struct_t *vma, uint64 new_start, uint64 new_end){
+    //shrink one vma to [new_start, new_end) in-place, with its current span.
+    // new_start must >= current_start and new_end must <= current_end
+    // (Terminate immediately upon rule violation.)
+    if(vma==NULL || new_start >= new_end || vma->vm_start > new_start || vma->vm_end < new_end){
+        pr_warn("Invariant violation: shrink targets [0x%llx, 0x%llx) out of current VMA bounds.", 
+            new_start, new_end);
+        return -1;
+    }
+    if(vma->vm_mm!=NULL && !holdingsleep(&vma->vm_mm->mm_lock)){
+        pr_err("Locking violation: associated mm_lock must be held during VMA mutation.");
+        return -1;
+    }
+    //pass all the tests, now modifying vma with lock.
+    if(vma->vm_file!=NULL)
+        vma->vm_pgoff += ((new_start - vma->vm_start) >> PGSHIFT);
+    vma->vm_start=new_start;
+    vma->vm_end=new_end;
+    return 0;
+}
+
+int expand_vma(vm_area_struct_t *vma, uint64 new_start, uint64 new_end){
+    // In-place boundary adjustment: expand [start, end) beyond its current span.
+    if(vma == NULL || new_start >= new_end || new_start > vma->vm_start || new_end < vma->vm_end){
+        pr_warn("Invariant violation: expand targets [0x%llx, 0x%llx) must encompass current VMA.", 
+                new_start, new_end);
+        return -1;
+    }
+    if(vma->vm_mm == NULL || !holdingsleep(&vma->vm_mm->mm_lock)){
+        pr_err("Locking violation: associated mm_lock must be held during VMA mutation.");
+        return -1;
+    }
+    if(new_end > UPPER_LIMIT){
+        pr_err("Exceed the RAM");
+        return -1;
+    }
+    // Verify spatial constraints: ensure no overlap with adjacent VMAs.
+    if(vma->vm_prev != NULL && vma->vm_prev->vm_end > new_start){
+        pr_err("Overlap detected: expansion encroaches on the preceding VMA boundary (0x%llx).", 
+               vma->vm_prev->vm_end);
+        return -1;
+    }
+    if(vma->vm_next != NULL && vma->vm_next->vm_start < new_end){
+        pr_err("Overlap detected: expansion encroaches on the succeeding VMA boundary (0x%llx).", 
+               vma->vm_next->vm_start);
+        return -1;
+    }
+    // Adjust file offset in page units if the start boundary recedes.
+    if(vma->vm_file != NULL){
+        uint64 pgoff_dec = (vma->vm_start - new_start) >> PGSHIFT;
+        if (pgoff_dec > vma->vm_pgoff) {
+            pr_err("Predefined limit reached: expansion exceeds file beginning (pgoff underflow).");
+            return -1;
+        }
+        vma->vm_pgoff -= pgoff_dec;
+    }
+
+    vma->vm_start = new_start;
+    vma->vm_end = new_end;
+    return 0;
+}
+
+int merge_vma(vm_area_struct_t *prev_vma, vm_area_struct_t *next_vma){
+    if(prev_vma==NULL || next_vma==NULL || 
+        prev_vma->vm_mm==NULL || next_vma->vm_mm==NULL){
+        pr_err("Invalid argument.");
+        return -1;
+    }
+    if(prev_vma->vm_mm != next_vma->vm_mm || prev_vma->vm_file != next_vma->vm_file ||
+        prev_vma->vm_flags != next_vma->vm_flags || 
+        prev_vma->vm_page_prot != next_vma->vm_page_prot || 
+        atomic_read(&prev_vma->ref_count) != atomic_read(&next_vma->ref_count) ||
+        prev_vma->vm_next != next_vma || next_vma->vm_prev != prev_vma
+    ){
+        pr_info("Inconsistent data.");
+        return -1;
+    }
+    if(prev_vma->vm_end != next_vma->vm_start 
+        || next_vma->vm_pgoff != prev_vma->vm_pgoff + ((prev_vma->vm_end - prev_vma->vm_start) >> PGSHIFT)){
+        pr_info("Lacking adjacency.");
+        return -1;
+    }
+    if(!holdingsleep(&prev_vma->vm_mm->mm_lock)){
+        pr_err("Non-lock merge.");
+        return -1;
+    }
+    uint64 saved_end=next_vma->vm_end;
+    if(remove_vma(next_vma)==-1)    return -1;
+    prev_vma->vm_end=saved_end;
+    return 0;
 }
 
 uint64 get_unmapped_area(mm_struct_t *mm, uint64 len, 
@@ -585,44 +711,49 @@ int do_munmap(munmap_context_t *ctx1){
     while(tmp!=NULL){
         tmp_next=tmp->vm_next;
         if(tmp->vm_start < end_addr && tmp->vm_end > cur_addr){
-            if(tmp->vm_start > cur_addr && tmp->vm_end<=end_addr){      //Enclose
+            if(tmp->vm_start >= cur_addr && tmp->vm_end<=end_addr){      //Enclose
                 cur_addr=tmp->vm_end;
-                uvmfree_range(ctx1->rb_array, ctx1->pagetable, tmp->vm_start, tmp->vm_end);
-                remove_vma(ctx1->mm, tmp);
+                remove_vma(tmp);
             }
             else if(tmp->vm_start > cur_addr && tmp->vm_end > end_addr){    //Head Overlap
-                uvmfree_range(ctx1->rb_array, ctx1->pagetable, tmp->vm_start, end_addr);
-                tmp->vm_start=end_addr;
+                if(shrink_vma(tmp, end_addr, tmp->vm_end)!=0)     return -1;
                 break;
             }
             else if(tmp->vm_start < cur_addr && tmp->vm_end < end_addr){    //Tail Overlap
-                uvmfree_range(ctx1->rb_array, ctx1->pagetable, cur_addr, tmp->vm_end);
                 uint64 tmp_swap=tmp->vm_end;
-                tmp->vm_end=cur_addr;
+                if(shrink_vma(tmp, tmp->vm_start, cur_addr)!=0)     return -1;
                 cur_addr=tmp_swap;
             }
-            else{   //Middle Split
-                vm_area_struct_t *new_vma=vma_dup(tmp);
-                if(new_vma==NULL){      //must be the first involoved VMA, no additional work to rollback.
-                    pr_err("split into two vmas fail.\n");
+            else{   //Hole Punching.
+                if(split_vma(ctx1->mm, end_addr)==-1)    return -1;
+                if(split_vma(ctx1->mm, cur_addr)==-1){
+                    if(merge_vma(tmp, tmp->vm_next)==-1)
+                        panic("Unexpected merge fail.(Just finish splitting...)");
                     return -1;
                 }
-                //Fine-grained adjustment.
-                new_vma->vm_start=end_addr;
-                new_vma->vm_end=tmp->vm_end;
-                new_vma->vm_pgoff=tmp->vm_pgoff + ((end_addr -tmp->vm_start) >> PGSHIFT);
-                //Perform selective copying based on specific criteria.
-                if(insert_vma(ctx1->mm, new_vma)!=0){
-                    pr_err("split into two vmas failed.\n");
-                    vma_put(new_vma);
+                if(remove_vma(tmp->vm_next)==-1){
+                    if(merge_vma(tmp, tmp->vm_next)==-1)
+                        panic("Unexpected merge fail.(Just finish splitting...)");
+                    if(merge_vma(tmp, tmp->vm_next)==-1)
+                        panic("Unexpected merge fail.(Just finish splitting...)");
                     return -1;
                 }
-                tmp->vm_end=cur_addr;
-                uvmfree_range(ctx1->rb_array, ctx1->pagetable, cur_addr, end_addr);
                 break;
             }
         }
         tmp=tmp_next;
+    }
+    //finish all vma adjustment, unmap and free(optically)
+    if(uvmdealloc(&(struct alloc_context){
+        .pagetable=ctx1->pagetable,
+        .do_free=1,
+        .rblocks=ctx1->rb_array,
+        .pt_lock=ctx1->pt_lock,
+        .seg_start=(uint64)ctx1->addr,
+        .seg_end=end_addr
+    }) != end_addr){
+        panic("Unexpected error while unmap. And the cost of recovering VMA is too expensive.");
+        return -1;
     }
     return 0;
 }
@@ -696,12 +827,16 @@ void *do_mmap(mmap_context_t *ctx1){
                 }
                 //MAP_FIXED, discussing various scenarios.
                 else{
-                    do_munmap(&(munmap_context_t)
+                    if(do_munmap(&(munmap_context_t)
                         {.pagetable=ctx1->pagetable,
                         .rb_array=ctx1->rb_array,
+                        .pt_lock=ctx1->pt_lock,
                         .mm=ctx1->mm,
                         .addr=ctx1->sugg_addr, 
-                        .length=ctx1->length});
+                        .length=ctx1->length})==-1){
+                            panic("MAP_FIXED and Unmap the exsiting vma fail");
+                            return -1;
+                    }
                 }
             }
         }

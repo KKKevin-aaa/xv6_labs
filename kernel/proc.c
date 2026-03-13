@@ -13,7 +13,9 @@
 #include "fcntl.h"
 #include "mm.h"
 #include "sbi.h"
+#include "vm.h"
 #include "colors.h"
+#include "utils.h"
 
 //Enable COW 
 #define COW
@@ -57,7 +59,7 @@ void proc_mapstacks(pagetable_t kpgtbl) {
         pr_info("proc %d: kernel_stack located from %llx to 0x%llx", 
             (int)(p-proc), va, va+PGSIZE);
         pr_info("while guard page located from 0x%llx to 0x%llx", 
-            va+PGSIZE, va+2*PGSIZE);
+            va-PGSIZE, va);
         kvmmap_boot_only(&(struct map_context){
             .pagetable=kpgtbl,
             .start_va=va,
@@ -66,6 +68,7 @@ void proc_mapstacks(pagetable_t kpgtbl) {
             .xperm=PTE_R | PTE_W,
             .pt_lock=NULL
         });
+        pr_info("\n");      //Seperate.
     }
 }
 
@@ -78,7 +81,7 @@ void procinit(void) {
     for (p = proc; p < &proc[NPROC]; p++) {
         initlock(&p->lock, "proc");
         p->state = PROC_UNUSED;
-        p->kstack = KSTACK((int)(p - proc));
+        p->kstack = KSTACK((int)(p - proc));        //kernel stack starting address.
         initlock(&p->uvm_lock, "proc pagetable");
     }
     swap_kthread=kthread_create("swap_worker", swap_out);
@@ -183,12 +186,12 @@ static void freeproc(struct proc *p) {
     if (p->trapframe) kfree_page((void *)p->trapframe);
     p->trapframe = 0;
 #ifdef PROC_DEBUG
-    PROC_TRACE("in freeproc oldpagetbale is %p\n", p->pagetable);
+    pr_info("in freeproc oldpagetbale is %p\n", p->pagetable);
 #endif
     if(p->mm!=NULL)     mm_put(p->mm);
     //free the pagetable at the same time.(double -check)
 #ifdef PROC_DEBUG
-    PROC_TRACE("Done free this process's memory!\n");
+    pr_info("Done free this process's memory!\n");
 #endif
     p->pagetable = 0;
     p->pid = 0;
@@ -224,7 +227,7 @@ pagetable_t proc_pagetable(struct proc *p) {
         .pa=(uint64)trampoline,
         .xperm=PTE_R | PTE_X,
         .pt_lock=&p->uvm_lock}) <0 ){
-        freewalk(pagetable, 1, 2);
+        uvmremove(pagetable);
         return 0;
     }
     //map the trapframe page just below the trampoline page, for trampoline.S.
@@ -242,7 +245,7 @@ pagetable_t proc_pagetable(struct proc *p) {
             .pt_lock=&p->uvm_lock,
             .do_free=0
         });
-        freewalk(pagetable, 1, 2);
+        uvmremove(pagetable);
         return 0;
     }
     // establish a shared, read-only mapping at USYSCALL to speed up syscalls via direct memory address.
@@ -267,7 +270,7 @@ pagetable_t proc_pagetable(struct proc *p) {
             .pt_lock=&p->uvm_lock,
             .do_free=0
         });
-        freewalk(pagetable, 1, 2);
+        uvmremove(pagetable);
         return 0;
     }
     //initlock/reset pagetable lock at the same time
@@ -299,7 +302,7 @@ void proc_freepagetable(struct spinlock *pt_lock, pagetable_t pagetable) {
         .do_free=0
     });
     //All process share one usyscall page,so don' free here!
-    freewalk(pagetable, 1, 2);       //Remove this pagetable completely.
+    uvmremove(pagetable);       //Remove this pagetable completely.
 }
 
 // Set up first user process.
@@ -318,7 +321,7 @@ void userinit(void) {
     release(&p->lock);
 }
 
-#ifdef RESERVE
+#ifndef RESERVE
 // Shrink user memory by n bytes. Return 0 on success, -1 on failure.
 //(Eager allocation.!!)
 int growproc(int n) {       //Ensure enter this function holding two locks(uvmlock and mm_lock)
@@ -335,7 +338,7 @@ int growproc(int n) {       //Ensure enter this function holding two locks(uvmlo
     if(!holdingsleep(&cur_proc->mm->mm_lock))
         pr_err("[Warning]Access process's mm_struct_t without lock(Protected by uvmlock).\n");
     if(cur_proc->mm->heap_vma==NULL){      //check the heap vma
-        PROC_TRACE("Fatal error: proc's heap_vma shouldn't be NULL.\n");
+        pr_err("Fatal error: proc's heap_vma shouldn't be NULL.\n");
         return -1;
     }
 
@@ -352,15 +355,15 @@ int growproc(int n) {       //Ensure enter this function holding two locks(uvmlo
             pr_warn("No space to grow, remain space is %llx\n.\n", limit-heap_end);
             return -1;
         }
-        int used_perm=PTE_R | PTE_W;    //Default permission
         // Allocate immediately, bypassing the special case of COW.
         if((heap_end = uvmalloc_thp_region(&(struct alloc_context){
+            fixme: 
             .pagetable=cur_proc->pagetable,
             .pt_lock=&cur_proc->uvm_lock,
             .rblocks=cur_proc->rb_array,
             .seg_start=heap_end,
             .seg_end=heap_end + n,
-            .xperm=used_perm
+            .xperm=cur_proc->mm->heap_vma->vm_page_prot
         }))==0)
             return -1;
     }
@@ -372,12 +375,13 @@ int growproc(int n) {       //Ensure enter this function holding two locks(uvmlo
             pr_warn("Reached the prev_vma boundary, can't shrink to that position.");
             return -1;
         }
-        heap_end = uvmdealloc_thp_region(&(struct alloc_context){
+        heap_end = uvmdealloc(&(struct alloc_context){
             .pagetable=cur_proc->pagetable,
+            .do_free =1,
             .pt_lock=&cur_proc->uvm_lock,
+            .seg_start=heap_end +n,
+            .seg_end=heap_end,
             .rblocks=cur_proc->rb_array,
-            .seg_start=heap_end,
-            .seg_end=heap_end+n,
         });
         if(heap_end != cur_proc->mm->heap_vma->vm_end+n)
             return -1;
@@ -400,7 +404,7 @@ int growproc(int n) {       //Ensure enter this function holding two locks(uvmlo
     if(!holdingsleep(&cur_proc->mm->mm_lock))
         pr_err("[Warning]Access process's mm_struct_t without lock(Protected by uvmlock).\n");
     if(cur_proc->mm->heap_vma==NULL){      //check the heap vma
-        PROC_TRACE("Fatal error: proc's heap_vma shouldn't be NULL.\n");
+        pr_err("Fatal error: proc's heap_vma shouldn't be NULL.\n");
         return -1;
     }
 
@@ -408,46 +412,55 @@ int growproc(int n) {       //Ensure enter this function holding two locks(uvmlo
     uint64 heap_end=cur_proc->mm->heap_vma->vm_end, limit;
     //Prevent arithmetic overflow caused by an excessively large n.
     if(n>0){
-        vm_area_struct_t *next_vma=cur_proc->mm->heap_vma->vm_next;
-        if(next_vma==NULL)  limit=UPPER_LIMIT;
-        else    limit=next_vma->vm_start;       //Mmap vma
-        if(heap_end + n > limit || heap_end + n < heap_end){
-            //Prevent excessive n from overwriting kernel memory
-            //Alos prevent integer overflow.
-            pr_warn("No space to grow, remain space is %llx\n.\n", limit-heap_end);
+        if(expand_vma(cur_proc->mm->heap_vma, cur_proc->mm->heap_vma->vm_start, 
+                    cur_proc->mm->heap_vma->vm_end + n)==-1){
+            pr_warn("expanding vma boundary fail.");
             return -1;
         }
-        int used_perm=PTE_R | PTE_W;    //Default permission
         // Allocate immediately, bypassing the special case of COW.
-        if((heap_end = uvmalloc(&(struct alloc_context){
+        if((heap_end = vmalloc(&(struct alloc_context){
             .pagetable=cur_proc->pagetable,
             .pt_lock=&cur_proc->uvm_lock,
             .rblocks=cur_proc->rb_array,
             .seg_start=heap_end,
             .seg_end=heap_end + n,
-            .xperm=used_perm
-        }))==0)
+            .xperm=cur_proc->mm->heap_vma->vm_page_prot
+        }))==0){
+            pr_err("Uvmalloc fail.");
+            if(shrink_vma(cur_proc->mm->heap_vma, 
+                cur_proc->mm->heap_vma->vm_start, heap_end)==-1)
+                panic("Unhandled error while reseting vma.");
             return -1;
+        }
     }
     else{   //The case where n==0 has been explicitly excluded.
-        // (n can only be less than zero.)
+        // (n can only be less than zero.) And NOTE: heap_end(uint64) + n(int) will be treated as uint64.
         limit=cur_proc->mm->heap_vma->vm_start;
         if(-n > heap_end - limit){
             //Avoid direct arithmetic between unsigned and signed number.
             pr_warn("Reached the prev_vma boundary, can't shrink to that position.");
             return -1;
         }
-        heap_end = uvmdealloc(&(struct alloc_context){
+        if(shrink_vma(cur_proc->mm->heap_vma, 
+            cur_proc->mm->heap_vma->vm_start, heap_end+n)==-1){
+            pr_err("Shrinking vma boundary fail.");
+            return -1;
+        }
+        if(uvmdealloc(&(struct alloc_context){
             .pagetable=cur_proc->pagetable,
             .pt_lock=&cur_proc->uvm_lock,
             .rblocks=cur_proc->rb_array,
-            .seg_start=heap_end,
-            .seg_end=heap_end+n,
-        });
-        if(heap_end != cur_proc->mm->heap_vma->vm_end+n)
+            .seg_start=heap_end+n,
+            .seg_end=heap_end,
+            .do_free=1
+        }) !=heap_end){
+            pr_err("Uvmdealloc fail.");
+            if(expand_vma(cur_proc->mm->heap_vma, 
+                cur_proc->mm->heap_vma->vm_start, heap_end)==-1)
+                panic("Unhandled error while reseting vma.");
             return -1;
+        }
     }
-    cur_proc->mm->heap_vma->vm_end=heap_end; //update the heap boundary
     return 0;
 }
 #endif
@@ -549,7 +562,7 @@ int kfork(void) {
     new_child->mm->end_data=cur_parent->mm->end_data;
     
     if(cow_occur==1)
-        tlb_shootdown_issue_nolock(cur_parent->pagetable, 0, 2* IPI_REQ_THRESHOLD * PGSIZE);
+        tlb_shootdown_issue_nolock(cur_parent->pagetable, 0, 2 * IPI_REQ_THRESHOLD * PGSIZE);
     release(&new_child->uvm_lock);
     release(&cur_parent->uvm_lock);
     releasesleep(&new_child->mm->mm_lock);
@@ -862,7 +875,7 @@ void sleep(void *waitChannel, struct spinlock *lk) {
 
     struct cpu *cur_cpu=mycpu();
     if(cur_cpu->noff!=1){
-        PROC_TRACE("FATAL: Sleep() holding extra lock (potential deadlock).\n");
+        pr_err("FATAL: Sleep() holding extra lock (potential deadlock).\n");
         print_held_locks();
         panic("Sleep locks.\n");
     }
@@ -1039,10 +1052,10 @@ void init_tlb_data_cache(void){
 
 void tlb_shootdown_issue(pagetable_t pgdir, uint64 va, uint64 len){
     push_off();
-    int cur_cpuid=mycpu();
+    int cur_cpuid=cpuid();
     if(NCPU > 32)
         panic("NCPU exceed the predefined length(32), plz expand!");
-    volatile int *check_pos[NCPU];
+    volatile enum box_state *check_pos[NCPU];
     memset(check_pos, 0, sizeof(check_pos));
     uint32 target_mask=0, nr_send_req=0;
     int ready_quit=0;
@@ -1050,8 +1063,8 @@ void tlb_shootdown_issue(pagetable_t pgdir, uint64 va, uint64 len){
     memset(ptr_buf, 0, sizeof(ptr_buf));
     struct mailbox *cur_box=NULL;
     for(int i=0;i<NCPU;i++){
-        if(i==cur_cpuid)    continue;
-        if(cpus[i].proc->pagetable==pgdir){ //Optimistic Concurrency Control(OCC)
+        if(i==cur_cpuid || cpus[i].proc==NULL)    continue;
+        if(cpus[i].proc->pagetable==pgdir){     //Optimistic Concurrency Control(OCC)
             //read the statement without lock, double validate before use.
             cur_box=&req_mailbox[i];
             acquire(&cur_box->lock);
@@ -1110,7 +1123,7 @@ void tlb_shootdown_issue(pagetable_t pgdir, uint64 va, uint64 len){
 
 void tlb_shootdown_issue_nolock(pagetable_t pgdir, uint64 va, uint64 len){
     //CAS, without lock.
-    volatile int *check_pos[NCPU];
+    volatile enum box_state *check_pos[NCPU];
     memset(check_pos, 0, sizeof(check_pos));
     uint32 target_mask=0, nr_send_req=0;
     int ready_quit=0;
@@ -1124,7 +1137,8 @@ void tlb_shootdown_issue_nolock(pagetable_t pgdir, uint64 va, uint64 len){
     push_off();     //Inhibit preemption to ensure hartid stability during communication.
     int cur_cpuid=cpuid(), tail=0;
     for(int i=0;i<NCPU;i++){
-        if(i==cur_cpuid)    continue;
+        if(i==cur_cpuid || cpus[i].proc==NULL)    continue;
+        //Bypass the local hart and any harts without an active process context.
         if(cpus[i].proc->pagetable==pgdir){
             cur_box=&req_mailbox[i];
             tail=atomic_add_and_ret((void *)&cur_box->tail, 1);

@@ -15,18 +15,8 @@
 #include "fcntl.h"
 #include "mm.h"
 #include "colors.h"
+#include "utils.h"
 
-// #define DEBUG_EXEC
-#ifdef DEBUG_EXEC
-#define EXEC_TRACE(fmt, ...) \
-    do { \
-        printf("[EXEC:%s] " fmt, __func__, ##__VA_ARGS__); \
-    } while (0)
-#else
-#define EXEC_TRACE(fmt, ...) \
-    do { \
-    } while (0)
-#endif
 // #define EXEC_TEST_TIME
 static int loadseg(pde_t *, uint64, struct inode *, uint, uint);
 
@@ -88,6 +78,7 @@ int kexec(char *path, char **argv) {
     if (readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf)) goto bad;
     if (elf.magic != ELF_MAGIC) goto bad;
     if ((new_pagetable = proc_pagetable(p)) == 0) goto bad;
+    //Establish some mapping assoicated with kernel directly(remove PTE_U, and keep the same for all processes.)
     shadow_mm->pagetable=new_pagetable;
     vm_area_struct_t *prev_vma=NULL;
     //Loader will scan all program headers, select PT_LOAD segment.
@@ -109,14 +100,14 @@ int kexec(char *path, char **argv) {
         vma->vm_file = filedup(src_file);         //Increase file's ref_count.
         
         vma->vm_flags = elf_flags2vm_flags(ph.flags);   //VM_PRIVATE by defualt.
-        vma->vm_page_prot = flags2page_prot(vma->vm_flags); 
+        vma->vm_page_prot = flags2page_prot(vma->vm_flags) | PTE_U; 
         //In exec,file content already loaded.So page_prot must be writable.
         //(bypass shared, kernel limit defined in flags2_page_prot).
         
         vma->vm_mm = shadow_mm;
         vma->vm_ops = NULL; // 这是一个匿名加载段（虽然来自文件，但不是 shared mmap）
 
-        if((sz1= uvmalloc(&(struct alloc_context){
+        if((sz1= vmalloc(&(struct alloc_context){
             .pagetable=new_pagetable,
             .seg_start=vma->vm_start,
             .seg_end=vma->vm_end,
@@ -129,7 +120,7 @@ int kexec(char *path, char **argv) {
         }
         if (loadseg(new_pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0){
             vma_put(vma);
-            uvmdealloc(&(struct alloc_context){
+            buddy_dealloc_backend(&(struct alloc_context){
                 .pagetable=new_pagetable,
                 .pt_lock=NULL,
                 .rblocks=NULL,
@@ -146,7 +137,7 @@ int kexec(char *path, char **argv) {
         //insertion logic performs a lock-validation check.
         if(insert_vma_fast(shadow_mm, vma, &(vma_context_t){.prev=prev_vma, .next=NULL})==-1){
             vma_put(vma);
-            uvmdealloc(&(struct alloc_context){
+            buddy_dealloc_backend(&(struct alloc_context){
                 .pagetable=new_pagetable,
                 .pt_lock=NULL,
                 .rblocks=NULL,
@@ -178,7 +169,7 @@ int kexec(char *path, char **argv) {
 
     //Do some preparation work.
     stackbase=sz+PGSIZE;    //Top-guard + bottom-guard(stack only one-page.)
-    if(uvmalloc(&(struct alloc_context){
+    if(vmalloc(&(struct alloc_context){
         .pagetable=new_pagetable,
         .seg_start=stackbase-PGSIZE,
         .seg_end=stackbase+2*PGSIZE,
@@ -190,7 +181,7 @@ int kexec(char *path, char **argv) {
     // --- 创建 Stack VMA ---
     vm_area_struct_t *stack_vma = alloc_vma_node();
     if (!stack_vma){
-        uvmdealloc(&(struct alloc_context){
+        buddy_dealloc_backend(&(struct alloc_context){
             .pagetable=new_pagetable,
             .pt_lock=NULL,
             .rblocks=NULL,
@@ -211,7 +202,7 @@ int kexec(char *path, char **argv) {
     stack_vma->vm_file = NULL;
     if(insert_vma_fast(shadow_mm, stack_vma, &(vma_context_t){.prev=prev_vma, .next=NULL})==-1){
         vma_put(stack_vma);
-        uvmdealloc(&(struct alloc_context){
+        buddy_dealloc_backend(&(struct alloc_context){
             .pagetable=shadow_mm->pagetable,
             .pt_lock=NULL,
             .seg_start=stackbase+2*PGSIZE,

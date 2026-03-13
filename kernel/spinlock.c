@@ -8,6 +8,7 @@
 #include "proc.h"
 #include "defs.h"
 #include "colors.h"
+#include "utils.h"
 
 void initlock(struct spinlock *lk, char *name) {
     lk->name = name;
@@ -78,6 +79,7 @@ deadlock:
     // after the lock is acquired. On RISC-V, this emits a fence instruction.
     __sync_synchronize();   //Prohibit Out-of-order Execution.
 
+#if DEBUG!=0
     // Record info about lock acquisition for holding() and debugging.
     struct cpu *cur_cpu=mycpu();
     lk->cpu=cur_cpu;
@@ -93,9 +95,11 @@ deadlock:
             pr_warn("Invalid address");
             return;
         }
-        if(cur_cpu->lock_lists[cur_cpu->noff-1].ret_addr==0)
-            panic("henish pheon.\n");
+        if(cur_cpu->lock_lists[cur_cpu->noff-1].ret_addr==0){
+            panic("henish phone.");
+        }
     }
+#endif
 }
 
 // Release the lock.

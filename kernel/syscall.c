@@ -23,7 +23,7 @@ int fetchaddr(uint64 addr, uint64 *ip) {
         return -1;
     }
     acquiresleep(&p->mm->mm_lock);      //Protect finding.
-    vm_area_struct_t *found=find_vma_and_get(p->mm, addr);
+    vm_area_struct_t *found=find_contain_vma_and_get(p->mm, addr);
     releasesleep(&p->mm->mm_lock);
     if (found==NULL || found->vm_end < addr + sizeof(uint64) || p->mm==NULL)
         // both tests needed, in case overflow

@@ -178,6 +178,7 @@ uint64 sys_interpose(void) {
 
 //POSIX: void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 //And return (void *)-1 while failed, return mampped area's start address.
+//FIxme: Also need to design a backend thread to swap these dirty page into memory in time.
 uint64 sys_mmap(void ){
     struct proc *p=myproc();
     uint64 sugg_addr;   //Suggestied address
@@ -218,6 +219,7 @@ uint64 sys_mmap(void ){
     uint64 ret=(uint64)do_mmap(&(mmap_context_t){
         .pagetable=p->pagetable,
         .rb_array=p->rb_array,
+        .pt_lock=&p->uvm_lock,
         .mm=p->mm, 
         .sugg_addr=(void *)sugg_addr, 
         .length=length, 

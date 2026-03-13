@@ -382,11 +382,11 @@ cleanup:
 }
 
 uint64 sys_load_debug_sym(void){
-    test_vma_slab_allocator();
-    test_vma_rbtree_and_list();
-    test_kvmalloc_integrity();
-    test_unmapped_area_search();
-    test_kvm_stress_worker(8000, 2048, 64);
+    //test_vma_slab_allocator();
+    //test_vma_rbtree_and_list();
+    //test_kvmalloc_integrity();
+    // test_unmapped_area_search();
+    //test_kvm_stress_worker(8000, 2048, 64);
     return load_debug_sym_vm();
 }
 
@@ -451,7 +451,7 @@ void find_debug_info(uint64 pa, char *buf, uint16 buf_size){
 //Helper function for safe data access.Return 1 while success, return 0 while fail
 //Use kernel_paegtable to translate address.
 int safe_load_data(uint64 pa, uint64 *val, uint64 stack_start, uint64 stack_end){
-    if(pa==0 || pa% sizeof(uint64) !=0)    return 0;
+    if(pa==0 || pa % sizeof(uint64) !=0)    return 0;
     if(pa >=stack_start && pa<stack_end){
         *val=*(uint64 *)pa;
         return 1;

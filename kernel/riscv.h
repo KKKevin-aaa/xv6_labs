@@ -45,6 +45,11 @@ static inline uint64 __attribute__((always_inline)) r_sstatus() {
 
 static inline void w_sstatus(uint64 x) { asm volatile("csrw sstatus, %0" : : "r"(x)); }
 
+
+#define SOFTWARE_INTR_MASK 1ull << 1
+#define TIMER_INTR_MASK    1ULL << 5
+#define EXTER_INTR_MASK    1ull << 9
+#define IPI_REQ_THRESHOLD  64
 // Supervisor Interrupt Pending
 static inline uint64 __attribute__((always_inline)) r_sip() {
     uint64 x;
@@ -253,18 +258,6 @@ static inline void sfence_vma(uint64 va, uint64 asid) {
     );
 }
 
-#define SOFTWARE_INTR_MASK 1ull << 1
-#define TIMER_INTR_MASK    1ULL << 5
-#define EXTER_INTR_MASK    1ull << 9
-#define IPI_REQ_THRESHOLD  64
-static inline uint64 __attribute__((always_inline)) r_sip(){
-    //sip(supervisor Interrupt Pending) is CPU statement register
-    uint64 retval;
-    asm volatile("csrr %0, sip" : "=r"(retval) : : );
-    //Add = additionally to inform compiler this variable can be modified.
-    return retval;
-}
-
 //fence pred(predcessor), succ(successor)
 //NOTE: Ensure all preceding operations are completed 
 //      before any subsequent operations commence.
@@ -319,6 +312,7 @@ inline uint8 __attribute__((always_inline)) i_log2(uint64 x){
     return n;
 }
 #endif
+
 #define MAX_ORDER 12
 #define ORDER_BASE 12
 #define MAX_LEVEL 3
@@ -376,3 +370,12 @@ inline uint8 __attribute__((always_inline)) i_log2(uint64 x){
 // Sv39, to avoid having to sign-extend virtual addresses
 // that have the high bit set.
 #define MAXVA (1L << (9 + 9 + 9 + 12 - 1))
+
+#ifndef __ASSEMBLER__
+static inline uint64 get_step_size(int level){
+    if(level==2)    return 1ull<<30;
+    else if(level==1)   return 1ull<<21;
+    else if(level==0)   return 1ull<<12;
+    return 0;
+}
+#endif

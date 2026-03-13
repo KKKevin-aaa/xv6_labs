@@ -7,6 +7,8 @@
 #include "proc.h"
 #include "defs.h"
 #include "colors.h"
+#include "utils.h"
+
 struct spinlock tickslock;
 uint ticks;
 
@@ -30,7 +32,7 @@ void do_flush_tlb(void * args){
 }
 
 uint64 cal_flush_num(struct tlb_shootdown_req ** buffer, int num, uint64 threshold){
-    pagetable_t cur_pg=get_pagetable();
+    pagetable_t cur_pg=(pagetable_t)get_pagetable();
     uint64 start_offset, npages=0;
     for(int i=0;i<num;i++){
         if(buffer[i]->target_pgdir!=cur_pg){
@@ -38,7 +40,7 @@ uint64 cal_flush_num(struct tlb_shootdown_req ** buffer, int num, uint64 thresho
             continue;
         }
         if(buffer[i]->len ==0 ){
-            pr_info("No.%d request:len is zero.");
+            pr_info("No.%d request:len is zero.", i);
             continue;
         }
         start_offset = buffer[i]->start_va % PGSIZE;
@@ -54,7 +56,7 @@ uint64 cal_flush_num(struct tlb_shootdown_req ** buffer, int num, uint64 thresho
 }
 
 void tlb_flush_handler(struct tlb_shootdown_req **buffer, int num, int global_flush){
-    pagetable_t cur_pg=get_pagetable();
+    pagetable_t cur_pg=(pagetable_t)get_pagetable();
     uint64 npages=0, start_offset=0;
     if(global_flush ==0 ){
         uint64 cur_va;
@@ -82,7 +84,8 @@ void software_intr_handler(){
     //Interrupt(Unpreditable, caused by external hardware)
     acquire(&req_mailbox[cpuid()].lock);
     struct mailbox *cur_mailbox=&req_mailbox[cpuid()];
-    struct tlb_shootdown_req *batched_tlb_req[NCPU]=NULL;
+    //NOTE: for aggregate type, use {} to initialize instead "=" directly.
+    struct tlb_shootdown_req *batched_tlb_req[NCPU]={NULL};
     int tlb_req_idx=0, did_flush=0;
     uint64 accu_npages=0, tlb_thresh=64;
     if(unlikely(cur_mailbox->tail < cur_mailbox->head))
@@ -127,7 +130,7 @@ void software_intr_handler_nolock(){
     push_off();
     int cur_id=cpuid();
     struct mailbox *cur_mailbox=&req_mailbox[cur_id];
-    struct tlb_shootdown_req *batched_tlb_req[NCPU]=NULL;
+    struct tlb_shootdown_req *batched_tlb_req[NCPU]={NULL};
     int tlb_req_idx=0, did_flush=0;
     uint64 cur_tail=*(volatile uint64 *)&cur_mailbox->tail;
     uint64 accu_npages=0, tlb_thresh=64;
@@ -205,24 +208,33 @@ uint64 usertrap(void) { //NOTE: already in Supervisor-mode!!!!!!!!!!
     } 
     else{
         //handle page fault and check if restore.(Fix-retry, )
-        if(scause == 13 || scause ==15){    //Synchronous Exception
+        if(scause == 13 || scause ==15 || scause==12){    //Synchronous Exception
             // Specific error code:13--Load page fault, 15--Store/AMO page fault, 
             //  and 12--Instruction Page Fault.
             uint64 stval=r_stval();
             if(stval<MAXVA && p!=NULL && p->mm!=NULL){
                 //Perform pre-checks to avoid unnecessary page fault handling
-                int read_error=(scause ==13)?1:0;
-                if(vmfault(p->rb_array, p->pagetable, r_stval(), read_error) != 0){
+                if(vmfault(p->rb_array, p->pagetable, r_stval(), scause) != 0){
                     //Post-fix Verification
                     pte_t *new_pte=walk(p->pagetable, stval, 0, 0);
-                    if(scause==15 && (!(*new_pte & PTE_W) || !(*new_pte & PTE_V))){
+                    if((*new_pte & PTE_V)==0){
+                        pr_err("After page_fault handler, pte still invalid!");
+                        setkilled(p);
+                    }
+                    if(scause==15 && !(*new_pte & PTE_W)){
                         pr_err("Vmfualt lied.PTE is still read-only.");
                         setkilled(p);
                     }
-                    else if(scause==13 || !(*new_pte & PTE_V)){
+                    else if(scause==13 && !(*new_pte & PTE_R)){
                         pr_err("Vmfault lied.PTE is still unreadable.");
                         setkilled(p);
                     }
+                    else if(scause==12 && !(*new_pte & PTE_X)){
+                        pr_err("Vmfault lied.PTE is still unexecutable.");
+                        setkilled(p);
+                    }
+                    //Trigger a TLB shootdown once the invalidation criteria are met.
+                    tlb_shootdown_issue_nolock(p->pagetable, stval, PGSIZE);
                 }
             }
             else{

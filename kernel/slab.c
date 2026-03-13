@@ -9,6 +9,7 @@
 #include "proc.h"
 #include "slab.h"
 #include "kalloc.h"
+#include "utils.h"
 
 //size-special pool
 static slab_cache_t boot_cache;

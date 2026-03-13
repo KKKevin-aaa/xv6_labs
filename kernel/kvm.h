@@ -25,6 +25,7 @@ struct alloc_context{
     struct spinlock *pt_lock;
     res_block *rblocks;
     int xperm;
+    int do_free;
 };
 
 struct map_context{
@@ -47,4 +48,6 @@ struct map_iter_context{
 };
 
 #define MEM_TRANS_STACH_MAGIC 0x21792352
+
+
 

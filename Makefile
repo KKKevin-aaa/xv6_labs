@@ -14,6 +14,12 @@ OBJS = \
   $(K)/$(OBJ_DIR)/string.o \
   $(K)/$(OBJ_DIR)/main.o \
   $(K)/$(OBJ_DIR)/vm.o \
+  $(K)/$(OBJ_DIR)/vm_copy.o \
+  $(K)/$(OBJ_DIR)/vm_pt.o \
+  $(K)/$(OBJ_DIR)/vm_fault.o \
+  $(K)/$(OBJ_DIR)/vm_thp.o \
+  $(K)/$(OBJ_DIR)/vm_debug.o \
+  $(K)/$(OBJ_DIR)/vm_uaccess.o \
   $(K)/$(OBJ_DIR)/proc.o \
   $(K)/$(OBJ_DIR)/swtch.o \
   $(K)/$(OBJ_DIR)/trampoline.o \
@@ -33,6 +39,7 @@ OBJS = \
   $(K)/$(OBJ_DIR)/virtio_disk.o \
   $(K)/$(OBJ_DIR)/kvm.o \
   $(K)/$(OBJ_DIR)/rbtree_impl.o \
+  $(K)/$(OBJ_DIR)/utils.o \
   $(K)/$(OBJ_DIR)/mm.o \
   $(K)/$(OBJ_DIR)/slab.o 
 
@@ -193,6 +200,7 @@ else
   CFLAGS += -O2 -ggdb -gdwarf-4
   OBJ_DIR := $(BUILD_ROOT_DIR)/release
 endif
+CFLAGS += -DDEBUG=$(DEBUG)
 LOG_FILE := ./log/qemu_output.log
 ifeq ($(PIPE), 1)
 LOG_SUFFIX := 2>&1 | tee $(LOG_FILE)

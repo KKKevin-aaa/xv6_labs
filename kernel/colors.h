@@ -24,7 +24,7 @@
 
 
 #define pr_warn(fmt, ...) \
-    printf(ANSI_YELLOW "[WARN]  " fmt ANSI_RESET "\n", ##__VA_ARGS__)
+    printf(ANSI_YELLOW "[WARN] %s:%d " fmt ANSI_RESET "\n",__func__, __LINE__,  ##__VA_ARGS__)
 
 #define pr_info(fmt, ...) \
-    printf(ANSI_CYAN "[INFO]  " fmt ANSI_RESET "\n", ##__VA_ARGS__)
+    printf(ANSI_CYAN "[INFO] %s:%d " fmt ANSI_RESET "\n",__func__, __LINE__,  ##__VA_ARGS__)

@@ -99,13 +99,13 @@ static inline uint64 flags2page_prot(uint64 vm_flags) {    //vm_flags to vm_page
 }
 
 
-struct vm_area_struct{  //Virtual Memory Area
+struct vm_area_struct{  //Virtual Memory Area for user_mode.
     uint64 vm_start, vm_end;
     uint64 vm_filesz;    //check if .bss segment 
     struct file *vm_file;    //can't store file * directly
     uint64 vm_page_prot; //hardware page table entry prototype at this moment
     uint64 vm_flags; //Logical Permission independent of hareware
-    uint64 vm_pgoff;
+    uint64 vm_pgoff;    //File offset in pages units(if file-backed)
     struct mm_struct *vm_mm;    //pointer back tp the process's main memory descriptor
     union{  //Multiplex memory for mutually exclusive data.
         struct{
@@ -148,6 +148,7 @@ struct mmap_context{
     pagetable_t pagetable;  //Used for all operations involved pte.
     res_block *rb_array;     //Used for potential adjustment for heap reserve.
     mm_struct_t *mm;
+    struct spinlock *pt_lock;
     void *sugg_addr;
     uint64 length;
     struct file* f;
@@ -160,6 +161,7 @@ struct mmap_context{
 struct munmap_context{
     pagetable_t pagetable;
     res_block *rb_array;
+    struct spinlock *pt_lock;
     mm_struct_t *mm;
     void *addr;
     uint64 length;

@@ -16,6 +16,9 @@ struct superblock;
 struct vm_dupl_ctx;
 struct map_context;
 struct alloc_context;
+struct tlb_shootdown_req;
+struct mmu_gather;
+
 typedef struct rb_node rb_node_t;
 typedef struct rb_root rb_root_t;
 typedef struct vm_area_struct vm_area_struct_t;
@@ -40,29 +43,6 @@ typedef struct map_page map_page_t;
 #ifdef LAB_LOCK
 struct rwspinlock;
 #endif
-#define MAX(a, b) (((a) < (b)) ? (b) : (a))
-#define MIN(a, b) (((a) < (b)) ? (a) : (b))
-#define POISON_BYTE 0X5A
-#define POISON_64 0x5a5a5a5a5a5a5a5aull
-
-static inline uint64 gen_bitfield_mask(uint8 low, uint8 high, uint8 total_bits, int invert){
-    if(low >high || high >=total_bits || low>= total_bits){
-        pr_err("Invalid mask range or bit width parameter.");
-        return 0;
-    }
-    uint8 length=high -low +1;
-    uint64 retval=(length ==64 ) ? ~0ULL : (1ull << length) -1;
-    retval <<= low;
-    if(invert==1){
-        retval = ~retval;
-        if(total_bits < 64){
-            uint64 inv_mask=(1ull << total_bits) -1;
-            retval &= inv_mask;
-        }
-    }
-    return retval;
-}
-
 
 // bio.c
 void            binit(void);
@@ -137,14 +117,11 @@ void*           alloc_memory(uint64 size);
 uint64          get_order(uint64 pa);
 uint8           is_head(uint64 pa);
 uint8           is_managed_memory(uint64 pa);
-void            freewalk(pagetable_t pagetable, int do_free, int level);
-void            freewalk_limit(pagetable_t pagetable, int do_free, uint64 base_va, uint64 max_sz, int level);
-int             is_directory_empty(pagetable_t pagetable);
 void            dump_memory_map(void);
 int             check_poison(void *ptr, uint64 size);
 int             set_poison(void *ptr, uint64 size);
 void            inc_ref_range(void *pa, uint64 size);
-int             get_page_ref_count(void *pa);
+int             page_get_ref_wrapper(void *pa);
 // inline          void sync_rmap(void *p, uint64 size, pte_t *pte);
 
 // log.c
@@ -255,6 +232,7 @@ void            do_flush_tlb(void * args);
 uint64          cal_flush_num(struct tlb_shootdown_req **buffer, int num, uint64 threshold);
 void            tlb_flush_handler(struct tlb_shootdown_req **buferr, int num, int global_flush);
 void            software_intr_handler(void);
+void            software_intr_handler_nolock(void);
 void            trapinit(void);
 void            trapinithart(void);
 extern struct spinlock tickslock;
@@ -268,15 +246,18 @@ void            uartputc_sync(int c);
 int             uartgetc(void);
 
 // vm.c
+void            init_mmu_free_batch_cache(void);
+void            init_mmu_gather_cache(void);
 int             mappages(struct map_context *ctx1);
 pagetable_t     uvmcreate(void);
-uint64          uvmalloc(struct alloc_context *ctx1);
-uint64          uvmdealloc(struct alloc_context *ctx1);
+void            uvmremove(pagetable_t pagetable);
+uint64          vmalloc(struct alloc_context *ctx1);
+uint64          uvmdealloc(struct alloc_context *actx);
+uint64          buddy_dealloc_backend(struct alloc_context *ctx1, void(*unmap_fn)(struct map_context *));
 int             uvmcopy_range_private(struct vm_dupl_ctx *ctx1);
 int             uvmcopy_range_shared(struct vm_dupl_ctx *ctx1);
 int             uvmcopy_range_direct_shared(struct vm_dupl_ctx *ctx1);
 int             uvmcopy_range_cow(struct vm_dupl_ctx *ctx1);
-void            uvmfree_range(res_block *rb_array, pagetable_t pagetable, uint64 start, uint64 end);
 void            uvmunmap(struct map_context *ctx1);
 void            uvmclear(pagetable_t pagetable, uint64 va);
 pte_t *         walk(pagetable_t pagetable, uint64 va, int alloc, int target_level);
@@ -285,9 +266,11 @@ int             copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 l
 int             copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len);
 int             copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max);
 int             ismapped(pagetable_t pagetable, uint64 va);
-uint64          vmfault(res_block *rb_array, pagetable_t pagetable, uint64 va, int is_write);
+uint64          vmfault(res_block *rb_array, pagetable_t pagetable, uint64 va, uint64 scause);
 // #if defined(LAB_PGTBL) || defined(SOL_MMAP)
 void            vmprint(pagetable_t pagetable);
+int             is_directory_empty(pagetable_t pagetable);
+
 // #endif
 // #ifdef LAB_PGTBL
 pte_t*          pgpte(pagetable_t pagetable, uint64 va);
@@ -297,6 +280,10 @@ uint64          uvmalloc_thp_region(struct alloc_context *ctx1);
 uint64          uvmdealloc_thp_region(struct alloc_context *ctx1);
 void            uvmdealloc_thp_region_range(res_block *rb_array, pagetable_t pagetable, uint64 start_va, uint64 end_va);
 uint64          scan_contigous_map(pagetable_t paegetable, uint64 src_va);
+void            freewalk(pagetable_t pagetable, int do_free, int level, struct mmu_gather *ctx2);
+void            freewalk_iter(pagetable_t pagetable, int do_free, struct mmu_gather *ctx2);
+
+
 
 //rbtree_impl.c
 void            Cycle_detection(rb_root_t *root);
@@ -312,15 +299,18 @@ void            mm_get(mm_struct_t *mm);
 int             mm_put(mm_struct_t *mm);
 void            init_mm(void);
 vm_area_struct_t *kernel_insert_vma_helper(mm_struct_t *mm, uint64 va, uint64 sz, int perm);
-vm_area_struct_t *find_vma(mm_struct_t *mm, uint64 vaddr);
-vm_area_struct_t *find_vma_and_get(mm_struct_t *mm, uint64 vaddr);
+vm_area_struct_t *find_contain_vma(mm_struct_t *mm, uint64 vaddr);
+vm_area_struct_t *find_contain_vma_and_get(mm_struct_t *mm, uint64 vaddr);
 vm_area_struct_t *find_upper_vma_and_get(mm_struct_t *mm, uint64 vaddr);
 mm_struct_t     *mm_create(void);
 vm_area_struct_t *alloc_vma_node(void);
 vm_area_struct_t *vma_dup(const vm_area_struct_t *vma);
 int             insert_vma(mm_struct_t *mm, vm_area_struct_t *vma);
 int             insert_vma_fast(mm_struct_t *mm, vm_area_struct_t *vma, vma_context_t *cont);
-int             remove_vma(mm_struct_t *mm, vm_area_struct_t *vma);
+int             remove_vma(vm_area_struct_t *vma);
+int             expand_vma(vm_area_struct_t *vma, uint64 new_start, uint64 new_end);
+int             shrink_vma(vm_area_struct_t *vma, uint64 new_start, uint64 new_end);
+int             merge_vma(vm_area_struct_t *prev_vma, vm_area_struct_t *next_vma);
 uint64          get_unmapped_area(mm_struct_t *mm, uint64 len, uint64 low_limit, 
                     uint64 high_limit, vma_context_t *cont);
 //Detailed implemation of rb_node,should defined and finined in here, not in rbtree.h
