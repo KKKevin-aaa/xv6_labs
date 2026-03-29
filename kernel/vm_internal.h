@@ -47,6 +47,7 @@ int buddy_alloc_backend(struct alloc_context *ctx1, uint64 (*free_fn)(struct all
                         int (*map_fn)(struct map_context *));
 struct mmu_gather *mmu_gather_create(void);
 void mmu_gather_reclaim(struct mmu_gather *mg1);
+void safe_update_and_free(res_block *rblocks, pagetable_t pagetable, uint64 va, uint64 allocated_pa);
 
 //vm_fault.c
 int vmfile_load(vm_area_struct_t *vma, uint64 va, uint64 dst_pa, uint64 size);

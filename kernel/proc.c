@@ -7,8 +7,8 @@
 #include "sleeplock.h"
 #include "proc.h"
 #include "defs.h"
+#include "per-cpu.h"
 #include "rbtree.h"
-#include "kvm.h"
 #include "slab.h"
 #include "fcntl.h"
 #include "mm.h"
@@ -19,11 +19,6 @@
 
 //Enable COW 
 #define COW
-
-// #define PROC_TEST_TIME 
-struct cpu cpus[NCPU];
-struct mailbox req_mailbox[NCPU];
-static slab_cache_t * tlb_data_cache=NULL;
 
 /// @brief static pcb array
 struct proc proc[NPROC];
@@ -238,7 +233,7 @@ pagetable_t proc_pagetable(struct proc *p) {
         .pa=(uint64)(p->trapframe),
         .xperm=PTE_R | PTE_W,
         .pt_lock=&p->uvm_lock}) <0 ){
-        uvmunmap(&(struct map_context){
+        vmunmap(&(struct map_context){
             .pagetable=pagetable,
             .start_va=TRAMPOLINE,
             .size=PGSIZE,
@@ -256,14 +251,14 @@ pagetable_t proc_pagetable(struct proc *p) {
         .pa=(uint64)usyscall_pa,
         .xperm=PTE_R | PTE_U,
         .pt_lock=&p->uvm_lock}) <0 ){
-        uvmunmap(&(struct map_context){
+        vmunmap(&(struct map_context){
             .pagetable=pagetable,
             .start_va=TRAMPOLINE,
             .size=PGSIZE,
             .pt_lock=&p->uvm_lock,
             .do_free=0
         });
-        uvmunmap(&(struct map_context){
+        vmunmap(&(struct map_context){
             .pagetable=pagetable,
             .start_va=TRAPFRAME,
             .size=PGSIZE,
@@ -280,23 +275,23 @@ pagetable_t proc_pagetable(struct proc *p) {
 
 // Free a process's page table, and free the physical memory it refers to.
 void proc_freepagetable(struct spinlock *pt_lock, pagetable_t pagetable) {
-    uvmunmap(&(struct map_context){
+    vmunmap(&(struct map_context){
         .pagetable=pagetable,
         .start_va=TRAMPOLINE,
         .size=PGSIZE,
         .pt_lock=pt_lock,
         .do_free=0
     });
-    uvmunmap(&(struct map_context){
-        .pagetable=pagetable,
-        .start_va=TRAMPOLINE,
-        .size=PGSIZE,
-        .pt_lock=pt_lock,
-        .do_free=0
-    });
-    uvmunmap(&(struct map_context){
+    vmunmap(&(struct map_context){
         .pagetable=pagetable,
         .start_va=TRAPFRAME,
+        .size=PGSIZE,
+        .pt_lock=pt_lock,
+        .do_free=0
+    });
+    vmunmap(&(struct map_context){
+        .pagetable=pagetable,
+        .start_va=USYSCALL,
         .size=PGSIZE,
         .pt_lock=pt_lock,
         .do_free=0
@@ -392,7 +387,7 @@ int growproc(int n) {       //Ensure enter this function holding two locks(uvmlo
 #else
 int growproc(int n) {       //Ensure enter this function holding two locks(uvmlock and mm_lock)
     struct proc *cur_proc = myproc();
-    pr_info("Entering growproc.");
+    // pr_info("Entering growproc.");
     if(!holding(&cur_proc->uvm_lock)){
         pr_err("access user's pagetable without lock.\n");
         return -1;
@@ -418,7 +413,7 @@ int growproc(int n) {       //Ensure enter this function holding two locks(uvmlo
             return -1;
         }
         // Allocate immediately, bypassing the special case of COW.
-        if((heap_end = vmalloc(&(struct alloc_context){
+        if((heap_end = uvmalloc(&(struct alloc_context){
             .pagetable=cur_proc->pagetable,
             .pt_lock=&cur_proc->uvm_lock,
             .rblocks=cur_proc->rb_array,
@@ -434,7 +429,8 @@ int growproc(int n) {       //Ensure enter this function holding two locks(uvmlo
         }
     }
     else{   //The case where n==0 has been explicitly excluded.
-        // (n can only be less than zero.) And NOTE: heap_end(uint64) + n(int) will be treated as uint64.
+        // (n can only be less than zero.) 
+        // And NOTE: heap_end(uint64) + n(int) will be treated as uint64.
         limit=cur_proc->mm->heap_vma->vm_start;
         if(-n > heap_end - limit){
             //Avoid direct arithmetic between unsigned and signed number.
@@ -669,6 +665,20 @@ void kexit(int status) {
     p->xstate = status; //eXit state
     p->state = PROC_ZOMBIE;
 
+    //handle registered signals, clear the list and set EXPIRED for reclaim explicitly.
+    struct timer_payload *del_timer=p->sig_head, *tmp;
+    while(del_timer!=NULL){
+        tmp=del_timer->next;
+        //remove from the list, but don't release resources immediately
+        del_timer->prev=NULL;
+        del_timer->next=NULL;
+        if((del_timer->mask & TIMER_STATE_MASK)==TIMER_PAUSE)
+            //Manual reclamation required:object is not heap-managed.
+            slab_free((void *)del_timer);
+        //while proc's statement is ZOMBIE, reclaim timer automatically.
+        del_timer=tmp;
+    }
+    p->sig_head=NULL;
     release(&wait_lock);
 
     // Jump into the scheduler, never to return.
@@ -1043,139 +1053,3 @@ found:
     return (void *)new_kthread;
 }
 
-void init_tlb_data_cache(void){
-    tlb_data_cache=create_slab_cache("tlb_data_pool", 
-        sizeof(struct tlb_shootdown_req), 8, NULL, NULL);
-    if(tlb_data_cache==NULL)
-        panic("init tlb_data_cache fail.Unable to establish data transport channel.");
-}
-
-void tlb_shootdown_issue(pagetable_t pgdir, uint64 va, uint64 len){
-    push_off();
-    int cur_cpuid=cpuid();
-    if(NCPU > 32)
-        panic("NCPU exceed the predefined length(32), plz expand!");
-    volatile enum box_state *check_pos[NCPU];
-    memset(check_pos, 0, sizeof(check_pos));
-    uint32 target_mask=0, nr_send_req=0;
-    int ready_quit=0;
-    struct tlb_shootdown_req * ptr_buf[NCPU];
-    memset(ptr_buf, 0, sizeof(ptr_buf));
-    struct mailbox *cur_box=NULL;
-    for(int i=0;i<NCPU;i++){
-        if(i==cur_cpuid || cpus[i].proc==NULL)    continue;
-        if(cpus[i].proc->pagetable==pgdir){     //Optimistic Concurrency Control(OCC)
-            //read the statement without lock, double validate before use.
-            cur_box=&req_mailbox[i];
-            acquire(&cur_box->lock);
-            uint64 free_slot = cur_box->tail % MAX_MAIL;
-            while(cur_box->reqs[free_slot].status != BOX_EMPTY){
-                release(&cur_box->lock);
-                // asm volatile("nop");
-                asm volatile(".word 0x0100000f" : : : "memory");
-                acquire(&cur_box->lock);    //relock and check again
-            }
-            if(cur_box->reqs[free_slot].status != BOX_EMPTY)
-                panic("Memory corrupted.");
-            //Send one request to one mail(A single empty slot is enough)
-            ptr_buf[i]=slab_alloc(tlb_data_cache);
-            ptr_buf[i]->len=len;
-            ptr_buf[i]->start_va=va;
-            ptr_buf[i]->target_pgdir=pgdir;
-            cur_box->reqs[free_slot].args=ptr_buf[i];
-            cur_box->reqs[free_slot].func=do_flush_tlb;
-            cur_box->reqs[free_slot].status=BOX_PENDING;
-            check_pos[nr_send_req++]=&cur_box->reqs[free_slot].status;
-            cur_box->tail++;    //advance.
-            release(&cur_box->lock);
-            target_mask |= gen_bitfield_mask(i, i, 32, 0);
-        }
-    }
-    if(nr_send_req==0){
-        pop_off();
-        return;
-    }
-    if(sbi_send_ipi(target_mask, 0).error!=SBI_SUCCESS){
-        //Starting hartid set as zero.
-        panic("Tlb shootdown failed.");
-    }
-    while(ready_quit==0){
-        if(r_sip() & SOFTWARE_INTR_MASK)  software_intr_handler();
-        //Polling to handle incoming remote request.
-        for(int i=0;i<=nr_send_req;i++){
-            if(i==nr_send_req){
-                ready_quit=1;
-                break;
-            }
-            if(*check_pos[i] == BOX_PENDING)
-                break;
-            else if(*check_pos[i] == BOX_DONE)
-                *check_pos[i]=BOX_EMPTY;    //release the slot.
-        }
-    }
-    for(int i=0;i<NCPU;i++)
-        //reclaim tlb_data and its cache struct
-        if(ptr_buf[i]!=NULL)
-            slab_free((void *)ptr_buf[i]);
-    pop_off();  //Cannot assume interrupts are enabled.
-}
-
-
-void tlb_shootdown_issue_nolock(pagetable_t pgdir, uint64 va, uint64 len){
-    //CAS, without lock.
-    volatile enum box_state *check_pos[NCPU];
-    memset(check_pos, 0, sizeof(check_pos));
-    uint32 target_mask=0, nr_send_req=0;
-    int ready_quit=0;
-    struct tlb_shootdown_req * data1=slab_alloc(tlb_data_cache);
-    if(data1==NULL)
-        panic("OOM.");
-    data1->len=len;
-    data1->start_va=va;
-    data1->target_pgdir=pgdir;
-    struct mailbox *cur_box=NULL;
-    push_off();     //Inhibit preemption to ensure hartid stability during communication.
-    int cur_cpuid=cpuid(), tail=0;
-    for(int i=0;i<NCPU;i++){
-        if(i==cur_cpuid || cpus[i].proc==NULL)    continue;
-        //Bypass the local hart and any harts without an active process context.
-        if(cpus[i].proc->pagetable==pgdir){
-            cur_box=&req_mailbox[i];
-            tail=atomic_add_and_ret((void *)&cur_box->tail, 1);
-            tail %= MAX_MAIL;
-            while(cur_box->reqs[tail].status != BOX_EMPTY){     //spin-wait
-                asm volatile(".word 0x0100000f" : : : "memory");
-            }
-            cur_box->reqs[tail].status=BOX_CLAIMED;
-            cur_box->reqs[tail].args=data1;
-            cur_box->reqs[tail].func=do_flush_tlb;
-            check_pos[nr_send_req++]=&cur_box->reqs[tail].status;
-            target_mask |= gen_bitfield_mask(i, i, 32, 0);
-            asm volatile("fence rw, w" : : : "memory");
-            cur_box->reqs[tail].status=BOX_PENDING;
-        }
-    }
-    if(nr_send_req==0){
-        slab_free((void *)data1);
-        pop_off();
-        return;
-    }
-    if(sbi_send_ipi(target_mask, 0).error != SBI_SUCCESS)
-        //Starting hartid set as zero.
-        panic("TLB shootdown failed.");
-    while(ready_quit==0){
-        if(r_sip() & SOFTWARE_INTR_MASK)    software_intr_handler_nolock();
-        //Polling to handle incoming remote request.
-        for(int i=0;i<=nr_send_req;i++){
-            if(i==nr_send_req){
-                ready_quit=1;
-                break;
-            }
-            if(*check_pos[i]==BOX_PENDING)  break;
-            else if(*check_pos[i]==BOX_DONE)
-                *check_pos[i]=BOX_EMPTY;
-        }
-    }
-    slab_free((void *)data1);
-    pop_off();
-}

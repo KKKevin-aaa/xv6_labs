@@ -79,6 +79,25 @@ uint64 sys_write(void) {
     return filewrite(f, p, n);
 }
 
+uint64 sys_cpuwrite(void){
+    struct file *f;
+    int n;
+    uint64 p;
+
+    argaddr(1, &p);
+    argint(2, &n);
+    if (argfd(0, 0, &f) < 0) return -1;
+    //overwrite initial bytes of the user-provided buffer
+    //the caller is responsible for pre-allocating sufficient space.
+    if(n < 8)  return filewrite(f, p, n);
+    char add_info[8]="[CPU  ] ";
+    push_off();
+    add_info[5]='0' + cpuid();
+    pop_off();
+    copyout(myproc()->pagetable, p, add_info, 8);
+    return filewrite(f, p, n);
+}
+
 uint64 sys_close(void) {
     int fd;
     struct file *f;

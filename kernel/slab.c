@@ -146,12 +146,11 @@ struct slab_page *slab_refill(slab_cache_t *cache){  //Require lock held.
         SLAB_TRACE("Requesting allocation even when free page are available.\n");
         return NULL;
     }
-    void *new_pool_mem=alloc_memory(1ull<<(cache->page_order+ORDER_BASE));
+    void *new_pool_mem=alloc_memory(1ull<<(cache->page_order+ORDER_BASE), GFP_ATOMIC | GFP_ZERO);
     if(new_pool_mem==NULL){
         SLAB_TRACE("slab_refill fail.\n");
         return NULL;
     }
-    memset(new_pool_mem, 0, 1ULL<<(cache->page_order+ORDER_BASE));
     //Update struct page info, and record metadata off-page.
     struct page *new_page=get_page_desc_assert(paddr2pfn((uint64)new_pool_mem));
     //Post-allocation, pointer is exclusively head by current thread.(No lock!)

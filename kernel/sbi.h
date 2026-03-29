@@ -53,3 +53,7 @@ static inline struct sbiret sbi_send_ipi(uint64 hart_mask, uint64 hart_mask_base
     //And support batch processing more convient.
     return sbi_ecall(0x735049, 0, hart_mask, hart_mask_base, 0, 0, 0, 0);
 }
+
+static inline struct sbiret sbi_set_timer(uint64 stime_value){
+    return sbi_ecall(0x54494D45, 0x0, stime_value, 0, 0, 0, 0, 0);
+}

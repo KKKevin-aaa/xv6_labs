@@ -37,3 +37,4 @@
 #define SYS_pgpte     34
 #define SYS_kpgtbl    35
 #define SYS_load_debug_sym 36
+#define SYS_cpuwrite  37

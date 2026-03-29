@@ -18,28 +18,6 @@ struct context {
     uint64 s11;
 };
 
-// Per-CPU state.
-#define MAX_LOCK_DEPTH 10
-struct lock_debug_info{
-    uint64 ret_addr;
-    struct spinlock *held_lock;
-};
-
-
-enum cpustate {CPU_SPINNING, CPU_RUNNING, CPU_HALTED, CPU_PANIC};
-struct cpu {
-    struct proc *proc;       // The process running on this cpu, or null.
-    struct context context;  // swtch() here to enter scheduler().
-    struct lock_debug_info lock_lists[MAX_LOCK_DEPTH];
-    volatile enum cpustate state;       //Flags, while corresponding payload is wait_lock
-    struct spinlock * volatile wait_lock;//Track locks that exceed the maximum wait duration.
-    //NOTE: Optimize to fit within a CPU register to enable lock-free access and reduce cache line footprint.
-    int noff;                // The number of spinlocks currently held.
-    int intena;              // Were interrupts enabled before push_off()?
-};
-
-extern struct cpu cpus[NCPU];
-
 // per-process data for the trap handling code in trampoline.S.
 // sits in a page by itself just under the trampoline page in the
 // user page table. not specially mapped in the kernel page table.
@@ -93,6 +71,16 @@ struct trapframe {
 
 enum procstate { PROC_UNUSED, PROC_USED, PROC_SLEEPING, 
             PROC_RUNNABLE, PROC_RUNNING, PROC_ZOMBIE };
+//Some flags for pending signals to announce which signal have not dealt.
+// POSIX reserved
+#define SIGINT  2       //keyboard interrupt
+#define SIGKILL 9       // Kill unconditionally
+#define SIGALARM    14
+#define SIGCHILD    17  // child proc's statment changes.
+#define SIG_MYALARM 63  // my alaram flags bit to deal with sigalarm syscall.
+
+#define MAX_BACKED_SP   8
+
 // Per-process state
 struct proc {              // Process control block(PCB)
     struct spinlock lock;  // Any operation that modifies this struct must hold this lock.
@@ -105,6 +93,11 @@ struct proc {              // Process control block(PCB)
     int pid;           // Process ID
     int syscall_mask;  // Prohibited syscall mask (a bit set to 1 indicates the syscall is
                        // prohibited)
+    uint64 pending_signals;
+
+    struct timer_payload *sig_head;
+    struct timer_payload *handling_sig;
+
     char allow_path_str[MAXPATH];  // List of allowed paths, separated by newlines(\n) for open and
                                    // exec only
     // wait_lock must be held when using this:
@@ -129,28 +122,3 @@ struct proc {              // Process control block(PCB)
     res_block rb_array[MAX_RES_BLOCK];// Track the init heap start to support reserved heap area.
     struct mm_struct *mm;
 };
-
-enum box_state {
-    BOX_PENDING, BOX_DONE, BOX_EMPTY, BOX_CLAIMED
-};
-struct tlb_shootdown_req{
-    uint64 start_va;
-    uint64 len;
-    pagetable_t target_pgdir;
-};
-
-struct ipi_message{
-    void (*func)(void *);
-    void *args;
-    enum box_state status;
-};
-
-
-//Use extension prevent false sharing(in CPU cahce Line)
-struct mailbox{
-    struct spinlock lock;
-    struct ipi_message reqs[MAX_MAIL];
-    uint64 head, tail;   //Circular buffer.
-}__attribute__((aligned(64)));
-_Static_assert(sizeof(struct mailbox) % 64==0, "Unaligned to 64");
-

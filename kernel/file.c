@@ -19,6 +19,8 @@ struct {
     struct file file[NFILE];
 } ftable;
 
+char tmp_addinfo[10]="[CPU ]: ";  //for output with more kernel info.
+
 void fileinit(void) { initlock(&ftable.lock, "ftable"); }
 
 // Allocate a file structure.

@@ -12,7 +12,6 @@
 #include "file.h"
 #include "proc.h"
 #include "rbtree.h"
-#include "kvm.h"
 #include "slab.h"
 #include "vm.h"
 #include "fcntl.h"
@@ -154,34 +153,6 @@ void init_mm(void){ //Init the system(alloc prepare, )
         return;
     }
     else    MM_TRACE("init mm_cache succeed.\n");
-}
-
-vm_area_struct_t *kernel_insert_vma_helper(mm_struct_t *mm, uint64 va, uint64 sz, int perm){
-#ifdef DEBUG_KVM
-    KVM_TRACE("va=%llx sz=%llx perm=%d\n", va, sz, perm);
-#endif
-    if(!holdingsleep(&mm->mm_lock))    //Kernel-specific VMA initialization
-        panic("[Insert_vma_helper]Race Conditions: access global_mm without lock\n");
-    vm_area_struct_t *tmp_vma=alloc_kernel_vma();
-    if(tmp_vma==NULL)   return NULL;
-    memset(tmp_vma, 0, sizeof(vm_area_struct_t));
-    tmp_vma->vm_start=va;
-    tmp_vma->vm_end=va+sz;
-    tmp_vma->vm_page_prot=perm | PTE_V;     //get the hareware permission directly.
-    uint64 flags = VM_KERN | VM_LOCKED | VM_DONTEXPAND | VM_DONTDUMP;
-    if (perm & PTE_R) flags |= VM_READ;
-    if (perm & PTE_W) flags |= VM_WRITE;
-    if (perm & PTE_X) flags |= VM_EXEC;
-    tmp_vma->vm_flags=flags;
-    tmp_vma->vm_mm=mm;
-    atomic_set(&tmp_vma->ref_count, 1);   //Held by mm_struct
-    //Omit values for unused arguments.
-    if(insert_vma(mm, tmp_vma)!=0){
-        pr_warn("insert va=%llx, size=%llx fail.\n", va, sz);
-        vma_put(tmp_vma);
-        return NULL;
-    }
-    return tmp_vma;
 }
 
 //-----------------------VMA_OPERATIONS--------------------------------
@@ -509,6 +480,8 @@ int remove_vma(vm_area_struct_t *vma){
     return vma_put(vma);
 }
 
+//Split the target VMA by truncating its end and allocating a succeeding node 
+// for the remainder.
 int split_vma(mm_struct_t *mm, uint64 split_addr){
     if(mm==NULL)    return -1;
     if(!holdingsleep(&mm->mm_lock)){
@@ -705,7 +678,7 @@ int do_munmap(munmap_context_t *ctx1){
         return -1;
     }
     //Locate all affected VMAs and sequentially unmap them based on the extent of overlap.
-    vm_area_struct_t *tmp=ctx1->mm->mmap, *tmp_next=NULL;
+    vm_area_struct_t *tmp=find_upper_vma(ctx1->mm, (uint64)ctx1->addr), *tmp_next=NULL;
     uint64 cur_addr=(uint64)ctx1->addr, end_addr=(uint64)ctx1->addr+ctx1->length;
     cur_addr=(uint64)ctx1->addr;      //reset
     while(tmp!=NULL){
@@ -716,16 +689,18 @@ int do_munmap(munmap_context_t *ctx1){
                 remove_vma(tmp);
             }
             else if(tmp->vm_start > cur_addr && tmp->vm_end > end_addr){    //Head Overlap
-                if(shrink_vma(tmp, end_addr, tmp->vm_end)!=0)     return -1;
+                shrink_vma(tmp, end_addr, tmp->vm_end);
                 break;
             }
             else if(tmp->vm_start < cur_addr && tmp->vm_end < end_addr){    //Tail Overlap
                 uint64 tmp_swap=tmp->vm_end;
-                if(shrink_vma(tmp, tmp->vm_start, cur_addr)!=0)     return -1;
+                shrink_vma(tmp, tmp->vm_start, cur_addr);
                 cur_addr=tmp_swap;
             }
-            else{   //Hole Punching.
-                if(split_vma(ctx1->mm, end_addr)==-1)    return -1;
+            else{   //Hole Punching.(In-place reversion, only affected one vma.)
+                if(split_vma(ctx1->mm, end_addr)==-1){
+                    return -1;
+                }
                 if(split_vma(ctx1->mm, cur_addr)==-1){
                     if(merge_vma(tmp, tmp->vm_next)==-1)
                         panic("Unexpected merge fail.(Just finish splitting...)");
@@ -835,7 +810,7 @@ void *do_mmap(mmap_context_t *ctx1){
                         .addr=ctx1->sugg_addr, 
                         .length=ctx1->length})==-1){
                             panic("MAP_FIXED and Unmap the exsiting vma fail");
-                            return -1;
+                            return (void *)-1;
                     }
                 }
             }

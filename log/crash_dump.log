@@ -1,8 +1,39 @@
 ++echo log reset to ./logs/crash_dump.log
-log reset to ./logs/crash_dump.log+print kmme.free_area[split_order]
-No symbol "kmme" in current context.
-+print kmem.free_area
-$1 = {{
-    head = 0x0
-  } <repeats 13 times>}
+log reset to ./logs/crash_dump.log+thread 4
+[Switching to thread 4 (Thread 1.4)]
+#0  __panic (file_name=0x80030bb8 "kernel/per-cpu.c", line_no=0x150, 
+    func_name=0x80030ea0 <__func__.1> "pause_signal", 
+    s=0x80030d60 "timer(%llx) bind to NO.%d CPU!(valid range: 0~%d)")
+    at kernel/printf.c:566
++bt
+#0  __panic (file_name=0x80030bb8 "kernel/per-cpu.c", line_no=0x150, 
+    func_name=0x80030ea0 <__func__.1> "pause_signal", 
+    s=0x80030d60 "timer(%llx) bind to NO.%d CPU!(valid range: 0~%d)")
+    at kernel/printf.c:566
+#1  0x0000000080024142 in pause_signal () at kernel/per-cpu.c:336
+#2  0x0000000080016848 in sys_sigalarm () at kernel/sysproc.c:241
+#3  0x0000000080015d86 in syscall () at kernel/syscall.c:234
+#4  0x00000000800149fa in usertrap () at kernel/trap.c:304
+#5  0x0000003ffffff09c in ?? ()
++print *curr_timer
+No symbol "curr_timer" in current context.
++frame 1
+#1  0x0000000080024142 in pause_signal () at kernel/per-cpu.c:336
++print *curr_timer
+$1 = {
+  interval = 0x1e8480,
+  mask = 0x3,
+  repeat_left = 0x3e6,
+  bind_cpu = 0xffffffff,
+  proc_slot = 0x4,
+  proc_pid = 0x5,
+  heap_idx = 0xffffffffffffffff,
+  handler = 0x1130,
+  backup_sp = 0x6d10,
+  prev = 0x80334f00,
+  next = 0x0,
+  handling_next = 0x0
+}
++print t_state
+$2 = TIMER_RUNNING
 +q

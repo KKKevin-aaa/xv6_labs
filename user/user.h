@@ -393,3 +393,10 @@ void free(void* ap);
  * @return 1 on match, 0 on no match.
  */
 int regex_match(char *pattern, char *text);
+
+
+int sigalarm(int ticks, void (*handler)());
+int sigreturn(void);
+
+//Special write (resever some space to output CPUs info additinally)
+int cpuwrite(int fd, char *buf, int n);

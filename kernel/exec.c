@@ -10,10 +10,10 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "rbtree.h"
-#include "kvm.h"
 #include "slab.h"
 #include "fcntl.h"
 #include "mm.h"
+#include "vm.h"
 #include "colors.h"
 #include "utils.h"
 
@@ -107,7 +107,7 @@ int kexec(char *path, char **argv) {
         vma->vm_mm = shadow_mm;
         vma->vm_ops = NULL; // 这是一个匿名加载段（虽然来自文件，但不是 shared mmap）
 
-        if((sz1= vmalloc(&(struct alloc_context){
+        if((sz1= uvmalloc(&(struct alloc_context){
             .pagetable=new_pagetable,
             .seg_start=vma->vm_start,
             .seg_end=vma->vm_end,
@@ -120,12 +120,12 @@ int kexec(char *path, char **argv) {
         }
         if (loadseg(new_pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0){
             vma_put(vma);
-            buddy_dealloc_backend(&(struct alloc_context){
+            uvmdealloc(&(struct alloc_context){
                 .pagetable=new_pagetable,
                 .pt_lock=NULL,
                 .rblocks=NULL,
-                .seg_start=vma->vm_end,
-                .seg_end=vma->vm_start
+                .seg_start=vma->vm_start,
+                .seg_end=vma->vm_end,
             });
             goto bad;
         }
@@ -137,12 +137,12 @@ int kexec(char *path, char **argv) {
         //insertion logic performs a lock-validation check.
         if(insert_vma_fast(shadow_mm, vma, &(vma_context_t){.prev=prev_vma, .next=NULL})==-1){
             vma_put(vma);
-            buddy_dealloc_backend(&(struct alloc_context){
+            uvmdealloc(&(struct alloc_context){
                 .pagetable=new_pagetable,
                 .pt_lock=NULL,
                 .rblocks=NULL,
-                .seg_start=vma->vm_end,
-                .seg_end=vma->vm_start,
+                .seg_start=vma->vm_start,
+                .seg_end=vma->vm_end,
             });
             goto bad;
         }
@@ -169,11 +169,11 @@ int kexec(char *path, char **argv) {
 
     //Do some preparation work.
     stackbase=sz+PGSIZE;    //Top-guard + bottom-guard(stack only one-page.)
-    if(vmalloc(&(struct alloc_context){
+    if(uvmalloc(&(struct alloc_context){
         .pagetable=new_pagetable,
         .seg_start=stackbase-PGSIZE,
         .seg_end=stackbase+2*PGSIZE,
-        .xperm=PTE_W
+        .xperm=PTE_W | PTE_U | PTE_R
     }) ==0 )    goto bad;
     pr_info("Now alloc and mappage a new stack area in 0x%llx", (uint64)new_pagetable);
     uvmclear(new_pagetable, stackbase-PGSIZE);
@@ -181,12 +181,12 @@ int kexec(char *path, char **argv) {
     // --- 创建 Stack VMA ---
     vm_area_struct_t *stack_vma = alloc_vma_node();
     if (!stack_vma){
-        buddy_dealloc_backend(&(struct alloc_context){
+        uvmdealloc(&(struct alloc_context){
             .pagetable=new_pagetable,
             .pt_lock=NULL,
             .rblocks=NULL,
-            .seg_start=stackbase+2*PGSIZE,
-            .seg_end=stackbase-PGSIZE
+            .seg_start=stackbase - PGSIZE,
+            .seg_end=stackbase + 2* PGSIZE,
         });
         goto bad;
     }
@@ -202,11 +202,11 @@ int kexec(char *path, char **argv) {
     stack_vma->vm_file = NULL;
     if(insert_vma_fast(shadow_mm, stack_vma, &(vma_context_t){.prev=prev_vma, .next=NULL})==-1){
         vma_put(stack_vma);
-        buddy_dealloc_backend(&(struct alloc_context){
+        uvmdealloc(&(struct alloc_context){
             .pagetable=shadow_mm->pagetable,
             .pt_lock=NULL,
-            .seg_start=stackbase+2*PGSIZE,
-            .seg_end=stackbase-PGSIZE,
+            .seg_start=stackbase - PGSIZE,
+            .seg_end=stackbase + 2 * PGSIZE,
             .rblocks=NULL
         });
         goto bad;

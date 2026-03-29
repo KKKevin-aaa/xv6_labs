@@ -28,7 +28,9 @@ void start() {
     // delegate all interrupts and exceptions to supervisor mode.
     w_medeleg(0xffff);
     w_mideleg(0xffff);
-    w_sie(r_sie() | SIE_SEIE | SIE_STIE);
+    // enable external interrupt(for uart, virto), timer interrupt, 
+    //                  supervisor software interrupt
+    w_sie(r_sie() | SIE_SEIE | SIE_STIE | SIE_SSIE);
 
     // configure Physical Memory Protection to give supervisor mode
     // access to all of physical memory.
@@ -51,7 +53,9 @@ void timerinit() {
     // enable supervisor-mode timer interrupts.
     w_mie(r_mie() | MIE_STIE);
 
-    // enable the sstc extension (i.e. stimecmp).
+    // enable the sstc extension (i.e. stimecmp). SStc is CPU inner CSR register.
+    // So Authorization must be explicitly granted through the 
+    // Machine Environment Configuration Register (menvcfg)
     w_menvcfg(r_menvcfg() | (1L << 63));
 
     // allow supervisor to use stimecmp and time.
@@ -59,4 +63,7 @@ void timerinit() {
 
     // ask for the very first timer interrupt.
     w_stimecmp(r_time() + 1000000);
+
+    //NOTE: compare with SSWI(setssip) is an MMIO device residing on the external
+    //       system bus. Access is governed solely by PMP(physical memory protection)
 }

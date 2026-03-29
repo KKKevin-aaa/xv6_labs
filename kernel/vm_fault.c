@@ -11,8 +11,10 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
+#include "slab.h"
+#include "kalloc.h"
+#include "vm.h"
 #include "rbtree.h"
-#include "kvm.h"
 #include "mm.h"
 #include "vm_internal.h"
 #include "colors.h"
@@ -49,7 +51,7 @@ uint64 vm_cowfault_handler(pagetable_t pagetable, uint64 flush_va, uint64 flush_
     }
     uint64 old_pa=PTE2PA(*pte), src_flag=PTE_FLAGS(*pte), ret_pa=0;
     if(page_get_ref_wrapper((void *)old_pa)!=1){
-        ret_pa=(uint64)alloc_memory(PGSIZE);
+        ret_pa=(uint64)alloc_memory(PGSIZE, 0);
         if(ret_pa==0){
             pr_warn("COW:alloc memory fail.\n");
             return 0;
@@ -176,12 +178,11 @@ uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, uint64 scau
         #endif
         }
         else{       //File-backed Fault(.text or .data)
-            ret_pa = (uint64)alloc_memory(PGSIZE);
+            ret_pa = (uint64)alloc_memory(PGSIZE, GFP_ZERO);
             if (ret_pa == 0){
                 pr_err("alloc new page fail.\n");
                 goto release_and_ret;
             }
-            memset((void *)ret_pa, 0, PGSIZE);
             release(&p->uvm_lock);
             locked_by_me=0;
             if(vmfile_load(vma, va, ret_pa, PGSIZE)!=0){
@@ -259,9 +260,8 @@ int process_empty_pte(struct proc *cur_proc, uint64 basepage_va, uint64 cur_va, 
     block_size=1ull<<cur_order;
     while(len < block_size && block_size>PGSIZE)
         block_size/=2;
-    mem=alloc_memory(block_size);
+    mem=alloc_memory(block_size, GFP_ZERO);
     if(mem==0)  return -1;
-    memset(mem, 0, block_size);
     int locked_by_me=0;     //Variable on stack(Process's private stack, visable for CPUs)
     //check if belong to file-backend and initiate a batch disk read request.
     if(cur_proc->mm==NULL)

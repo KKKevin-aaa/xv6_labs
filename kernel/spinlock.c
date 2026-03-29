@@ -7,6 +7,7 @@
 #include "riscv.h"
 #include "proc.h"
 #include "defs.h"
+#include "per-cpu.h"
 #include "colors.h"
 #include "utils.h"
 

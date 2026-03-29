@@ -1,707 +1,156 @@
 
 xv6 kernel is booting
 
-[36m[INFO] alloc_memory:251 current free memory is 0x7aa8
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7aa7
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7aa6
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7aa5
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7aa4
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7aa3
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7aa2
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7aa1
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7aa0
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a9f
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a9e
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a9d
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a9c
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a9b
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a9a
-[0m
-[36m[INFO] proc_mapstacks:59 proc 0: kernel_stack located from 3fffffc000 to 0x3fffffd000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3fffffb000 to 0x3fffffc000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a99
-[0m
-[36m[INFO] proc_mapstacks:59 proc 1: kernel_stack located from 3fffffa000 to 0x3fffffb000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3fffff9000 to 0x3fffffa000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a98
-[0m
-[36m[INFO] proc_mapstacks:59 proc 2: kernel_stack located from 3fffff8000 to 0x3fffff9000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3fffff7000 to 0x3fffff8000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a97
-[0m
-[36m[INFO] proc_mapstacks:59 proc 3: kernel_stack located from 3fffff6000 to 0x3fffff7000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3fffff5000 to 0x3fffff6000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a96
-[0m
-[36m[INFO] proc_mapstacks:59 proc 4: kernel_stack located from 3fffff4000 to 0x3fffff5000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3fffff3000 to 0x3fffff4000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a95
-[0m
-[36m[INFO] proc_mapstacks:59 proc 5: kernel_stack located from 3fffff2000 to 0x3fffff3000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3fffff1000 to 0x3fffff2000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a94
-[0m
-[36m[INFO] proc_mapstacks:59 proc 6: kernel_stack located from 3fffff0000 to 0x3fffff1000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffef000 to 0x3fffff0000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a93
-[0m
-[36m[INFO] proc_mapstacks:59 proc 7: kernel_stack located from 3ffffee000 to 0x3ffffef000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffed000 to 0x3ffffee000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a92
-[0m
-[36m[INFO] proc_mapstacks:59 proc 8: kernel_stack located from 3ffffec000 to 0x3ffffed000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffeb000 to 0x3ffffec000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a91
-[0m
-[36m[INFO] proc_mapstacks:59 proc 9: kernel_stack located from 3ffffea000 to 0x3ffffeb000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffe9000 to 0x3ffffea000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a90
-[0m
-[36m[INFO] proc_mapstacks:59 proc 10: kernel_stack located from 3ffffe8000 to 0x3ffffe9000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffe7000 to 0x3ffffe8000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a8f
-[0m
-[36m[INFO] proc_mapstacks:59 proc 11: kernel_stack located from 3ffffe6000 to 0x3ffffe7000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffe5000 to 0x3ffffe6000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a8e
-[0m
-[36m[INFO] proc_mapstacks:59 proc 12: kernel_stack located from 3ffffe4000 to 0x3ffffe5000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffe3000 to 0x3ffffe4000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a8d
-[0m
-[36m[INFO] proc_mapstacks:59 proc 13: kernel_stack located from 3ffffe2000 to 0x3ffffe3000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffe1000 to 0x3ffffe2000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a8c
-[0m
-[36m[INFO] proc_mapstacks:59 proc 14: kernel_stack located from 3ffffe0000 to 0x3ffffe1000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffdf000 to 0x3ffffe0000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a8b
-[0m
-[36m[INFO] proc_mapstacks:59 proc 15: kernel_stack located from 3ffffde000 to 0x3ffffdf000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffdd000 to 0x3ffffde000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a8a
-[0m
-[36m[INFO] proc_mapstacks:59 proc 16: kernel_stack located from 3ffffdc000 to 0x3ffffdd000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffdb000 to 0x3ffffdc000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a89
-[0m
-[36m[INFO] proc_mapstacks:59 proc 17: kernel_stack located from 3ffffda000 to 0x3ffffdb000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffd9000 to 0x3ffffda000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a88
-[0m
-[36m[INFO] proc_mapstacks:59 proc 18: kernel_stack located from 3ffffd8000 to 0x3ffffd9000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffd7000 to 0x3ffffd8000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a87
-[0m
-[36m[INFO] proc_mapstacks:59 proc 19: kernel_stack located from 3ffffd6000 to 0x3ffffd7000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffd5000 to 0x3ffffd6000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a86
-[0m
-[36m[INFO] proc_mapstacks:59 proc 20: kernel_stack located from 3ffffd4000 to 0x3ffffd5000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffd3000 to 0x3ffffd4000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a85
-[0m
-[36m[INFO] proc_mapstacks:59 proc 21: kernel_stack located from 3ffffd2000 to 0x3ffffd3000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffd1000 to 0x3ffffd2000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a84
-[0m
-[36m[INFO] proc_mapstacks:59 proc 22: kernel_stack located from 3ffffd0000 to 0x3ffffd1000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffcf000 to 0x3ffffd0000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a83
-[0m
-[36m[INFO] proc_mapstacks:59 proc 23: kernel_stack located from 3ffffce000 to 0x3ffffcf000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffcd000 to 0x3ffffce000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a82
-[0m
-[36m[INFO] proc_mapstacks:59 proc 24: kernel_stack located from 3ffffcc000 to 0x3ffffcd000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffcb000 to 0x3ffffcc000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a81
-[0m
-[36m[INFO] proc_mapstacks:59 proc 25: kernel_stack located from 3ffffca000 to 0x3ffffcb000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffc9000 to 0x3ffffca000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a80
-[0m
-[36m[INFO] proc_mapstacks:59 proc 26: kernel_stack located from 3ffffc8000 to 0x3ffffc9000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffc7000 to 0x3ffffc8000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a7f
-[0m
-[36m[INFO] proc_mapstacks:59 proc 27: kernel_stack located from 3ffffc6000 to 0x3ffffc7000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffc5000 to 0x3ffffc6000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a7e
-[0m
-[36m[INFO] proc_mapstacks:59 proc 28: kernel_stack located from 3ffffc4000 to 0x3ffffc5000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffc3000 to 0x3ffffc4000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a7d
-[0m
-[36m[INFO] proc_mapstacks:59 proc 29: kernel_stack located from 3ffffc2000 to 0x3ffffc3000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffc1000 to 0x3ffffc2000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a7c
-[0m
-[36m[INFO] proc_mapstacks:59 proc 30: kernel_stack located from 3ffffc0000 to 0x3ffffc1000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffbf000 to 0x3ffffc0000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a7b
-[0m
-[36m[INFO] proc_mapstacks:59 proc 31: kernel_stack located from 3ffffbe000 to 0x3ffffbf000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffbd000 to 0x3ffffbe000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a7a
-[0m
-[36m[INFO] proc_mapstacks:59 proc 32: kernel_stack located from 3ffffbc000 to 0x3ffffbd000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffbb000 to 0x3ffffbc000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a79
-[0m
-[36m[INFO] proc_mapstacks:59 proc 33: kernel_stack located from 3ffffba000 to 0x3ffffbb000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffb9000 to 0x3ffffba000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a78
-[0m
-[36m[INFO] proc_mapstacks:59 proc 34: kernel_stack located from 3ffffb8000 to 0x3ffffb9000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffb7000 to 0x3ffffb8000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a77
-[0m
-[36m[INFO] proc_mapstacks:59 proc 35: kernel_stack located from 3ffffb6000 to 0x3ffffb7000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffb5000 to 0x3ffffb6000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a76
-[0m
-[36m[INFO] proc_mapstacks:59 proc 36: kernel_stack located from 3ffffb4000 to 0x3ffffb5000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffb3000 to 0x3ffffb4000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a75
-[0m
-[36m[INFO] proc_mapstacks:59 proc 37: kernel_stack located from 3ffffb2000 to 0x3ffffb3000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffb1000 to 0x3ffffb2000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a74
-[0m
-[36m[INFO] proc_mapstacks:59 proc 38: kernel_stack located from 3ffffb0000 to 0x3ffffb1000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffaf000 to 0x3ffffb0000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a73
-[0m
-[36m[INFO] proc_mapstacks:59 proc 39: kernel_stack located from 3ffffae000 to 0x3ffffaf000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffad000 to 0x3ffffae000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a72
-[0m
-[36m[INFO] proc_mapstacks:59 proc 40: kernel_stack located from 3ffffac000 to 0x3ffffad000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffab000 to 0x3ffffac000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a71
-[0m
-[36m[INFO] proc_mapstacks:59 proc 41: kernel_stack located from 3ffffaa000 to 0x3ffffab000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffa9000 to 0x3ffffaa000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a70
-[0m
-[36m[INFO] proc_mapstacks:59 proc 42: kernel_stack located from 3ffffa8000 to 0x3ffffa9000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffa7000 to 0x3ffffa8000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a6f
-[0m
-[36m[INFO] proc_mapstacks:59 proc 43: kernel_stack located from 3ffffa6000 to 0x3ffffa7000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffa5000 to 0x3ffffa6000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a6e
-[0m
-[36m[INFO] proc_mapstacks:59 proc 44: kernel_stack located from 3ffffa4000 to 0x3ffffa5000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffa3000 to 0x3ffffa4000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a6d
-[0m
-[36m[INFO] proc_mapstacks:59 proc 45: kernel_stack located from 3ffffa2000 to 0x3ffffa3000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffffa1000 to 0x3ffffa2000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a6c
-[0m
-[36m[INFO] proc_mapstacks:59 proc 46: kernel_stack located from 3ffffa0000 to 0x3ffffa1000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffff9f000 to 0x3ffffa0000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a6b
-[0m
-[36m[INFO] proc_mapstacks:59 proc 47: kernel_stack located from 3ffff9e000 to 0x3ffff9f000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffff9d000 to 0x3ffff9e000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a6a
-[0m
-[36m[INFO] proc_mapstacks:59 proc 48: kernel_stack located from 3ffff9c000 to 0x3ffff9d000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffff9b000 to 0x3ffff9c000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a69
-[0m
-[36m[INFO] proc_mapstacks:59 proc 49: kernel_stack located from 3ffff9a000 to 0x3ffff9b000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffff99000 to 0x3ffff9a000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a68
-[0m
-[36m[INFO] proc_mapstacks:59 proc 50: kernel_stack located from 3ffff98000 to 0x3ffff99000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffff97000 to 0x3ffff98000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a67
-[0m
-[36m[INFO] proc_mapstacks:59 proc 51: kernel_stack located from 3ffff96000 to 0x3ffff97000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffff95000 to 0x3ffff96000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a66
-[0m
-[36m[INFO] proc_mapstacks:59 proc 52: kernel_stack located from 3ffff94000 to 0x3ffff95000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffff93000 to 0x3ffff94000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a65
-[0m
-[36m[INFO] proc_mapstacks:59 proc 53: kernel_stack located from 3ffff92000 to 0x3ffff93000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffff91000 to 0x3ffff92000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a64
-[0m
-[36m[INFO] proc_mapstacks:59 proc 54: kernel_stack located from 3ffff90000 to 0x3ffff91000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffff8f000 to 0x3ffff90000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a63
-[0m
-[36m[INFO] proc_mapstacks:59 proc 55: kernel_stack located from 3ffff8e000 to 0x3ffff8f000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffff8d000 to 0x3ffff8e000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a62
-[0m
-[36m[INFO] proc_mapstacks:59 proc 56: kernel_stack located from 3ffff8c000 to 0x3ffff8d000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffff8b000 to 0x3ffff8c000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a61
-[0m
-[36m[INFO] proc_mapstacks:59 proc 57: kernel_stack located from 3ffff8a000 to 0x3ffff8b000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffff89000 to 0x3ffff8a000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a60
-[0m
-[36m[INFO] proc_mapstacks:59 proc 58: kernel_stack located from 3ffff88000 to 0x3ffff89000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffff87000 to 0x3ffff88000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a5f
-[0m
-[36m[INFO] proc_mapstacks:59 proc 59: kernel_stack located from 3ffff86000 to 0x3ffff87000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffff85000 to 0x3ffff86000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a5e
-[0m
-[36m[INFO] proc_mapstacks:59 proc 60: kernel_stack located from 3ffff84000 to 0x3ffff85000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffff83000 to 0x3ffff84000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a5d
-[0m
-[36m[INFO] proc_mapstacks:59 proc 61: kernel_stack located from 3ffff82000 to 0x3ffff83000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffff81000 to 0x3ffff82000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a5c
-[0m
-[36m[INFO] proc_mapstacks:59 proc 62: kernel_stack located from 3ffff80000 to 0x3ffff81000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffff7f000 to 0x3ffff80000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a5b
-[0m
-[36m[INFO] proc_mapstacks:59 proc 63: kernel_stack located from 3ffff7e000 to 0x3ffff7f000[0m
-[36m[INFO] proc_mapstacks:61 while guard page located from 0x3ffff7d000 to 0x3ffff7e000[0m
-[36m[INFO] proc_mapstacks:71 
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a5a
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a59
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a58
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a57
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a56
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a55
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a54
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a53
-[0m
 hart 3 starting
-hart 2 starting
-[36m[INFO] free_initmem:137 Freeing unused kernel memory: 4 KB[0m
-[36m[INFO] free_initmem:137 Freeing unused kernel memory: 4 KB[0m
-Swap out started on pid 1
 hart 1 starting
-[36m[INFO] free_initmem:137 Freeing unused kernel memory: 4 KB[0m
-[36m[INFO] free_initmem:137 Freeing unused kernel memory: 4 KB[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a52
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a51
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a50
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a4f
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x1000 alloc_size=0x1000
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a4e
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x2000 alloc_size=0x2000
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a4c
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a4b
-[0m
-[36m[INFO] uvmalloc:40 uvmalloc exiting success newsz=0x4000
-[0m
-[36m[INFO] kexec:133 from elf,loading vma->vm_start=0x1000, vma->vm_end=0x4000 and pg.filesz is 0x2157[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a4a
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x4000 alloc_size=0x1000
-[0m
-[36m[INFO] uvmalloc:40 uvmalloc exiting success newsz=0x5000
-[0m
-[36m[INFO] kexec:133 from elf,loading vma->vm_start=0x4000, vma->vm_end=0x5000 and pg.filesz is 0x21[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a49
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x5000 alloc_size=0x1000
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a48
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x6000 alloc_size=0x2000
-[0m
-[36m[INFO] uvmalloc:40 uvmalloc exiting success newsz=0x8000
-[0m
-[36m[INFO] kexec:178 Now alloc and mappage a new stack area in 0x80f80000[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a46
-[0m
-[36m[INFO] kexec:216 stack_vma->vm_start=0x6000, stack_vma->vm_end=0x7000[0m
-[36m[INFO] kexec:234 heap_vma->vm_start=0x8000, heap_vma->vm_end=0x8000[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a45
-[0m
-[33m[WARN] uvmunmap_helper:508 Uvmunmap dangerous area(outside the RAM region)
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a44
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a43
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a42
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a41
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a3f
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a3b
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a33
-[0m
+hart 2 starting
+hart 6 starting
+hart 7 starting
+hart 5 starting
+Swap out started on pid 1
+hart 4 starting
 now the allocated data is 0x11000, and str_len is 0x1000
 Now load_debug_sym(vm version) succeed.
 init: starting sh
-[36m[INFO] alloc_memory:251 current free memory is 0x7a31
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a30
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a2f
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a2e
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a2d
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a2c
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a2b
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a2a
-[0m
-1
-1
-[36m[INFO] alloc_memory:251 current free memory is 0x7a29
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a28
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a27
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a26
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a25
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x1000 alloc_size=0x1000
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a24
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x2000 alloc_size=0x2000
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a22
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x4000 alloc_size=0x2000
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a20
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x6000 alloc_size=0x1000
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a1f
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a1e
-[0m
-[36m[INFO] uvmalloc:40 uvmalloc exiting success newsz=0x7000
-[0m
-[36m[INFO] kexec:133 from elf,loading vma->vm_start=0x1000, vma->vm_end=0x7000 and pg.filesz is 0x5647[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a1d
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x7000 alloc_size=0x1000
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a1c
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x8000 alloc_size=0x1000
-[0m
-[36m[INFO] uvmalloc:40 uvmalloc exiting success newsz=0x9000
-[0m
-[36m[INFO] kexec:133 from elf,loading vma->vm_start=0x7000, vma->vm_end=0x9000 and pg.filesz is 0x31[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a1b
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x9000 alloc_size=0x1000
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a1a
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0xa000 alloc_size=0x2000
-[0m
-[36m[INFO] uvmalloc:40 uvmalloc exiting success newsz=0xc000
-[0m
-[36m[INFO] kexec:178 Now alloc and mappage a new stack area in 0x85ffc000[0m
-[36m[INFO] kexec:216 stack_vma->vm_start=0xa000, stack_vma->vm_end=0xb000[0m
-[36m[INFO] kexec:234 heap_vma->vm_start=0xc000, heap_vma->vm_end=0xc000[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a18
-[0m
-[33m[WARN] uvmunmap_helper:508 Uvmunmap dangerous area(outside the RAM region)
-[0m
-$ echo 123
-[36m[INFO] alloc_memory:251 current free memory is 0x7a17
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a16
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a15
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a14
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a13
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a12
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a11
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a10
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a0f
-[0m
-[36m[INFO] growproc:329 Entering growproc.[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x7a0e
-[0m
-[36m[INFO] alloc_memory:253 0x8000dc1c allocate a massive contingous block of memory, totaling 0x10000[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79fe
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79fd
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79fc
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79fb
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79fa
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79f9
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79f8
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x1000 alloc_size=0x1000
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79f7
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x2000 alloc_size=0x2000
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79f5
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79f4
-[0m
-[36m[INFO] uvmalloc:40 uvmalloc exiting success newsz=0x4000
-[0m
-[36m[INFO] kexec:133 from elf,loading vma->vm_start=0x1000, vma->vm_end=0x4000 and pg.filesz is 0x28c7[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79f3
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x4000 alloc_size=0x1000
-[0m
-[36m[INFO] uvmalloc:40 uvmalloc exiting success newsz=0x5000
-[0m
-[36m[INFO] kexec:133 from elf,loading vma->vm_start=0x4000, vma->vm_end=0x5000 and pg.filesz is 0x11[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79f2
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x5000 alloc_size=0x1000
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79f1
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x6000 alloc_size=0x2000
-[0m
-[36m[INFO] uvmalloc:40 uvmalloc exiting success newsz=0x8000
-[0m
-[36m[INFO] kexec:178 Now alloc and mappage a new stack area in 0x83ffc000[0m
-[36m[INFO] kexec:216 stack_vma->vm_start=0x6000, stack_vma->vm_end=0x7000[0m
-[36m[INFO] kexec:234 heap_vma->vm_start=0x8000, heap_vma->vm_end=0x8000[0m
-[33m[WARN] uvmunmap_helper:508 Uvmunmap dangerous area(outside the RAM region)
-[0m
-123
-[36m[INFO] alloc_memory:251 current free memory is 0x79f0
-[0m
-[33m[WARN] uvmunmap_helper:508 Uvmunmap dangerous area(outside the RAM region)
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79f1
-[0m
-$ [36m[INFO] alloc_memory:251 current free memory is 0x79f0
-[0m
-echo 321
-[36m[INFO] alloc_memory:251 current free memory is 0x79ef
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79ee
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79ed
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79ec
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79eb
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79ea
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79e9
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79e8
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79e7
-[0m
-[36m[INFO] growproc:329 Entering growproc.[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79e6
-[0m
-[36m[INFO] alloc_memory:253 0x8000dc1c allocate a massive contingous block of memory, totaling 0x10000[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79d6
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79d5
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79d4
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79d3
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79d2
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79d1
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x1000 alloc_size=0x1000
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79d0
-[0m
-[36m[INFO] buddy_alloc:427 uvmalloc -> mappages cur_ctx1->seg_start=0x2000 alloc_size=0x2000
-[0m
-[36m[INFO] alloc_memory:251 current free memory is 0x79ce
-[0m
-Now waking up to reclaim pages...
-QEMU: Terminated
+$ alarmtest
+Starting concurrent stress test with 24 workers...
+QEMU 7.2.0 monitor - type 'help' for more information
+(qemu) c[K[Dcp[K[D[Dcpu[K[D[D[Dcpus[K
+unknown command: 'cpus'
+(qemu) cpus[K[D[D[D[Dcpu[K
+unexpected end of expression
+Try "help cpu" for more information
+(qemu) cpu[K[D[D[Dcpui[K[D[D[D[Dcpuin[K[D[D[D[D[Dcpuinf[K[D[D[D[D[D[Dcpuinfo[K[D[D[D[D[D[D[Dcpuinfo [K
+unknown command: 'cpuinfo'
+(qemu) cpuinfo [K[D[D[D[D[D[D[D[Dcpu[K[D[D[Dicpu[K[D[D[D[Dincpu[K[D[D[D[D[Dinfcpu[K[D[D[D[D[D[Dinfocpu[K[D[D[D[D[D[D[Dinfo cpu[K[D[D[D
+unknown command: 'info cpu'
+(qemu) info cpu[K[D[D[D[D[D[D[D[Dinfo cpus[K
+* CPU #0: thread_id=37924
+  CPU #1: thread_id=37925
+  CPU #2: thread_id=37926
+  CPU #3: thread_id=37927
+  CPU #4: thread_id=37928
+  CPU #5: thread_id=37929
+  CPU #6: thread_id=37930
+  CPU #7: thread_id=37931
+(qemu) all concurent tests finished.
+$ l[K[Dls[K
+unknown command: 'ls'
+(qemu) 
+ls
+.              1 1 1024
+..             1 1 1024
+README         2 2 2425
+kernel.tbl     2 3 67325
+big.txt        2 4 9700
+bigger.txt     2 5 29100
+biggerer.txt   2 6 87300
+huge.txt       2 7 174600
+cat            2 8 53776
+echo           2 9 55680
+forktest       2 10 34768
+grep           2 11 54176
+init           2 12 54080
+kill           2 13 53336
+ln             2 14 53312
+ls             2 15 55032
+mkdir          2 16 53368
+rm             2 17 53360
+sh             2 18 86736
+stressfs       2 19 54016
+usertests      2 20 131144
+grind          2 21 58440
+wc             2 22 54040
+zombie         2 23 53184
+logstress      2 24 53968
+forphan        2 25 53776
+dorphan        2 26 53520
+sandbox        2 27 54720
+reserve_test   2 28 57472
+alarmtest      2 29 56640
+call           2 30 53600
+bttest         2 31 53664
+btdebugtest    2 32 53608
+console        3 33 0
+test_log0.txt  2 34 2152
+test_log2.txt  2 35 298
+test_log3.txt  2 36 991
+test_log@.txt  2 37 1011
+test_logA.txt  2 38 1385
+test_log1.txt  2 39 2197
+test_log4.txt  2 40 2150
+test_log5.txt  2 41 1074
+test_log6.txt  2 42 582
+test_log:.txt  2 43 355
+test_log7.txt  2 44 1316
+test_log>.txt  2 45 1372
+test_logD.txt  2 46 430
+test_logE.txt  2 47 356
+test_log8.txt  2 48 1468
+test_log9.txt  2 49 1686
+test_logF.txt  2 50 573
+test_log?.txt  2 51 378
+test_log=.txt  2 52 2681
+test_log;.txt  2 53 2136
+test_logB.txt  2 54 966
+test_logC.txt  2 55 309
+test_log<.txt  2 56 1581
+test_logG.txt  2 57 289
+$ ls  cat test_log9 0.txt
+test0 start
+[CPU 1] .[CPU 1] .[CPU 1] .[CPU 1] .[CPU 1] .[CPU 1] .[CPU 4] .alarm!
+should end signal outpalarm!
+ut.
+test0 passed
+test1 start
+[CPU 6] .alarm!
+[CPU 0] .alarm!
+alarm!
+alarm!
+[CPU 7] .alarm!
+[CPU 4] .[CPU 5] .[CPU 6] .[CPU 0] .[CPU 4] .[CPU 6] .[CPU 0] .[CPU 0] .[CPU 1] .[CPU 1] .[CPU 2] .[CPU 5] .[CPU 1] .[CPU 6] .[CPU 1] .[CPU 2] .[CPU 0] .[CPU 6] .[CPU 3] .[CPU 3] .[CPU 4] .[CPU 4] .[CPU 3] .[CPU 3] .[CPU 6] .[CPU 5] .[CPU 6] .[CPU 0] .alarm!
+[CPU 4] .[CPU 1] .[CPU 6] .[CPU 2] .[CPU 2] .[CPU 7] .[CPU 6] .[CPU 5] .[CPU 0] .[CPU 1] .[CPU 3] .[CPU 7] .[CPU 7] .[CPU 5] .[CPU 1] .[CPU 3] .[CPU 7] .[CPU 4] .[CPU 2] .[CPU 3] .[CPU 6] .[CPU 7] .[CPU 0] .[CPU 6] .[CPU 0] .[CPU 3] .[CPU 7] .alarm!
+[CPU 6] .[CPU 2] .[CPU 0] .[CPU 4] .[CPU 7] .[CPU 6] .[CPU 0] .[CPU 3] .[CPU 2] .[CPU 4] .[CPU 5] .[CPU 0] .[CPU 0] .[CPU 1] .[CPU 4] .[CPU 3] .[CPU 6] .[CPU 3] .[CPU 2] .[CPU 1] .[CPU 5] .[CPU 6] .[CPU 4] .[CPU 3] .[CPU 4] .[CPU 0] .[CPU 1] .[CPU 3] .[CPU 5] .[CPU 2] .[CPU 1] .[CPU 5] .[CPU 6] .[CPU 5] .[CPU 7] .[CPU 2] .[CPU 2] .[CPU 7] .[CPU 5] .[CPU 7] .[CPU 1] .[CPU 1] .[CPU 2] .[CPU 5] .[CPU 6] .[CPU 4] .[CPU 2] .[CPU 4] .[CPU 7] .[CPU 3] .[CPU 7] .[CPU 0] .[CPU 3] .[CPU 5] .[CPU 0] .[CPU 4] .[CPU 2] .[CPU 0] .[CPU 7] .[CPU 7] .[CPU 0] .[CPU 6] .[CPU 1] .[CPU 5] .[CPU 3] .[CPU 6] .[CPU 3] .[CPU 3] .[CPU 6] .[CPU 1] .[CPU 5] .[CPU 3] .[CPU 5] .[CPU 1] .[CPU 1] .[CPU 3] .[CPU 0] .[CPU 4] .[CPU 7] .[CPU 3] .[CPU 3] .[CPU 3] .[CPU 6] .[CPU 0] .[CPU 6] .[CPU 3] .[CPU 4] .[CPU 1] .[CPU 2] .[CPU 1] .[CPU 6] .[CPU 6] .[CPU 1] .[CPU 3] .[CPU 6] .[CPU 0] .[CPU 7] .[CPU 5] .[CPU 6] .[CPU 1] .[CPU 7] .[CPU 2] .[CPU 1] .[CPU 0] .[CPU 1] .[CPU 1] .[CPU 1] .[CPU 3] .[CPU 3] .[CPU 3] .[CPU 0] .[CPU 3] .[CPU 4] .[CPU 4] .[CPU 4] .[CPU 5] .[CPU 6] .[CPU 1] .[CPU 6] .[CPU 7] .[CPU 3] .[CPU 6] .[CPU 0] .[CPU 0] .[CPU 1] .[CPU 5] .[CPU 1] .[CPU 5] .[CPU 4] .alarm!
+[CPU 3] .[CPU 7] .[CPU 5] .[CPU 7] .[CPU 5] .[CPU 2] .[CPU 0] .[CPU 1] .[CPU 5] .[CPU 2] .[CPU 7] .[CPU 6] .[CPU 3] .
+test1 failed: too few calls to the handler
+currnet count is 8 and current i is 500000000
+test2 start
+[CPU 1] .alarm!
+test2 passed
+test3 start
+test3 passed
+$ cat test_log0.txt.txt =.txt.txt
+test0 start
+[CPU 2] .[CPU 0] .[CPU 1] .alarm!
+salarm!
+houalarm!
+ld alarm!
+ealarm!
+nd alarm!
+signalarm!
+alalarm!
+ alarm!
+outalarm!
+pualarm!
+t.
+alarm!
+test0 passed
+test1 start
+[CPU 5] .alarm!
+alarm!
+[CPU 1] .alarm!
+alarm!
+alarm!
+alarm!
+alarm!
+[CPU 7] .alarm!
+alarm!
+alarm!
+test1 passed
+test2 start
+[CPU 0] .[CPU 6] .[CPU 6] .[CPU 7] .[CPU 4] .[CPU 5] .[CPU 5] .[CPU 5] .[CPU 0] .[CPU 0] .[CPU 5] .[CPU 3] .[CPU 2] .[CPU 4] .[CPU 6] .[CPU 6] .[CPU 1] .[CPU 0] .[CPU 5] .[CPU 5] .[CPU 0] .[CPU 1] .[CPU 6] .[CPU 3] .[CPU 2] .[CPU 5] .[CPU 1] .[CPU 2] .[CPU 0] .[CPU 7] .[CPU 1] .[CPU 3] .[CPU 4] .[CPU 0] .[CPU 6] .[CPU 0] .[CPU 7] .[CPU 6] .[CPU 4] .[CPU 7] .[CPU 3] .[CPU 5] .[CPU 4] .[CPU 0] .[CPU 4] .[CPU 5] .[CPU 6] .[CPU 7] .[CPU 5] .[CPU 2] .[CPU 3] .[CPU 4] .[CPU 1] .[CPU 0] .[CPU 7] .[CPU 2] .[CPU 0] .[CPU 0] .[CPU 4] .[CPU 6] .[CPU 1] .[CPU 7] .[CPU 0] .[CPU 3] .[CPU 0] .[CPU 7] .[CPU 6] .[CPU 5] .[CPU 0] .[CPU 1] .[CPU 7] .[CPU 7] .[CPU 6] .[CPU 3] .[CPU 2] .[CPU 5] .[CPU 1] .[CPU 5] .[CPU 5] .[CPU 6] .[CPU 5] .[CPU 4] .[CPU 3] .[CPU 6] .[CPU 0] .[CPU 0] .[CPU 5] .[CPU 7] .[CPU 6] .[CPU 3] .[CPU 0] .[CPU 1] .[CPU 6] .[CPU 2] .[CPU 1] .[CPU 7] .[CPU 6] .[CPU 3] .[CPU 3] .[CPU 7] .[CPU 6] .[CPU 7] .[CPU 2] .[CPU 7] .[CPU 6] .[CPU 6] .[CPU 0] .[CPU 4] .[CPU 5] .[CPU 3] .[CPU 1] .[CPU 5] .[CPU 5] .[CPU 7] .[CPU 6] .[CPU 6] .[CPU 7] .[CPU 3] .[CPU 4] .[CPU 7] .[CPU 7] .[CPU 1] .[CPU 3] .[CPU 1] .[CPU 6] .[CPU 1] .[CPU 0] .[CPU 7] .[CPU 0] .[CPU 6] .[CPU 5] .[CPU 7] .[CPU 3] .[CPU 4] .[CPU 4] .[CPU 1] .[CPU 7] .[CPU 0] .[CPU 3] .[CPU 7] .[CPU 2] .[CPU 7] .[CPU 6] .[CPU 1] .[CPU 1] .[CPU 6] .[CPU 6] .[CPU 6] .[CPU 4] .[CPU 1] .[CPU 1] .[CPU 1] .[CPU 1] .[CPU 2] .[CPU 6] .[CPU 2] .[CPU 2] .[CPU 1] .[CPU 7] .[CPU 1] .[CPU 4] .[CPU 5] .[CPU 3] .[CPU 3] .[CPU 5] .[CPU 0] .[CPU 1] .[CPU 7] .[CPU 6] .[CPU 6] .[CPU 3] .[CPU 6] .[CPU 6] .[CPU 6] .[CPU 2] .[CPU 7] .[CPU 7] .[CPU 5] .[CPU 4] .[CPU 2] .[CPU 4] .[CPU 4] .[CPU 4] .[CPU 4] .[CPU 5] .[CPU 4] .[CPU 0] .[CPU 6] .[CPU 2] .[CPU 7] .[CPU 7] .[CPU 0] .[CPU 0] .[CPU 7] .[CPU 5] .[CPU 3] .[CPU 7] .[CPU 5] .[CPU 4] .[CPU 1] .[CPU 6] .[CPU 7] .[CPU 7] .[CPU 2] .[CPU 4] .[CPU 3] .[CPU 2] .[CPU 2] .[CPU 0] .[CPU 5] .[CPU 4] .[CPU 2] .[CPU 3] .[CPU 0] .[CPU 5] .[CPU 7] .[CPU 1] .[CPU 7] .[CPU 3] .[CPU 0] .[CPU 6] .[CPU 6] .[CPU 1] .[CPU 2] .[CPU 6] .[CPU 7] .[CPU 6] .[CPU 1] .[CPU 1] .[CPU 2] .[CPU 1] .[CPU 1] .[CPU 6] .[CPU 6] .[CPU 4] .[CPU 2] .[CPU 3] .[CPU 0] .[CPU 3] .[CPU 0] .[CPU 2] .[CPU 1] .[CPU 1] .[CPU 4] .[CPU 6] .[CPU 7] .[CPU 6] .[CPU 6] .[CPU 6] .[CPU 2] .[CPU 4] .[CPU 7] .[CPU 2] .[CPU 0] .[CPU 2] .[CPU 7] .[CPU 2] .[CPU 2] .[CPU 3] .[CPU 0] .alarm!
+test2 passed
+test3 start
+test3 passed
+$ QEMU: Terminated
 

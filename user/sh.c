@@ -112,6 +112,7 @@ void runcmd(struct cmd *cmd) {
             ecmd = (struct execcmd *)cmd;  // cast to execcmd structure
             if (ecmd->argv[0] == 0) exit(1);
             exec(ecmd->argv[0], ecmd->argv);
+            //Successful exec never returns.
             fprintf(2, "exec %s failed\n", ecmd->argv[0]);
             break;
 

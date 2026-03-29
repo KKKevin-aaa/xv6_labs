@@ -143,7 +143,7 @@ void huge_promotion_test() {
 
     char *base = align_heap_to_superpage();
     sbrklazy(SUPERPGSIZE);
-
+    printf("Enter reserve_test 2:\n ");
     // 1. 填充直到阈值前
     for (int i = 0; i < THRESHLOD - 1; i++) {
         *(base + i * PGSIZE) = (char)(i & 0xFF);
@@ -275,8 +275,8 @@ void huge_fork_deep_copy_test() {
 
 int main() {
     printf("\n=== PG_TBL_TEST SUITE ===\n");
-    // reservation_basic_test();
-    // huge_promotion_test();
+    reservation_basic_test();
+    huge_promotion_test();
     huge_fork_deep_copy_test();
     
     if (global_fail_count == 0) printf("\nRESULT: [ SUCCESS ]\n");

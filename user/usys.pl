@@ -51,3 +51,6 @@ entry("recv");
 entry("pgpte");
 entry("kpgtbl");
 entry("load_debug_sym");
+entry("sigalarm");
+entry("sigreturn");
+entry("cpuwrite");

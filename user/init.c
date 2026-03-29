@@ -19,11 +19,9 @@ int main(void) {
     }
     dup(0);  // stdout
     dup(0);  // stderr
-
     for (;;) {
         printf("init: starting sh\n");
         pid = fork();
-        printf("1\n");
         if (pid < 0) {
             printf("init: fork failed\n");
             exit(1);

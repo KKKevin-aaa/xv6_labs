@@ -18,6 +18,7 @@ struct map_context;
 struct alloc_context;
 struct tlb_shootdown_req;
 struct mmu_gather;
+struct sighand;
 
 typedef struct rb_node rb_node_t;
 typedef struct rb_root rb_root_t;
@@ -112,8 +113,9 @@ void            kfree_page(void *pa);
 void            kinit(void);
 uint64          page2pfn(struct page * pg);
 void            free_pages(void *pa, uint64 sz); //for huge page
+void            reclaim_and_merge(uint64 head_pfn, uint64 init_order);
 int             reclaim_orphan_pages(void *pa, uint64 size);
-void*           alloc_memory(uint64 size);
+void*           alloc_memory(uint64 size, int flags);
 uint64          get_order(uint64 pa);
 uint8           is_head(uint64 pa);
 uint8           is_managed_memory(uint64 pa);
@@ -139,6 +141,7 @@ int             pipewrite(struct pipe* pi, uint64 addr, int n);
 // printf.c
 int             vsnprintf(char *buf, int size, char *fmt, va_list ap);
 int             snprintf(char *buf, int size, char *fmt, ...);
+int             dummy_printf(char *fmt, ...);
 int             printf(char* fmt, ...) __attribute__ ((format (printf, 1, 2)));
 void            __panic(const char *file, int line, const char *func, char *s, ...)  __attribute__((noreturn));
 //A Useful macro, get more necessary info without DEBUG-mode
@@ -177,9 +180,19 @@ int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
 struct proc *   kthread_create(const char *name, void (*func)(void));
-void tlb_shootdown_issue_nolock(pagetable_t pgdir, uint64 va, uint64 len);
-void tlb_shootdown_issue(pagetable_t pgdir, uint64 va, uint64 len);
+
+
+// per-cpu.c
 void            init_tlb_data_cache(void);
+void            init_timer_payload_cache(void);
+void tlb_shootdown_issue(pagetable_t pgdir, uint64 va, uint64 len);
+void tlb_shootdown_issue_nolock(pagetable_t pgdir, uint64 va, uint64 len);
+int             timer_less_cmp(void *data, uint64 a, uint64 b);
+int             timer_great_cmp(void *data, uint64 a, uint64 b);
+void            timer_swap(void *data, uint64 a, uint64 b);
+int             add_signal(int nr_ticks, void (*handler)(void), int nr_repeat);
+int             pause_signal(void);
+uint64          kreturn(void);
 
 
 // swtch.S
@@ -248,17 +261,19 @@ int             uartgetc(void);
 // vm.c
 void            init_mmu_free_batch_cache(void);
 void            init_mmu_gather_cache(void);
+void            init_kheap_node_cache(void);
 int             mappages(struct map_context *ctx1);
 pagetable_t     uvmcreate(void);
 void            uvmremove(pagetable_t pagetable);
-uint64          vmalloc(struct alloc_context *ctx1);
+uint64          uvmalloc(struct alloc_context *ctx1);
 uint64          uvmdealloc(struct alloc_context *actx);
-uint64          buddy_dealloc_backend(struct alloc_context *ctx1, void(*unmap_fn)(struct map_context *));
+uint64          kvmalloc(pagetable_t Kpagetable, uint64 req_sz, int xperm);
+uint64          kvmdealloc(struct alloc_context *actx);
 int             uvmcopy_range_private(struct vm_dupl_ctx *ctx1);
 int             uvmcopy_range_shared(struct vm_dupl_ctx *ctx1);
 int             uvmcopy_range_direct_shared(struct vm_dupl_ctx *ctx1);
 int             uvmcopy_range_cow(struct vm_dupl_ctx *ctx1);
-void            uvmunmap(struct map_context *ctx1);
+void            vmunmap(struct map_context *ctx1);
 void            uvmclear(pagetable_t pagetable, uint64 va);
 pte_t *         walk(pagetable_t pagetable, uint64 va, int alloc, int target_level);
 uint64          walkaddr(pagetable_t pagetable, uint64 va);
@@ -278,8 +293,6 @@ pte_t*          pgpte(pagetable_t pagetable, uint64 va);
 void            init_res_array(res_block *rblocks, uint64 init_heap_start);
 uint64          uvmalloc_thp_region(struct alloc_context *ctx1);
 uint64          uvmdealloc_thp_region(struct alloc_context *ctx1);
-void            uvmdealloc_thp_region_range(res_block *rb_array, pagetable_t pagetable, uint64 start_va, uint64 end_va);
-uint64          scan_contigous_map(pagetable_t paegetable, uint64 src_va);
 void            freewalk(pagetable_t pagetable, int do_free, int level, struct mmu_gather *ctx2);
 void            freewalk_iter(pagetable_t pagetable, int do_free, struct mmu_gather *ctx2);
 
@@ -292,13 +305,23 @@ void            rb_link_node(rb_node_t *node, rb_node_t *rb_parent, rb_node_t **
 void            rb_insert_color(rb_node_t *node, rb_root_t*root);
 void            rb_erase(rb_node_t *node, rb_root_t*root);
 
+//heap_impl.c
+void            heap_sift_up(void *data, uint64 up_idx, uint64 cur_size, 
+                            int (*cmp_pred)(void *, uint64, uint64), 
+                            void (*swap_func)(void *, uint64, uint64));
+void            heap_sift_down(void *data, uint64 down_idx, uint64 cur_size,
+                            int (*cmp_pred)(void *, uint64, uint64), 
+                            void (*swap_func)(void *, uint64, uint64));
+void            heap_remove_idx(void *data, uint64 del_idx, uint64 cur_size,
+                            int (*cmp_pred)(void *, uint64, uint64), 
+                            void (*swap_func)(void *, uint64, uint64));
+
 //mm.c
 void            vma_get(vm_area_struct_t *vma);
 int             vma_put(vm_area_struct_t *vma);
 void            mm_get(mm_struct_t *mm);
 int             mm_put(mm_struct_t *mm);
 void            init_mm(void);
-vm_area_struct_t *kernel_insert_vma_helper(mm_struct_t *mm, uint64 va, uint64 sz, int perm);
 vm_area_struct_t *find_contain_vma(mm_struct_t *mm, uint64 vaddr);
 vm_area_struct_t *find_contain_vma_and_get(mm_struct_t *mm, uint64 vaddr);
 vm_area_struct_t *find_upper_vma_and_get(mm_struct_t *mm, uint64 vaddr);
@@ -321,13 +344,7 @@ int             do_munmap(munmap_context_t *ctx1);
 
 //kvm.c
 void            kvminit(void);
-int             kvmmap_safe(struct map_context *ctx1);
 void            kvminithart(void);
-vm_area_struct_t *alloc_kernel_vma(void);
-void*           kvmalloc(pagetable_t kpgtbl, uint64 size, int flags);
-uint64          kvmdealloc(pagetable_t kpgtbl, uint64 va, uint64 size);
-void            test_kvm_stress_parallel(int participants, int iters, int max_live, int max_pages);
-
 
 // plic.c
 void            plicinit(void);

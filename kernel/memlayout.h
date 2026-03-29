@@ -17,6 +17,10 @@
 // end -- start of kernel page allocation area
 // PHYSTOP -- end RAM used by the kernel
 
+/* Supervisor Software Interrupt (SSWI) device / setssip register */
+#define SSWI_BASE             0x02F00000L
+#define SSWI_SIZE             0x00004000L
+
 // qemu puts UART registers here in physical memory.
 #define UART0 0x10000000L
 #define UART0_IRQ 10
@@ -46,6 +50,14 @@
 //Enable kernel_vmalloc, kernel heap area range is:
 #define KHEAP_START 0x90000000L
 #define KHEAP_END   0xC0000000L
+
+//for reversed virtual address space designed to achieve kernel-level continuity.
+#define KRESERVED_START 0xd0000000L
+#define KRESERVED_END   0XF0000000l
+#define TIMER_RESERVED_START    KRESERVED_START
+#define TIMER_RESERVED_END      TIMER_RESERVED_START + 0X10000
+
+
 
 // map the trampoline page to the highest address,
 // in both user and kernel space.

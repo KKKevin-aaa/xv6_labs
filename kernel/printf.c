@@ -4,6 +4,7 @@
 
 #include "types.h"
 #include "param.h"
+#include "atomic.h"
 #include "spinlock.h"
 #include "sleeplock.h"
 #include "fs.h"
@@ -12,14 +13,11 @@
 #include "riscv.h"
 #include "defs.h"
 #include "proc.h"
+#include "slab.h"
+#include "kalloc.h"
+#include "vm.h"
 #include "colors.h"
 
-void test_vma_slab_allocator();
-void test_vma_rbtree_and_list();
-void test_kvmalloc_integrity();
-void test_unmapped_area_search();
-void test_kvm_stress_worker(int iters, int max_live, int max_pages);
-void test_kvm_stress_parallel(int participants, int iters, int max_live, int max_pages);
 volatile int panicking = 0;  // printing a panic message
 //panicking enables a "lock escape" to prevent recursive deadlocks during emergency reporting.
 volatile int panicked = 0;   // spinning forever at end of a panic
@@ -197,6 +195,13 @@ int printf(char *fmt, ...) {
     return ctx.pos;
 }
 
+int dummy_printf(char *fmt, ...){
+    va_list ap;
+    va_start(ap, fmt);
+    va_end(ap);
+    return 0;
+}
+
 //Another method: vmalloc(virtual Contiguous Mapping)
 //Allocates multiple non-contiguous physical pages and modifies the
 //kernel page tables to map them into a contiguous virtual address range.
@@ -236,14 +241,20 @@ int load_debug_sym_vm(){
     uint64 alloc_str_len=PGROUNDUP(str_len);
     void *mem0=NULL;
     //The operands of bitwise operators must be of integral type.
-    mem0=kvmalloc((pagetable_t)get_pagetable(), alloc_str_len, PTE_R | PTE_W);
+    mem0=(void *)kvmalloc((pagetable_t)get_pagetable(), alloc_str_len, PTE_R | PTE_W);
     if(mem0==NULL){
         pr_err("Kernel: OOM!\n");
         goto cleanup;
     }
     memset(mem0, 0, alloc_str_len);
     if(readi(data_ip, 0, (uint64)mem0, cur_offset, str_len)!=str_len){
-        kvmdealloc((pagetable_t)get_pagetable(), (uint64)mem0, alloc_str_len);
+        kvmdealloc(&(struct alloc_context){
+            .pagetable=(pagetable_t)get_pagetable(),
+            .seg_start=(uint64)mem0,
+            .seg_end=(uint64)mem0 + alloc_str_len,
+            .do_free=1,
+            .pt_lock=NULL,
+        });
         pr_err("Kernel: read wrong data!\n");
         goto cleanup;
     }
@@ -251,16 +262,34 @@ int load_debug_sym_vm(){
 
     uint64 data_len=sizeof(uint16)*header.addr_cnt*2 + sizeof(uint32)*header.addr_cnt;
     uint64 alloc_data_len=PGROUNDUP(data_len);
-    void *mem1=kvmalloc((pagetable_t)get_pagetable(), alloc_data_len, PTE_R | PTE_W);
+    void *mem1=(void *)kvmalloc((pagetable_t)get_pagetable(), alloc_data_len, PTE_R | PTE_W);
     if(mem1==NULL){
-        kvmdealloc((pagetable_t)get_pagetable(), (uint64)mem0, alloc_str_len);
+        kvmdealloc(&(struct alloc_context){
+            .pagetable=(pagetable_t)get_pagetable(),
+            .seg_start=(uint64)mem0,
+            .seg_end=(uint64)mem0 + alloc_str_len,
+            .do_free=1,
+            .pt_lock=NULL,
+        });
         printf("Kernel: OOM!\n");
         goto cleanup;
     }
     memset(mem1, 0, alloc_data_len);
     if(readi(data_ip, 0, (uint64)mem1, cur_offset, data_len)!=data_len){
-        kvmdealloc((pagetable_t)get_pagetable(), (uint64)mem0, alloc_str_len);
-        kvmdealloc((pagetable_t)get_pagetable(), (uint64)mem1, alloc_data_len);
+        kvmdealloc(&(struct alloc_context){
+            .pagetable=(pagetable_t)get_pagetable(),
+            .seg_start=(uint64)mem0,
+            .seg_end=(uint64)mem0 + alloc_str_len,
+            .do_free=1,
+            .pt_lock=NULL,
+        });
+        kvmdealloc(&(struct alloc_context){
+            .pagetable=(pagetable_t)get_pagetable(),
+            .seg_start=(uint64)mem1,
+            .seg_end=(uint64)mem1 + alloc_data_len,
+            .do_free=1,
+            .pt_lock=NULL,
+        });
         printf("Kernel: read wrong data!\n");
         goto cleanup;
     }
@@ -295,7 +324,7 @@ int load_debug_sym(){
     acquiresleep(&kernel_addr_map.load_lock);
     if(is_debug_sym_loaded){
         releasesleep(&kernel_addr_map.load_lock);
-        return 0;
+        return -1;
     }
     //fd --> struct file*f ->ip --> struct inode*
     struct inode *data_ip;
@@ -329,12 +358,11 @@ int load_debug_sym(){
         alloc_str_len=1ull<<(msb+1);    //Align up
     }
     void *mem0=NULL;
-    mem0=(char *)alloc_memory(alloc_str_len);
+    mem0=(char *)alloc_memory(alloc_str_len, GFP_ZERO);
     if(mem0==NULL){
         printf("Kernel: OOM!\n");
         goto cleanup;
     }
-    memset(mem0, 0, alloc_str_len);
     if(readi(data_ip, 0, (uint64)mem0, cur_offset, str_len)!=str_len){
         free_pages(mem0, alloc_str_len);
         printf("Kernel: read wrong data!\n");
@@ -348,13 +376,12 @@ int load_debug_sym(){
         uint32 msb=i_log2(alloc_data_len);
         alloc_data_len=1ull<<(msb+1);
     }
-    void *mem1=alloc_memory(alloc_data_len);
+    void *mem1=alloc_memory(alloc_data_len, GFP_ZERO);
     if(mem1==NULL){
         free_pages(mem0, alloc_str_len);
         printf("Kernel: OOM!\n");
         goto cleanup;
     }
-    memset(mem1, 0, alloc_data_len);
     if(readi(data_ip, 0, (uint64)mem1, cur_offset, data_len)!=data_len){
         free_pages(mem0, alloc_str_len);
         free_pages(mem1, alloc_data_len);
@@ -382,11 +409,6 @@ cleanup:
 }
 
 uint64 sys_load_debug_sym(void){
-    //test_vma_slab_allocator();
-    //test_vma_rbtree_and_list();
-    //test_kvmalloc_integrity();
-    // test_unmapped_area_search();
-    //test_kvm_stress_worker(8000, 2048, 64);
     return load_debug_sym_vm();
 }
 
@@ -461,7 +483,6 @@ int safe_load_data(uint64 pa, uint64 *val, uint64 stack_start, uint64 stack_end)
 
 void backtrace(){
     //print the current frame information according s0 and ra
-    test_kvm_stress_worker(40000, 4096, 256);
     if(is_debug_sym_loaded==0){
         printf("\n(Symbol table not loaded. Only showing addresses.)\n");
     }
@@ -486,14 +507,24 @@ void backtrace(){
                 return;
             }
             if(cur_func_ra >=TRAMPOLINE)
-                printf("[Trap Entry](Trampoline Page)\n");
-            if(is_debug_sym_loaded==0){ // For is_debug_sym_loaded ==0 
-                printf("(0x%llx)\n", cur_func_ra);
+            printf(" -> [Trap Entry] Reached Trampoline Page (kernel/trap.c:usertrap). Kernel backtrace ended.\n");
+            else{
+                if(is_debug_sym_loaded==0){ // For is_debug_sym_loaded ==0 
+                    printf(" -> (0x%llx)\n", cur_func_ra);
+                }
+                else{
+                    printf(" -> ");
+                    find_debug_info(cur_func_ra, NULL, 0);
+                }
             }
-            else    find_debug_info(cur_func_ra, NULL, 0);
             //rewind to previous frame 
             if(safe_load_data(fp_ptr, &next_s0, stack_start, stack_end)!=1){
                 break;  //end
+            }
+            if(next_s0 < stack_start || next_s0 > stack_end) {
+                // 如果发现下一层的 fp 已经不在内核栈内，说明跨越了特权级边界，安全停止
+                printf(" -> [Context Switch] Next fp (0x%llx) is outside kernel stack. Stop.\n", next_s0);
+                break;
             }
             cur_s0=next_s0;
             depth++;

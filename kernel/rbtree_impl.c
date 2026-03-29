@@ -7,7 +7,6 @@
 #include "sleeplock.h"
 #include "proc.h"
 #include "rbtree.h"
-#include "kvm.h"
 #include "fcntl.h"
 #include "mm.h"
 /* basic rules for rbtree

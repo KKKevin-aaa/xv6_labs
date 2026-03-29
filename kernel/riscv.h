@@ -45,12 +45,9 @@ static inline uint64 __attribute__((always_inline)) r_sstatus() {
 
 static inline void w_sstatus(uint64 x) { asm volatile("csrw sstatus, %0" : : "r"(x)); }
 
-
-#define SOFTWARE_INTR_MASK 1ull << 1
-#define TIMER_INTR_MASK    1ULL << 5
-#define EXTER_INTR_MASK    1ull << 9
 #define IPI_REQ_THRESHOLD  64
 // Supervisor Interrupt Pending
+#define SIP_SSIP    (1ull << 1)
 static inline uint64 __attribute__((always_inline)) r_sip() {
     uint64 x;
     asm volatile("csrr %0, sip" : "=r"(x));
@@ -62,6 +59,7 @@ static inline void w_sip(uint64 x) { asm volatile("csrw sip, %0" : : "r"(x)); }
 // Supervisor Interrupt Enable
 #define SIE_SEIE (1L << 9)  // external
 #define SIE_STIE (1L << 5)  // timer
+#define SIE_SSIE (1l << 1)   //software.
 static inline uint64 __attribute__((always_inline)) r_sie() {
     uint64 x;
     asm volatile("csrr %0, sie" : "=r"(x));
@@ -269,8 +267,8 @@ typedef uint64 *pagetable_t;  // 512 PTEs
 #define RESERVE
 // #define IN_PLACE_PROMOTE
 #define RES_BITMAP_WORDS 8
-#define THRESHLOD 2
-#define MAX_RES_BLOCK 32
+#define THRESHLOD 3
+#define MAX_RES_BLOCK 40
 #define MAX_ALLOWED_ALLOCATIONS 4
 #define MAX_MAIL    8
 

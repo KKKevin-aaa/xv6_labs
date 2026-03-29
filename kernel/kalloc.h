@@ -57,6 +57,14 @@ static inline void ensure_pfn_valid(uint64 pfn){
 #define SLAB2PFN(sl)    ((uint64)sl!=0)?page2pfn(SLAB2PAGE(sl)):0
 #define SLAB2PADDR(sl)  pfn2paddr(SLAB2PFN(sl))
 
+// Get Free Page flags to control allocation behavior and constraints.
+#define GFP_ATOMIC  0x1
+#define GFP_KERNEL  0X2
+#define GFP_NOFAIL  0X4
+#define GFP_ZERO    0X8
+#define GFP_DMA     0X10
+
+#define SWAP_RETRY_THRESHOLD     4
 
 typedef enum{
     PG_TYPE_FREE=0,
@@ -109,6 +117,7 @@ struct page{
     }u;
 };
 _Static_assert(sizeof(struct page) <= 64, "Struct page is too big!");
+
 struct listhead{
     struct page *head;
 };

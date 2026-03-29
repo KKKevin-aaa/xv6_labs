@@ -15,6 +15,8 @@
 #define ANSI_BOLD_YELLOW  "\x1b[1;33m"
 
 #endif
+
+
 // 这里的 ##__VA_ARGS__ 是 GCC/Clang 特性，允许参数为空
 #define pr_err(fmt, ...) \
     do{     \
@@ -27,4 +29,8 @@
     printf(ANSI_YELLOW "[WARN] %s:%d " fmt ANSI_RESET "\n",__func__, __LINE__,  ##__VA_ARGS__)
 
 #define pr_info(fmt, ...) \
-    printf(ANSI_CYAN "[INFO] %s:%d " fmt ANSI_RESET "\n",__func__, __LINE__,  ##__VA_ARGS__)
+    do{     \
+        if(0)   printf(ANSI_CYAN "[INFO] %s:%d " fmt ANSI_RESET "\n",__func__, __LINE__,  ##__VA_ARGS__);    \
+    }while(0)
+    // dummy_printf(ANSI_CYAN "[INFO] %s:%d " fmt ANSI_RESET "\n",__func__, __LINE__,  ##__VA_ARGS__)
+    //printf(ANSI_CYAN "[INFO] %s:%d " fmt ANSI_RESET "\n",__func__, __LINE__,  ##__VA_ARGS__)

@@ -26,8 +26,8 @@ static inline int atomic_inc_not_zero(atomic_t *ptr){
         "lr.w.aq %0, (%2)    \n"    //read value and store into old
         "beqz %0, 2f         \n"    //old==0, jump and return(don't add)
         "addi %1, %0, 1      \n"    //tmp=old+1
-        "sc.w.rl %1, %1, (%2)    \n" //try to write back to ptr.count
-        "bnez %1, 1b          \n"   //if write failed(return 0),retry it
+        "sc.w.rl %0, %1, (%2)    \n" //try to write back to ptr.count
+        "bnez %0, 1b          \n"   //if write failed(return 0),retry it
         "li %0, 1             \n"   //set the success flag
         "j  3f                \n"   //jump out
         "2:                   \n"

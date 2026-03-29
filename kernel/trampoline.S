@@ -12,10 +12,13 @@
 
 #include "riscv.h"
 #include "memlayout.h"
+#include "syscall.h"
 
 .section trampsec
 .globl trampoline
 .globl usertrap
+.globl sig_ret
+
 trampoline:
 .align 4
 .globl uservec
@@ -147,3 +150,8 @@ userret:
         # return to user mode and user pc.
         # usertrapret() set up sstatus and sepc.
         sret
+
+sig_ret:
+        li a7, SYS_sigreturn
+        ecall
+        ret

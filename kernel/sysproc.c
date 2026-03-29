@@ -5,7 +5,9 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "sleeplock.h"
+#include "atomic.h"
 #include "proc.h"
+#include "per-cpu.h"
 #ifdef PGTBL_SOL
 #include "riscv.h"
 #endif
@@ -13,11 +15,11 @@
 #include "fs.h"
 #include "file.h"
 #include "rbtree.h"
-#include "kvm.h"
 #include "slab.h"
 #include "mm.h"
 #include "vm.h"
 #include "colors.h"
+
 uint64 sys_exit(void) {
     int n;
     argint(0, &n);
@@ -179,7 +181,7 @@ uint64 sys_interpose(void) {
 //POSIX: void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 //And return (void *)-1 while failed, return mampped area's start address.
 //FIxme: Also need to design a backend thread to swap these dirty page into memory in time.
-uint64 sys_mmap(void ){
+uint64 sys_mmap(void){
     struct proc *p=myproc();
     uint64 sugg_addr;   //Suggestied address
     uint64 length, offset;
@@ -230,3 +232,20 @@ uint64 sys_mmap(void ){
     releasesleep(&p->mm->mm_lock);
     return ret;
 }
+
+uint64 sys_sigalarm(void){
+    int nr_ticks;
+    uint64 func_addr;
+    argint(0, &nr_ticks);
+    argaddr(1, &func_addr);
+    if(nr_ticks==0 && func_addr==0) return pause_signal();
+    //Only if both of them are zero is treated as the stipulated special case.
+    else if(nr_ticks==0 || func_addr==0){
+        pr_warn("NULL pointer passed in, invalid argument.");
+        return -1;
+    }
+    //transfer ticks into abstract time based on the current timer interval.
+    return add_signal(nr_ticks * 1000000, (void(*)(void))func_addr, 1000);
+}
+
+uint64 sys_sigreturn(void){ return kreturn();}

@@ -11,8 +11,10 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
+#include "slab.h"
+#include "kalloc.h"
+#include "vm.h"
 #include "rbtree.h"
-#include "kvm.h"
 #include "mm.h"
 #include "vm_internal.h"
 #include "colors.h"
@@ -42,7 +44,7 @@ void init_res_array(res_block *rblocks, uint64 init_heap_start){    //Assuming A
     }
 }
 
-//Used in heap's hugepages only.'Casue calculate the idx from va.
+//Used in heap's hugepages only.'Casue calculate the idx from va directly.
 void split_into_blocks(res_block * rblocks, pagetable_t pagetable, uint64 va, uint64 cur_level){
     if(rblocks==NULL || pagetable==NULL)
         panic("Invalid argument");
@@ -50,9 +52,8 @@ void split_into_blocks(res_block * rblocks, pagetable_t pagetable, uint64 va, ui
     pte_t *old_pte=walk(pagetable, va, 0, cur_level);
     if(old_pte==NULL || *old_pte==0)
         panic("Incomplete or missing page table structure for the given address");
-    pagetable_t new_pagetable=alloc_memory(PGSIZE);
+    pagetable_t new_pagetable=alloc_memory(PGSIZE, GFP_ZERO);
     if(new_pagetable==NULL) panic("Split-into-blocks:OOM");
-    memset((void *)new_pagetable, 0, PGSIZE);
     uint64 cur_pa=PTE2PA(*old_pte), basic_stride=get_step_size(cur_level-1), delete_pa=cur_pa;
     void *new_block_pa;
     if(new_pagetable==NULL){
@@ -61,7 +62,7 @@ void split_into_blocks(res_block * rblocks, pagetable_t pagetable, uint64 va, ui
     for(int i=0;i<512;i++){
         if(rblocks[idx].bitmap[i]!=0){
             //Inherits RXW permissions from the original huge page, becoming a new small leaf.
-            new_block_pa=alloc_memory(basic_stride);
+            new_block_pa=alloc_memory(basic_stride, 0);
             if(new_block_pa==NULL){
                 panic("out-of-memory!");
             }
@@ -201,43 +202,49 @@ int move_and_aggregate(res_block *rblocks, pagetable_t pagetable, uint64 va, uin
 
 uint64 uvmdealloc_thp_region(struct alloc_context *ctx1){
     //Eager Demotion!
-    ctx1->seg_start=PGROUNDUP(ctx1->seg_start);
+    ctx1->seg_start=PGROUNDDOWN(ctx1->seg_start);   //
     ctx1->seg_end=PGROUNDUP(ctx1->seg_end);
-    uint64 req_size=ctx1->seg_start - ctx1->seg_end, cur_va, end_va;
+    uint64 req_size=ctx1->seg_end - ctx1->seg_start, cur_va, end_va;
     //dealloc backward,maintain consistent handling logic
     uint16 idx=(ctx1->seg_start - ctx1->rblocks[0].va)/SUPERPGSIZE;
     uint64 start_vpn, vpn_step;
-    int split_dealloc;
+    int split_dealloc;      //1 means need to split, 0 means dealloc the whole block.
     cur_va=ctx1->seg_start;
     while(idx<MAX_RES_BLOCK && req_size>0){
         start_vpn=(cur_va-ctx1->rblocks[idx].va)/PGSIZE;
-        split_dealloc=(SUPERPGROUNDDOWN(cur_va)==SUPERPGROUNDDOWN(ctx1->seg_start))?0:1;
-        if(split_dealloc){
+        if(ctx1->seg_end - cur_va >=SUPERPGSIZE){
             end_va=(idx+1==MAX_RES_BLOCK)?
                 (ctx1->rblocks[idx].va+SUPERPGSIZE):ctx1->rblocks[idx+1].va;
         }
-        else    end_va=ctx1->seg_start;
+        else    end_va=ctx1->seg_end;
+        split_dealloc=((end_va - cur_va) < SUPERPGSIZE)?1:0;
         vpn_step=(end_va-cur_va)/PGSIZE;
-        if(ctx1->rblocks[idx].promoted==1){  //Demotion is merely a preliminary step for reclamation.
+        if(ctx1->rblocks[idx].promoted==1 && split_dealloc){
+            //Demotion is merely a preliminary step for reclamation.
             //Split regradless of release size due to the lack of intermidate state.
             split_into_blocks(ctx1->rblocks, ctx1->pagetable, cur_va, 1);
             // Demotion for partial uvmunmap
-            ctx1->rblocks[idx].promoted=0;
         }
+        if(ctx1->rblocks[idx].promoted==1)
+            ctx1->rblocks[idx].promoted=0;
         for(uint64 bp_idx=start_vpn;bp_idx<start_vpn+vpn_step;bp_idx++){
             if(ctx1->rblocks[idx].bitmap[bp_idx]!=0)
                 ctx1->rblocks[idx].pop_count--;
         }
         memset(ctx1->rblocks[idx].bitmap+start_vpn, 0, vpn_step);
-
-        uvmunmap(&(struct map_context){
+        if(ctx1->rblocks[idx].is_scattered==0)
+            ctx1->rblocks[idx].is_scattered=1;
+        vmunmap(&(struct map_context){
             .pagetable=ctx1->pagetable,
             .do_free=ctx1->do_free,
             .pt_lock=ctx1->pt_lock,
             .start_va=cur_va,
             .size=end_va - cur_va,
         });   //Finalize the deallocation process.
-
+        if(split_dealloc==0){
+            ctx1->rblocks[idx].pa=0;
+            ctx1->rblocks[idx].alloc_attempts=0;
+        }
         req_size-=(end_va-cur_va);
         cur_va=end_va;
         idx++;
@@ -254,15 +261,21 @@ uint64 uvmalloc_thp_region(struct alloc_context *ctx1){    //Consider reserved a
     }
     int ret1=in_res_area(ctx1->seg_start, ctx1->rblocks);
     int ret2=in_res_area(ctx1->seg_end, ctx1->rblocks);
-    uint64 ret_pa=0;
     //Record the first allocated block pa.
     if(ret1!=1 || ret2!=1)
         panic("Specific region does not meet THP requirements.");
     uint16 idx=(ctx1->seg_start - ctx1->rblocks[0].va)/SUPERPGSIZE;
     uint64 cur_vpn, new_heap_block, cur_size, cur_va=ctx1->seg_start;
+    uint64 ret_pa=ctx1->rblocks[idx].pa;
     while(cur_va < ctx1->seg_end){
         //handle one rblock each time.
-        if(ctx1->rblocks[idx].promoted==1)  continue;   //Exist the leaf_pte already.(superpage)
+        if(ctx1->rblocks[idx].promoted==1){
+            idx++;
+            if(idx < MAX_RES_BLOCK)
+                cur_va=ctx1->rblocks[idx].va;
+            else    break;
+            continue;   //Exist the leaf_pte already.(superpage)
+        }
         cur_vpn=(cur_va-ctx1->rblocks[idx].va)/PGSIZE;
         //enter reservable region, evaluate reservation strategy
         if(idx==MAX_RES_BLOCK-1)
@@ -272,9 +285,8 @@ uint64 uvmalloc_thp_region(struct alloc_context *ctx1){    //Consider reserved a
         cur_size=cur_size-cur_va;
         if(ctx1->rblocks[idx].is_scattered==1){
             if(ctx1->rblocks[idx].alloc_attempts<MAX_ALLOWED_ALLOCATIONS){
-                new_heap_block=(uint64)alloc_memory(SUPERPGSIZE);
+                new_heap_block=(uint64)alloc_memory(SUPERPGSIZE, GFP_ZERO);
                 if(new_heap_block!=0){
-                    memset((void *)new_heap_block, 0, SUPERPGSIZE);
                     // update the pte Only when new memory is ready 
                     // to avoid handling intermediate states.
                     if(mappages(&(struct map_context){
@@ -289,6 +301,7 @@ uint64 uvmalloc_thp_region(struct alloc_context *ctx1){    //Consider reserved a
                         goto discrete_alloc;
                     }
                     if(ctx1->rblocks[idx].pop_count>0){
+                        // Transit the data into temporary buffer, then update mapping and free original pte.
                         if(move_and_aggregate(ctx1->rblocks, ctx1->pagetable, cur_va, new_heap_block)!=0){
                             ctx1->rblocks[idx].alloc_attempts++;
                             free_pages((void *)new_heap_block, SUPERPGSIZE);//rollback
@@ -301,12 +314,15 @@ uint64 uvmalloc_thp_region(struct alloc_context *ctx1){    //Consider reserved a
                         safe_update_and_free(ctx1->rblocks, ctx1->pagetable, cur_va, new_heap_block);
                     }
                     if(ret_pa==0)   ret_pa=new_heap_block+cur_vpn*PGSIZE;
-                    //Synchronisz data
+                    //Synchronize data
                     memset(&ctx1->rblocks[idx].bitmap[cur_vpn], 1, sizeof(uint8)*cur_size/PGSIZE);
                     ctx1->rblocks[idx].pop_count+=(cur_size/PGSIZE);
                     ctx1->rblocks[idx].is_scattered=0;   //update
                     ctx1->rblocks[idx].pa=new_heap_block;
+                    if(THRESHLOD==0 || ctx1->rblocks[idx].pop_count >= THRESHLOD)
+                        ctx1->rblocks[idx].promoted=1;
                     cur_va+=cur_size;
+                    idx++;
                     continue;
                 }
                 ctx1->rblocks[idx].alloc_attempts++;
@@ -357,7 +373,7 @@ discrete_alloc:
                 return 0;
             }
             ctx1->rblocks[idx].pop_count+=(cur_size/PGSIZE);    //Synchronisz data
-            if(THRESHLOD==0 || ctx1->rblocks[idx].pop_count>=THRESHLOD-1){
+            if(THRESHLOD==0 || ctx1->rblocks[idx].pop_count>=THRESHLOD){
                 //Supposing exist the huge_page already,Upgrade page table
                 if(merge_into_hugepages_In(ctx1->rblocks, ctx1->pagetable, ctx1->seg_start)==0){
                     memset(&ctx1->rblocks[idx].bitmap[cur_vpn], 1, sizeof(uint8)*cur_size/PGSIZE);
@@ -372,6 +388,7 @@ discrete_alloc:
             if(ret_pa==0)   ret_pa=ctx1->rblocks[idx].pa+cur_vpn*PGSIZE;
         }
         cur_va+=cur_size;
+        idx++;
     }
     return ret_pa;
 }

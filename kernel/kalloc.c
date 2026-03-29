@@ -13,6 +13,7 @@
 #include "riscv.h"
 #include "proc.h"
 #include "defs.h"
+#include "per-cpu.h"
 #include "slab.h"
 #include "kalloc.h"
 #include "colors.h"
@@ -200,7 +201,7 @@ static void del_from_list_nolock(page_t *p, uint64 order) {  // Occupied
         }
     }
     if (page_get_order(p) != order) {
-        pr_err("try to delete Order.%llu block list while this block is Order.%llu \n", order,
+        pr_err("try to delete Order.%llu block list while this block is Order.%u \n", order,
                page_get_order(p));
         panic("Inconsistent data.");
     }
@@ -227,7 +228,7 @@ static void add_to_list_nolock(page_t *p, uint64 order) {  // free
         }
     }
     if (page_get_order(p) != order) {
-        pr_err("try to add to Order.%llu block list, while this block is Order.%llu\n", order,
+        pr_err("try to add to Order.%llu block list, while this block is Order.%u\n", order,
                page_get_order(p));
         panic("inconsistent data.");
     }
@@ -261,7 +262,7 @@ void print_memorytable() {  // with lock
     release(&kmem.lock);
 }
 
-void *alloc_memory(uint64 size) {
+void *alloc_memory(uint64 size, int flags) {
     // check first, should be 4kB-aligned
     // And it must be ensured that only a single page is allocated within alloc_memory.
     if (i_log2(size & -size) < 12) {
@@ -287,18 +288,29 @@ void *alloc_memory(uint64 size) {
     acquire(&kmem.lock);
     // debugging for the extermely large size allocations.(Early warning)
     void *ret_addr = __builtin_return_address(0);
-    pr_info("current free memory is 0x%llx\n", kmem.nr_free);
+    // pr_info("current free memory is 0x%llx\n", kmem.nr_free);
     if (size >= 0x10 * PGSIZE)
         pr_info("0x%llx allocate a massive contingous block of memory, totaling 0x%llx",
                 (uint64)ret_addr, size);
     if (kmem.nr_free <= kmem.low_watermark * 2)
         pr_info("Current free memory lower than watermakr.Early warning!");
     // In general cases, allocating a single is sufficient.
-    uint8 split_order = order, kswap_woken = 0;
+    uint8 split_order = order, kswap_woken = 0, attempts=0;
 retry:
+    if(++attempts > SWAP_RETRY_THRESHOLD && !(flags & GFP_NOFAIL)){
+        release(&kmem.lock);
+        return NULL;
+    }
     while (split_order <= MAX_ORDER && kmem.free_area[split_order].head == NULL) split_order++;
     if (split_order > MAX_ORDER) {
+        if(flags & GFP_ATOMIC){
+            release(&kmem.lock);
+            return NULL;
+        }
         if (mycpu()->noff > 1) {
+            if(flags & GFP_NOFAIL)
+                panic("alloc_memory: Invalid flag combination"
+                    " - sleeping function called from invalid context");
             printf("Holding more than one lock when occur OOM.Cannot attempt to swap.\n");
             // dump_memory_map();
             release(&kmem.lock);
@@ -341,6 +353,7 @@ retry:
     offset = (tmp - kmem.mem_bitmaps) * PGSIZE;
     if (kswap_woken == 1 && kmem.nr_free > kmem.low_watermark) wakeup_one(&kmem);
     release(&kmem.lock);
+    if(flags & GFP_ZERO)    memset((void *)offset + KERNBASE, 0, size);
     return (void *)(offset + KERNBASE);
 }
 
@@ -397,13 +410,11 @@ void split_block(void *pa, uint64 size) {
 static void free_single_block(uint64 start_pfn, uint64 size) {
     uint64 reclaim_start_pfn = 0, reclaim_size = 0, del_order;
     page_t *del_page;
-    int alert = 0;
     for (int i = 0; i < size / PGSIZE; i++) {
         del_page = get_page_desc_safe(i + start_pfn);
         // Validation concluded in the preceding step, ues safe_version.
         set_free(del_page);
         if (page_get_ref(del_page) == 0) {
-            alert = 1;
             if (reclaim_size == 0) reclaim_start_pfn = start_pfn + i;
             reclaim_size += PGSIZE;
         } else {  // convert "contiguous free_size" into order(splice and reclaim in batches.)
@@ -467,9 +478,8 @@ void free_pages_nolock(void *pa, uint64 size) {
         panic("free_pages_nolock!");
     }
     uint64 b_head_pfn = paddr2pfn((uint64)pa);
-    page_t *del_page = NULL;
     for (uint64 inc = 0; inc < size; inc += PGSIZE) {
-        if (page_get_ref_wrapper((uint64)pa + inc) == 0)
+        if (page_get_ref_wrapper((void *)((uint64)pa + inc)) == 0)
             panic("double-free 0x%llx while freeing 0x%llx with size 0x%llx.", (uint64)pa + inc,
                   (uint64)pa, size);
     }
@@ -539,7 +549,7 @@ int reclaim_orphan_pages(void *pa, uint64 size) {
 }
 
 void *kmalloc(uint64 size) {
-    if (size >= (1ull << MAX_SIZE_SHIFT)) return alloc_memory(size);
+    if (size >= (1ull << MAX_SIZE_SHIFT)) return alloc_memory(size, GFP_ZERO);
     // Must smaller than (1ull<<MAX_SIZE_SHIFT)
     uint64 size1 = get_cache_size(size);
     if (size1 == -1) panic("Shouldn't reach here.\n");
@@ -616,7 +626,7 @@ void *kalloc_page(void) {
     char *name = p ? p->name : "kernel";
     KALLOC_TRACE("pid=%d(%s) requesting PGSIZE\n", pid, name);
 #endif
-    return alloc_memory(PGSIZE);
+    return alloc_memory(PGSIZE, GFP_ZERO);
 }
 
 // check the physical memory usage!

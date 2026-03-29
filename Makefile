@@ -37,11 +37,12 @@ OBJS = \
   $(K)/$(OBJ_DIR)/kernelvec.o \
   $(K)/$(OBJ_DIR)/plic.o \
   $(K)/$(OBJ_DIR)/virtio_disk.o \
-  $(K)/$(OBJ_DIR)/kvm.o \
   $(K)/$(OBJ_DIR)/rbtree_impl.o \
   $(K)/$(OBJ_DIR)/utils.o \
   $(K)/$(OBJ_DIR)/mm.o \
-  $(K)/$(OBJ_DIR)/slab.o 
+  $(K)/$(OBJ_DIR)/slab.o \
+  $(K)/$(OBJ_DIR)/per-cpu.o \
+  $(K)/$(OBJ_DIR)/heap_impl.o
 
 OBJS_KCSAN = \
   $(K)/$(OBJ_DIR)/start.o \
@@ -245,7 +246,7 @@ $(U)/$(OBJ_DIR)/_%: $(U)/$(OBJ_DIR)/%.o $(ULIB) $(U)/user.ld | $(OBJ_DIR)
 $(U)/$(OBJ_DIR)/%.o :$(U)/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) $(EXTRAFLAG) -c -o $@ $<
 
-$(U)/$(OBJ_DIR)/usys.S : $(U)/usys.pl | $(OBJ_DIR)
+$(U)/$(OBJ_DIR)/usys.S : $(U)//usys.pl | $(OBJ_DIR)
 	perl $(U)/usys.pl > $(U)/$(OBJ_DIR)/usys.S
 
 $(U)/$(OBJ_DIR)/usys.o : $(U)/$(OBJ_DIR)/usys.S | $(OBJ_DIR)
@@ -287,7 +288,8 @@ UPROGS=\
 	$(U)/$(OBJ_DIR)/_forphan\
 	$(U)/$(OBJ_DIR)/_dorphan\
 	$(U)/$(OBJ_DIR)/_sandbox\
-	$(U)/$(OBJ_DIR)/_reserve_test
+	$(U)/$(OBJ_DIR)/_reserve_test\
+	$(U)/$(OBJ_DIR)/_alarmtest
 
 
 
@@ -418,7 +420,7 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	then echo "-gdb tcp::$(GDBPORT)"; \
 	else echo "-s -p $(GDBPORT)"; fi)
 ifndef CPUS
-CPUS := 4
+CPUS := 8
 endif
 ifeq ($(LAB),fs)
 CPUS := 1

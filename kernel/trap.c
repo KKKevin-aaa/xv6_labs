@@ -6,19 +6,38 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "per-cpu.h"
+#include "slab.h"
+#include "kalloc.h"
+#include "sbi.h"
+#include "vm.h"
+#include "syscall.h"
 #include "colors.h"
 #include "utils.h"
 
 struct spinlock tickslock;
 uint ticks;
 
+// NOTE: some Per-CPU variable
 //IPI relevant variables
 extern struct mailbox req_mailbox[NCPU];
 
-extern char trampoline[], uservec[];
+//Sigalarm relevant variables
+extern struct timer_root pcpu_timers[NCPU];
+
+//from vm.c to support adjustment on kernel-pagetable while trap.
+extern pagetable_t kernel_pagetable;
+extern struct spinlock kvm_lock;
+
+
+//from proc.c 
+extern struct proc proc[NPROC];
+
+extern char trampoline[], uservec[], sig_ret[];
 extern void *usyscall_pa;
 // in kernelvec.S, calls kerneltrap().
 void kernelvec();
+
 
 extern int devintr();
 
@@ -79,99 +98,180 @@ void tlb_flush_handler(struct tlb_shootdown_req **buffer, int num, int global_fl
     else    sfence_vma(0, 0);
 }
 
-
 void software_intr_handler(){
     //Interrupt(Unpreditable, caused by external hardware)
     acquire(&req_mailbox[cpuid()].lock);
     struct mailbox *cur_mailbox=&req_mailbox[cpuid()];
     //NOTE: for aggregate type, use {} to initialize instead "=" directly.
     struct tlb_shootdown_req *batched_tlb_req[NCPU]={NULL};
-    int tlb_req_idx=0, did_flush=0;
-    uint64 accu_npages=0, tlb_thresh=64;
+    int tlb_req_idx=0;
+    uint64 accu_npages=0, tlb_thresh=64, cur_idx=cur_mailbox->head;
+    int batch_slots[NCPU]={0};
     if(unlikely(cur_mailbox->tail < cur_mailbox->head))
         panic("Wrapped, slot index has exhausted!");
-    for(int i=cur_mailbox->head;i!=cur_mailbox->tail;i++){
-        if(cur_mailbox->reqs[i % MAX_MAIL].status==BOX_CLAIMED)
+    for(;cur_idx!=cur_mailbox->tail;cur_idx++){
+        if(cur_mailbox->reqs[cur_idx % MAX_MAIL].status==BOX_CLAIMED)
             panic("Unsupported now.");  //FIXME: 
-        else if(cur_mailbox->reqs[i % MAX_MAIL].status!=BOX_PENDING)
+        else if(cur_mailbox->reqs[cur_idx % MAX_MAIL].status!=BOX_PENDING)
             continue;
-        if(cur_mailbox->reqs[i % MAX_MAIL].func==do_flush_tlb){    //request batching
+        if(cur_mailbox->reqs[cur_idx % MAX_MAIL].func==do_flush_tlb){    //request batching
             //extract valid element and concatenate valid data element.
-            struct tlb_shootdown_req *tlb_req=(struct tlb_shootdown_req *)cur_mailbox->reqs[i % MAX_MAIL].args;
-            if(did_flush==0){
-                batched_tlb_req[tlb_req_idx++]=tlb_req;
-                if(tlb_req_idx >= NCPU){
-                    accu_npages += cal_flush_num(batched_tlb_req, tlb_req_idx, tlb_thresh-accu_npages);
-                    if(accu_npages >= tlb_thresh){
-                        tlb_flush_handler(batched_tlb_req, tlb_req_idx, 1);
-                        did_flush=1;
-                    }
-                    else    tlb_flush_handler(batched_tlb_req, tlb_req_idx, 0);
-                    tlb_req_idx=0;
-                }
-            }
-            //Acknowledge completion to the initiator by resetting the request status.
-            cur_mailbox->reqs[i % MAX_MAIL].status=BOX_DONE;
+            struct tlb_shootdown_req *tlb_req=(struct tlb_shootdown_req *)cur_mailbox->reqs[cur_idx % MAX_MAIL].args;
+            batched_tlb_req[tlb_req_idx]=tlb_req;
+            batch_slots[tlb_req_idx++]=cur_idx;
         }
         else{
-            cur_mailbox->reqs[i % MAX_MAIL].func(cur_mailbox->reqs[i % MAX_MAIL].args);
-            cur_mailbox->reqs[i % MAX_MAIL].status=BOX_DONE;
+            cur_mailbox->reqs[cur_idx % MAX_MAIL].func(cur_mailbox->reqs[cur_idx % MAX_MAIL].args);
+            cur_mailbox->reqs[cur_idx % MAX_MAIL].status=BOX_DONE;
+        }
+    }
+    if(tlb_req_idx !=0 ){
+        accu_npages += cal_flush_num(batched_tlb_req, tlb_req_idx, tlb_thresh - accu_npages);
+        if(accu_npages >= tlb_thresh){
+            tlb_flush_handler(batched_tlb_req, tlb_req_idx, 1);
+        }
+        else    tlb_flush_handler(batched_tlb_req, tlb_req_idx, 0);
+        asm volatile("fence rw, w": : : "memory");
+        for(int i=0;i<tlb_req_idx;i++){
+            cur_mailbox->reqs[batch_slots[i] % MAX_MAIL].status=BOX_DONE;
         }
     }
     //Clear the SSIP(Supervisor Software Interrupt Pending) bit to acknowledge
     //the interrupt and prevent re-triggerring(Infinite loops)
-    asm volatile("csrc sip, %0" : : "r"(2));
+    asm volatile("csrc sip, %0" : : "r"(SIP_SSIP));
     //CSR read and clear bits(read first, then &= ~mask, write back)
-    cur_mailbox->head=cur_mailbox->tail;    // Index adjustment.
+
+    cur_mailbox->head=cur_idx;    // Index adjustment.
     release(&cur_mailbox->lock);
 }
 
 void software_intr_handler_nolock(){
     push_off();
-    int cur_id=cpuid();
-    struct mailbox *cur_mailbox=&req_mailbox[cur_id];
+    int cur_cpuid=cpuid();
+    struct mailbox *cur_mailbox=&req_mailbox[cur_cpuid];
     struct tlb_shootdown_req *batched_tlb_req[NCPU]={NULL};
-    int tlb_req_idx=0, did_flush=0;
+    int tlb_req_idx=0;
     uint64 cur_tail=*(volatile uint64 *)&cur_mailbox->tail;
-    uint64 accu_npages=0, tlb_thresh=64;
+    uint64 accu_npages=0, tlb_thresh=64, cur_idx=cur_mailbox->head;
+    int batch_slots[NCPU]={0};
     if(unlikely(cur_tail < cur_mailbox->head))
         panic("Wrapped, slot index has exhausted!");
-    for(uint64 i=cur_mailbox->head;i!=cur_tail;i++){
-        if(cur_mailbox->reqs[i % MAX_MAIL].status!=BOX_PENDING){
-            cur_mailbox->head=i;
-            asm volatile("csrc sip, %0" : : "r"(2));
-            return;     //stop and return early
+    for(;cur_idx!=cur_tail;cur_idx++){
+        if(cur_mailbox->reqs[cur_idx % MAX_MAIL].status!=BOX_PENDING){
+            break;     //stop and return early
             //(Once one request is not ready, we still have chance to back and deal the remaining)
         }
         asm volatile("fence r, rw" : : : "memory");
-        if(cur_mailbox->reqs[i % MAX_MAIL].func==do_flush_tlb){    //request batching
+        if(cur_mailbox->reqs[cur_idx % MAX_MAIL].func==do_flush_tlb){    //request batching
             //extract valid element and concatenate valid data element.
-            struct tlb_shootdown_req *tlb_req=(struct tlb_shootdown_req *)cur_mailbox->reqs[i % MAX_MAIL].args;
-            if(did_flush==0){
-                batched_tlb_req[tlb_req_idx++]=tlb_req;
-                if(tlb_req_idx >= NCPU){
-                    accu_npages += cal_flush_num(batched_tlb_req, tlb_req_idx, tlb_thresh-accu_npages);
-                    if(accu_npages >= tlb_thresh){
-                        tlb_flush_handler(batched_tlb_req, tlb_req_idx, 1);
-                        did_flush=1;
-                    }
-                    else    tlb_flush_handler(batched_tlb_req, tlb_req_idx, 0);
-                    tlb_req_idx=0;
-                }
-            }
+            struct tlb_shootdown_req *tlb_req=(struct tlb_shootdown_req *)cur_mailbox->reqs[cur_idx % MAX_MAIL].args;
+            batched_tlb_req[tlb_req_idx]=tlb_req;
             //Acknowledge completion to the initiator by resetting the request status.
-            cur_mailbox->reqs[i % MAX_MAIL].status=BOX_DONE;
+            batch_slots[tlb_req_idx++]=cur_idx;
         }
         else{
-            cur_mailbox->reqs[i % MAX_MAIL].func(cur_mailbox->reqs[i % MAX_MAIL].args);
-            cur_mailbox->reqs[i % MAX_MAIL].status=BOX_DONE;
+            cur_mailbox->reqs[cur_idx % MAX_MAIL].func(cur_mailbox->reqs[cur_idx % MAX_MAIL].args);
+            cur_mailbox->reqs[cur_idx % MAX_MAIL].status=BOX_DONE;
         }
     }
+    if(tlb_req_idx !=0 ){
+        accu_npages += cal_flush_num(batched_tlb_req, tlb_req_idx, tlb_thresh - accu_npages);
+        if(accu_npages >= tlb_thresh){
+            tlb_flush_handler(batched_tlb_req, tlb_req_idx, 1);
+        }
+        else    tlb_flush_handler(batched_tlb_req, tlb_req_idx, 0);
+        asm volatile("fence rw, w": : : "memory");
+        for(int i=0;i<tlb_req_idx;i++){
+            cur_mailbox->reqs[batch_slots[i] % MAX_MAIL].status=BOX_DONE;
+        }
+    }
+
     //Clear the SSIP(Supervisor Software Interrupt Pending) bit to acknowledge
     //the interrupt and prevent re-triggerring(Infinite loops)
-    asm volatile("csrc sip, %0" : : "r"(2));
+    asm volatile("csrc sip, %0" : : "r"(SIP_SSIP));
     //CSR read and clear bits(read first, then &= ~mask, write back)
-    cur_mailbox->head=cur_tail;    // Index adjustment.
+
+    cur_mailbox->head=cur_idx;    // Index adjustment.
+    pop_off();
+}
+
+void timer_intr_handler(void){
+    uint64 ref_time=r_stimecmp();
+    int cur_id=cpuid();     //Interrupts are disabled.
+    int slot=0, exist_handling=0;
+    void *del_data=NULL;
+    acquire(&pcpu_timers[cur_id].lock);
+    if(pcpu_timers[cur_id].cur_size==0 || pcpu_timers[cur_id].root==NULL){
+        release(&pcpu_timers[cur_id].lock);
+        return;
+        //No signals or alarms registered for the current process.
+    }
+    struct timer_node *cur_root=pcpu_timers[cur_id].root;
+    //check if false wakeup
+    if(cur_root->next_expr_time > ref_time){
+        release(&pcpu_timers[cur_id].lock);
+        return;
+    }
+    while(1){
+        if(cur_root->next_expr_time > ref_time || cur_root->data==NULL ||
+            pcpu_timers[cur_id].cur_size==0 || exist_handling==1)
+            break;
+        slot=cur_root->data->proc_slot;
+        if(slot < 0 || slot >=NPROC)  panic("Invalid timer's proc_slot.");
+        acquire(&proc[slot].lock);
+        if(proc[slot].pid != cur_root->data->proc_pid || proc[slot].state==PROC_UNUSED
+            || proc[slot].state==PROC_ZOMBIE){
+            del_data=cur_root->data;
+            heap_remove_idx((void *)cur_root, 0, pcpu_timers[cur_id].cur_size,
+                            timer_less_cmp, timer_swap);
+            ((struct timer_payload *)del_data)->heap_idx=-1;
+            pcpu_timers[cur_id].root[pcpu_timers[cur_id].cur_size-1].data=NULL;
+            slab_free(del_data);
+            pcpu_timers[cur_id].cur_size--;
+            release(&proc[slot].lock);
+            continue;
+            //Timer's proc reclaimed, should reclaim this invalid timer.
+        }
+        enum TIMER_STATE cur_state= cur_root->data->mask & TIMER_STATE_MASK;
+        switch(cur_state){
+            case TIMER_HANDLING:
+                exist_handling=1;
+                break;
+            case TIMER_EXPIRED:case TIMER_PAUSE:
+                pr_err("Current statement shouldn't within the timer_heap");
+                break;
+            case TIMER_PENDING:
+                cur_root->next_expr_time = cur_root->data->interval + ref_time;
+                heap_sift_down((void *)cur_root, 0, pcpu_timers[cur_id].cur_size,
+                                timer_less_cmp, timer_swap);
+                break;
+            case TIMER_RUNNING:
+                if(!(proc[slot].pending_signals & (1ull << SIG_MYALARM)))
+                    proc[slot].pending_signals |= (1ull << SIG_MYALARM);
+                // periodic timer
+                if(--cur_root->data->repeat_left <= 0){     //remove from heap, but keep content.
+                    set_timer_state(cur_root->data, TIMER_EXPIRED);
+                    heap_remove_idx((void *)cur_root, 0, pcpu_timers[cur_id].cur_size,
+                                    timer_less_cmp, timer_swap);
+                    pcpu_timers[cur_id].root[pcpu_timers[cur_id].cur_size-1].data->heap_idx=-1;
+                    pcpu_timers[cur_id].root[pcpu_timers[cur_id].cur_size-1].data=NULL;
+                    pcpu_timers[cur_id].cur_size--;
+                }
+                else{
+                    set_timer_state(cur_root->data, TIMER_PENDING);
+                    cur_root->next_expr_time = cur_root->data->interval + ref_time;
+                    //update its next expire time and don't desecend timer size.
+                    heap_sift_down((void *)cur_root, 0, pcpu_timers[cur_id].cur_size,
+                                    timer_less_cmp, timer_swap);
+                }
+                break;
+            default:
+                pr_err("Unsupported type. ");
+                panic("");
+        }
+        release(&proc[slot].lock);
+    }
+    release(&pcpu_timers[cur_id].lock);
 }
 
 //
@@ -181,7 +281,6 @@ void software_intr_handler_nolock(){
 //
 uint64 usertrap(void) { //NOTE: already in Supervisor-mode!!!!!!!!!!
     int which_dev = 0;
-
     if ((r_sstatus() & SSTATUS_SPP) != 0) panic("usertrap: not from user mode");
 
     // send interrupts and exceptions to kerneltrap(), since we're now in the kernel.
@@ -203,6 +302,7 @@ uint64 usertrap(void) { //NOTE: already in Supervisor-mode!!!!!!!!!!
         intr_on();
 
         syscall();
+
     } else if ((which_dev = devintr()) != 0) {//device interrupt
         // ok
     } 
@@ -222,7 +322,7 @@ uint64 usertrap(void) { //NOTE: already in Supervisor-mode!!!!!!!!!!
                         setkilled(p);
                     }
                     if(scause==15 && !(*new_pte & PTE_W)){
-                        pr_err("Vmfualt lied.PTE is still read-only.");
+                        pr_err("Vmfualt lied.PTE is still unwritable.");
                         setkilled(p);
                     }
                     else if(scause==13 && !(*new_pte & PTE_R)){
@@ -237,8 +337,7 @@ uint64 usertrap(void) { //NOTE: already in Supervisor-mode!!!!!!!!!!
                     tlb_shootdown_issue_nolock(p->pagetable, stval, PGSIZE);
                 }
             }
-            else{
-                // Unhandle Trap
+            else{// Unhandle Trap
                 pte_t *invalid_pte=walk(p->pagetable, r_stval(), 0, 0);
                 printf("usertrap(): unexpected scause 0x%llx pid=%d\n", r_scause(), p->pid);
                 printf("            sepc=0x%llx stval=0x%llx\n", r_sepc(), r_stval());
@@ -247,7 +346,7 @@ uint64 usertrap(void) { //NOTE: already in Supervisor-mode!!!!!!!!!!
                 setkilled(p);
             }
         }
-        else if(scause == (1ull << 63 | 1))     software_intr_handler_nolock();
+        else if(scause == (1ull << 63 | SIE_SSIE))     software_intr_handler_nolock();
         else{
             // interrupt or trap from an unknown source
             printf("scause=0x%llx sepc=0x%llx stval=0x%llx\n", scause, r_sepc(), r_stval());
@@ -258,7 +357,10 @@ uint64 usertrap(void) { //NOTE: already in Supervisor-mode!!!!!!!!!!
     if (killed(p)) kexit(-1);
 
     // give up the CPU if this is a timer interrupt.
-    if (which_dev == 2) yield();
+    if (which_dev == 2){
+        timer_intr_handler();
+        yield();
+    }
 
     //check if still holding some unreleased lock before return to userspace
     if(mycpu()->noff!=0){
@@ -271,7 +373,6 @@ uint64 usertrap(void) { //NOTE: already in Supervisor-mode!!!!!!!!!!
 
     // the user page table to switch to, for trampoline.S
     uint64 satp = MAKE_SATP(p->pagetable);
-
     // return to trampoline.S; satp value in a0.
     return satp;
 }
@@ -307,6 +408,51 @@ void prepare_return(void) {
     x |= SSTATUS_SPIE;  // enable interrupts in user mode
     w_sstatus(x);
 
+    // check if pending signals to handle
+    if(p->pending_signals & (1uLL << SIG_MYALARM)){
+        acquire(&p->lock);
+        struct timer_payload *check_timer=p->sig_head;
+        enum TIMER_STATE cur_state;
+        while(check_timer !=NULL){
+            cur_state=check_timer->mask & TIMER_STATE_MASK;
+            if(cur_state != TIMER_PENDING && cur_state != TIMER_EXPIRED){
+                check_timer=check_timer->next;
+                continue;
+            }
+            uint64 backup_sp=p->trapframe->sp - sizeof(struct trapframe);
+            backup_sp &= ~0xf;      //aligned with 16-bytes.
+            uint64 store_handler=(uint64)check_timer->handler;
+            release(&p->lock);
+            if(copyout(p->pagetable, backup_sp, (char *)p->trapframe, 
+                    sizeof(struct trapframe))==-1){
+                pr_err("copyout fail.Unable save trapframe before return user's mode.");
+                kexit(-1);
+            }
+            acquire(&p->lock);
+            p->trapframe->epc=store_handler;   //prepare one signal each time.
+            p->trapframe->ra=TRAMPOLINE + (sig_ret - trampoline);
+            p->trapframe->sp=backup_sp;
+            check_timer->backup_sp=backup_sp;
+            //turn off interrupt, wouldn't reback into timer_intr_handler().
+            set_timer_state(check_timer, TIMER_HANDLING);
+            //Insert the handling list
+            if(p->handling_sig==NULL){
+                p->handling_sig=check_timer;
+                p->handling_sig->handling_next=NULL;
+            }
+            else{
+                check_timer->handling_next=p->handling_sig;
+                p->handling_sig=check_timer;
+            }
+            break;
+            //Optionally, pass necessary argument into a0
+            // Argument must be static, or resolved based on the info encapsulated.
+        }
+        p->pending_signals |= (1ull << SIG_MYALARM);
+        release(&p->lock);
+        //Reset pending flags while trap from SYS-sigreturn instead of current.
+    }
+
     // set S Exception Program Counter to the saved user pc.
     w_sepc(p->trapframe->epc);
     //for sret: Use the SPP in sstatus, copy SPIE into SIE, and copy sepc to pc
@@ -327,10 +473,41 @@ void kerneltrap() {
 
     if((which_dev = devintr()) != 0){
         // give up the CPU if this is a timer interrupt.
-        if(which_dev==2 && myproc()!=0)     yield();
+        if(which_dev==2){
+            timer_intr_handler();
+            if(myproc()!=0)     yield();
+        }
     }
     else{
-        if(scause == (1ull << 63 | 1))     software_intr_handler_nolock();
+        if(scause == (1ull << 63 | SIE_SSIE))
+            software_intr_handler_nolock();
+        else if(scause == 13 || scause==15){
+            //Only permit some reversed-area, which saved for continuity access.
+            uint64 stval=PGROUNDDOWN(r_stval());        //aligned first.
+            if(stval >= KRESERVED_START && stval + PGSIZE < KRESERVED_END){
+                uint64 new_page=(uint64)alloc_memory(PGSIZE, GFP_ZERO);
+                if(new_page==0){
+                    pr_err("Unable alloc physical memory for kernel reversed-area.");
+                    panic("kerneltrap.");
+                }
+                acquire(&kvm_lock);
+                if(mappages(&(struct map_context){
+                    .pagetable=kernel_pagetable,
+                    .start_va=stval,
+                    .size=PGSIZE,
+                    .pa=new_page,
+                    .pt_lock=&kvm_lock,
+                    .xperm= PTE_R | PTE_W,
+                }) !=0 ){
+                    free_pages((void *)new_page, PGSIZE);
+                    pr_err("Unable build map from %llx to corresponding "
+                            "physical resources.", stval);
+                    panic("kerneltrap.");
+                }
+                sfence_vma(0, 0);       //clear outdated tlb.
+                release(&kvm_lock);
+            }
+        }
         else{
             // interrupt or trap from an unknown source
             printf("scause=0x%llx sepc=0x%llx stval=0x%llx\n", scause, r_sepc(), r_stval());

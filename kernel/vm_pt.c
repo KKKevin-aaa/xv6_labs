@@ -12,9 +12,11 @@
 #include "file.h"
 #include "fcntl.h"
 #include "rbtree.h"
-#include "kvm.h"
+#include "slab.h"
+#include "kalloc.h"
 #include "mm.h"
 #include "vm_internal.h"
+#include "vm.h"
 #include "colors.h"
 #include "utils.h"
 
@@ -340,11 +342,10 @@ pagetable_t split_and_prune(pte_t pte, uint64 start_vpn, uint64 end_vpn, uint64 
     #ifdef DEBUG_VM
         pr_info("alloc new pagetable to replace leaf-pte\n");
     #endif
-    pagetable_t new_pagetable=(pagetable_t)alloc_memory(PGSIZE);
+    pagetable_t new_pagetable=(pagetable_t)alloc_memory(PGSIZE, GFP_ZERO);
     if(new_pagetable==0){
         panic("out-of-memory");
     }
-    memset((void *)new_pagetable, 0, PGSIZE);
     for(int i=0;i<start_vpn;i++){
         new_pagetable[i]=PA2PTE(cur_pa) | PTE_FLAGS(pte);
         cur_pa+=basic_stride;
@@ -361,7 +362,7 @@ pagetable_t split_and_prune(pte_t pte, uint64 start_vpn, uint64 end_vpn, uint64 
 // (Bus master: DMA, hardware prefetcher, GPU)
 //Return the deleted size and caller will compare with expected value.
 //The Whole process is unrecoverable.
-uint64 uvmunmap_helper(struct map_context *ctx1, struct mmu_gather *ctx2){
+uint64 vmunmap_helper(struct map_context *ctx1, struct mmu_gather *ctx2){
     //Unmap and then free physical resource(if necessary)
 #ifdef DEBUG_VM
     pr_info("va=%p size=0x%llx do_free=%d, cur_level is %d\n", (void *)va, size, do_free, cur_level);
@@ -406,8 +407,8 @@ uint64 uvmunmap_helper(struct map_context *ctx1, struct mmu_gather *ctx2){
         else if(PTE_LEAF(*pte)){
             pa=PTE2PA(*pte);
             if(is_managed_memory(pa)==0){   //Outside RAM region, maybe trampoline or trapframe
-                //It's safe as current implementation does not invoke a free operations on these area.
-                pr_warn("Uvmunmap dangerous area(outside the RAM region)\n");
+                //It's safe as current implementation doesn't invoke a free operations on these area.
+                //pr_warn("Uvmunmap dangerous area(outside the RAM region)");
                 pte[0]=0;
                 //But check the unmap size is equal to its size.
                 if(ctx1->size - del_size < basic_stride){
@@ -496,7 +497,7 @@ uint64 uvmunmap_helper(struct map_context *ctx1, struct mmu_gather *ctx2){
         }
         else{   //directory page:Split and delegate the task to the next-level page table! 
             pending=MIN(basic_stride-page_offset, ctx1->size-del_size);
-            uvmunmap_helper(&(struct map_context){
+            vmunmap_helper(&(struct map_context){
                 .pagetable=(pagetable_t)PTE2PA(*pte),
                 .start_va=ctx1->start_va,
                 .cur_level=ctx1->cur_level-1,
@@ -554,7 +555,7 @@ exit:
 }
 
 //Iterative veriosn, use less stack.
-uint64 uvmunmap_helper_iter(struct map_context *ctx1, struct mmu_gather *ctx2){
+uint64 vmunmap_helper_iter(struct map_context *ctx1, struct mmu_gather *ctx2){
     //Unmap and then free physical resource(if necessary)
 #ifdef DEBUG_VM
     pr_info("va=%p size=0x%llx do_free=%d, cur_level is %d\n", (void *)va, size, do_free, cur_level);
@@ -762,7 +763,7 @@ exit:
     return del_size;
 }
 
-uint64 Simp_uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int cur_level){
+uint64 Simp_vmunmap(pagetable_t pagetable, uint64 va, uint64 size, int cur_level){
     //Dedicated to reclaim some area outside RAM kernel pagetable
     //Out of the buddy-system control, perform simple allocate logic without "order"
     uint64 basic_stride=get_step_size(cur_level);
@@ -803,7 +804,7 @@ uint64 Simp_uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int cur_leve
         }
         else{   //directory page:Split and delegate the task to the next-level page table! 
             pending=MIN(basic_stride-page_offset, size-del_size);
-            Simp_uvmunmap((pagetable_t)PTE2PA(*pte), va, pending, cur_level-1);
+            Simp_vmunmap((pagetable_t)PTE2PA(*pte), va, pending, cur_level-1);
         }
         cur_vpn++;
         va+=pending;
@@ -813,7 +814,7 @@ uint64 Simp_uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int cur_leve
     return del_size;
 }
 
-void uvmunmap(struct map_context *ctx1){
+void vmunmap(struct map_context *ctx1){
 #ifdef DEBUG_VM
     pr_info("va=%p size=0x%llx do_free=%d\n", (void *)va, size, do_free);
 #endif
@@ -826,7 +827,7 @@ void uvmunmap(struct map_context *ctx1){
     ctx2->batch_start_va=ctx1->start_va;
     ctx2->fullmm=0;
     ctx2->root_pg=ctx1->pagetable;
-    uint64 del_size=uvmunmap_helper(ctx1, ctx2);
+    uint64 del_size=vmunmap_helper(ctx1, ctx2);
     if(del_size!=ctx1->size)
         panic("uvmunmap: cannot unmap required size!");
     mmu_gather_reclaim(ctx2);
@@ -845,7 +846,7 @@ void freewalk(pagetable_t pagetable, int do_free, int level, struct mmu_gather *
     int cur_vpn=0;
     while(cur_vpn<512){
         pte = &pagetable[cur_vpn];
-        pa = PTE2PA(*pte);    //child pagetable or physical
+        pa = PTE2PA(*pte);    //child pagetable or physical 
         if ((*pte & PTE_V) && PTE_LEAF(*pte) == 0) {
             // this PTE points to a lower-level page table.
             #ifdef DEBUG_VM

@@ -167,6 +167,24 @@ struct munmap_context{
     uint64 length;
 };
 
+enum vma_ops_type{
+    VMA_SPLIT, VMA_SHRINK, VMA_REMOVE, VMA_INSERT, VMA_EXPAND
+};
+struct munmap_ops{
+    enum vma_ops_type type;
+    vm_area_struct_t *vma;
+    union
+    {
+        struct{
+            mm_struct_t *mm;
+            uint64 addr;
+        }point;
+        struct{
+            uint64 start, end;
+        }range;
+    }target;
+};
+
 struct vm_operation_struct{
     void (*open)(vm_area_struct_t *vma);
     //.e.g. Maintain a record of count of VMAs currently in use.

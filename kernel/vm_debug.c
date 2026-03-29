@@ -12,7 +12,6 @@
 #include "file.h"
 #include "fcntl.h"
 #include "rbtree.h"
-#include "kvm.h"
 #include "mm.h"
 #include "vm_internal.h"
 #include "colors.h"
