@@ -46,7 +46,7 @@ static int tx_chan;  // &tx_chan is the "wait channel"
 extern volatile int panicking;  // from printf.c
 extern volatile int panicked;   // from printf.c
 
-void uartinit(void) {
+__init_code void uartinit(void) {
     // disable interrupts.
     WriteReg(IER, 0x00);
 

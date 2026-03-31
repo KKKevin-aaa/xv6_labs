@@ -27,7 +27,7 @@
 slab_cache_t *mmu_free_batch_listcache=NULL;
 slab_cache_t *mmu_gather_cache=NULL;
 
-void init_mmu_free_batch_cache(void){
+__init_code void init_mmu_free_batch_cache(void){
     if(mmu_free_batch_listcache==NULL){
         mmu_free_batch_listcache=create_slab_cache("mmu_free_batch_pool", 
             sizeof(struct mmu_free_batch_listnode), 8, NULL, NULL);
@@ -36,7 +36,7 @@ void init_mmu_free_batch_cache(void){
     }
 }
 
-void init_mmu_gather_cache(void){
+__init_code void init_mmu_gather_cache(void){
     if(mmu_gather_cache==NULL){
         mmu_gather_cache=create_slab_cache("mmu_free_batch_pool", 
             sizeof(struct mmu_gather), 8, NULL, NULL);
@@ -103,7 +103,7 @@ void mmu_gather_reclaim(struct mmu_gather * mg1){
 
 int ismapped(pagetable_t pagetable, uint64 va) {
     pte_t *pte = walk(pagetable, va, 0, 0);
-    if (pte == 0) {
+    if (pte == NULL) {
         return 0;
     }
     if (*pte & PTE_V) {
@@ -239,7 +239,10 @@ pte_t *walk_internal(pagetable_t pagetable, uint64 va, int alloc, int target_lev
             }
             pagetable = (pagetable_t)PTE2PA(*pte);
         } else {
-            if (!alloc || (pagetable = (pde_t *)kalloc_page()) == 0) return 0;
+            if (!alloc || (pagetable = (pde_t *)kalloc_page()) == 0){
+                pr_warn("Extermely dangerous, return NULL.");
+                return 0;
+            }
             //create a new mappaing.
             memset(pagetable, 0, PGSIZE);
             // acquire(&rmap_lock);
@@ -264,7 +267,7 @@ uint64 walkaddr(pagetable_t pagetable, uint64 va) {
     if (va >= MAXVA) return 0;
     int found_level=0;  //Consider hugeleaf
     pte = walk_internal(pagetable, va, 0, 0, &found_level);
-    if (pte == 0) return 0;
+    if (pte == NULL) return 0;
     if ((*pte & PTE_V) == 0) return 0;
     if ((*pte & PTE_U) == 0) return 0;
     pa = PTE2PA(*pte);
@@ -342,7 +345,7 @@ pagetable_t split_and_prune(pte_t pte, uint64 start_vpn, uint64 end_vpn, uint64 
     #ifdef DEBUG_VM
         pr_info("alloc new pagetable to replace leaf-pte\n");
     #endif
-    pagetable_t new_pagetable=(pagetable_t)alloc_memory(PGSIZE, GFP_ZERO);
+    pagetable_t new_pagetable=(pagetable_t)alloc_memory(PGSIZE, GFP_ZERO | GFP_NOFAIL);
     if(new_pagetable==0){
         panic("out-of-memory");
     }
@@ -377,6 +380,7 @@ uint64 vmunmap_helper(struct map_context *ctx1, struct mmu_gather *ctx2){
     pte_t *pte;
     uint64 end_vpn=cur_vpn+(start_page_offset+ctx1->size+basic_stride-1)/basic_stride;
     uint64 pa, del_size=0, pending;
+    uint64 max_phy_size, inc_vpn, commit_len;
     if(ctx2==NULL || ctx2->root_pg==NULL){
         pr_err("Invalid argument: mmu_gather.");
         return -1;
@@ -460,28 +464,21 @@ uint64 vmunmap_helper(struct map_context *ctx1, struct mmu_gather *ctx2){
                 cur_vpn++;    //across two pages, continue handling(at current level)
             }
             else{   //full Unmap(basic_stride < size-del_size)
-                uint64 max_cont_len=basic_stride, cmp_perm=PTE_FLAGS(*pte);
-                pte_t tmp_pte=0;
-                int inc_vpn=1;
-                while(cur_vpn+inc_vpn < end_vpn && max_cont_len < (ctx1->size - del_size)){
-                    tmp_pte=ctx1->pagetable[cur_vpn+inc_vpn];
-                    if((tmp_pte & PTE_V) == 0)  break;
-                    if(PTE2PA(tmp_pte) != pa + inc_vpn * basic_stride)
-                        break;
-                    if(PTE_FLAGS(tmp_pte) != cmp_perm)
-                        break;
-                    inc_vpn++;
-                    max_cont_len+=basic_stride;
-                }
+                max_phy_size=1ull << (get_order(pa) + ORDER_BASE);
+                commit_len=max_phy_size;
+                uint64 scan_len=same_scan_cont_map(ctx1->pagetable, ctx1->start_va, max_phy_size, ctx1->cur_level);
+                while(commit_len > scan_len)
+                    commit_len /= 2;
+                inc_vpn = commit_len / basic_stride;
                 for(int i=0;i<inc_vpn;i++)
-                if(cur_vpn+i<end_vpn) pte[i]=0;
+                    if(cur_vpn+i<end_vpn) pte[i]=0;
                 ctx2->data_page_batch[ctx2->data_idx].delete_pa=pa;
-                ctx2->data_page_batch[ctx2->data_idx].len=max_cont_len;
+                ctx2->data_page_batch[ctx2->data_idx].len=commit_len;
                 ctx2->data_page_batch[ctx2->data_idx++].start_va=ctx1->start_va;
-                ctx2->batch_flush_len+=max_cont_len;
+                ctx2->batch_flush_len+=commit_len;
                 if(ctx2->data_idx>=MMU_BATCH_SIZE){     //Amortization
                     tlb_shootdown_issue_nolock(ctx2->root_pg, ctx2->batch_start_va, ctx2->batch_flush_len);
-                    ctx2->batch_start_va=ctx1->start_va + max_cont_len;
+                    ctx2->batch_start_va=ctx1->start_va + commit_len;
                     ctx2->batch_flush_len=0;   //update
                     if(ctx1->do_free==1){
                         for(int i=0;i<MMU_BATCH_SIZE;i++)
@@ -490,8 +487,8 @@ uint64 vmunmap_helper(struct map_context *ctx1, struct mmu_gather *ctx2){
                     }
                     ctx2->data_idx=0;
                 }
-                del_size+=max_cont_len;
-                ctx1->start_va+=max_cont_len;
+                del_size+=commit_len;
+                ctx1->start_va+=commit_len;
                 cur_vpn+=inc_vpn;
             }
         }
@@ -582,6 +579,7 @@ uint64 vmunmap_helper_iter(struct map_context *ctx1, struct mmu_gather *ctx2){
     cur_state_array[2].end_vpn=end_vpn;
     cur_state_array[2].pagetable=cur_pg;
     uint64 pa, del_size=0, pending;
+    uint64 max_phy_size, inc_vpn, commit_len;
     //followed by a TLB flush to improve efficiency.
     int locked_by_me=0;
     if(ctx1->pt_lock!=NULL && !holding(ctx1->pt_lock)){
@@ -667,28 +665,21 @@ uint64 vmunmap_helper_iter(struct map_context *ctx1, struct mmu_gather *ctx2){
                     cur_vpn++;    //across two pages, continue handling(at current level)
                 }
                 else{   //full Unmap(basic_stride < size-del_size)
-                    uint64 max_cont_len=basic_stride, cmp_perm=PTE_FLAGS(*pte);
-                    pte_t tmp_pte=0;
-                    int inc_vpn=1;
-                    while(cur_vpn+inc_vpn < end_vpn && max_cont_len < (ctx1->size - del_size)){
-                        tmp_pte=cur_pg[cur_vpn+inc_vpn];
-                        if((tmp_pte & PTE_V) == 0)  break;
-                        if(PTE2PA(tmp_pte) != pa + inc_vpn * basic_stride)
-                            break;
-                        if(PTE_FLAGS(tmp_pte) != cmp_perm)
-                            break;
-                        inc_vpn++;
-                        max_cont_len+=basic_stride;
-                    }
+                    max_phy_size=1ull << (get_order(pa) + ORDER_BASE);
+                    commit_len=max_phy_size;
+                    uint64 scan_len=same_scan_cont_map(ctx1->pagetable, ctx1->start_va, max_phy_size, ctx1->cur_level);
+                    while(commit_len > scan_len)
+                        commit_len /= 2;
+                    inc_vpn = commit_len / basic_stride;
                     for(int i=0;i<inc_vpn;i++)
-                    if(cur_vpn+i<end_vpn) pte[i]=0;
+                        if(cur_vpn+i<end_vpn) pte[i]=0;
                     ctx2->data_page_batch[ctx2->data_idx].delete_pa=pa;
-                    ctx2->data_page_batch[ctx2->data_idx].len=max_cont_len;
+                    ctx2->data_page_batch[ctx2->data_idx].len=commit_len;
                     ctx2->data_page_batch[ctx2->data_idx++].start_va=ctx1->start_va;
-                    ctx2->batch_flush_len+=max_cont_len;
-                    if(ctx2->data_idx>=MMU_BATCH_SIZE){
+                    ctx2->batch_flush_len+=commit_len;
+                    if(ctx2->data_idx>=MMU_BATCH_SIZE){     //Amortization
                         tlb_shootdown_issue_nolock(ctx2->root_pg, ctx2->batch_start_va, ctx2->batch_flush_len);
-                        ctx2->batch_start_va=ctx1->start_va + max_cont_len;
+                        ctx2->batch_start_va=ctx1->start_va + commit_len;
                         ctx2->batch_flush_len=0;   //update
                         if(ctx1->do_free==1){
                             for(int i=0;i<MMU_BATCH_SIZE;i++)
@@ -697,8 +688,8 @@ uint64 vmunmap_helper_iter(struct map_context *ctx1, struct mmu_gather *ctx2){
                         }
                         ctx2->data_idx=0;
                     }
-                    del_size+=max_cont_len;
-                    ctx1->start_va+=max_cont_len;
+                    del_size+=commit_len;
+                    ctx1->start_va+=commit_len;
                     cur_vpn+=inc_vpn;
                 }
             }
@@ -1036,6 +1027,8 @@ void freewalk_iter(pagetable_t pagetable, int do_free, struct mmu_gather *ctx2){
 void safe_update_and_free(res_block *rblocks, pagetable_t pagetable, uint64 va, uint64 alloced_pa){
     uint64 idx=(va-rblocks[0].va)/SUPERPGSIZE;
     pte_t *old_pte=walk(pagetable, rblocks[idx].va, 0, 0);
+    if(old_pte==NULL)
+        panic("Unmapped address(0x%llx)", rblocks[idx].va);
     uint64 bp_idx=0, tmp_flags, tmp_pa, step;
     if(mmu_free_batch_listcache==NULL)
         panic("have not init corresponding pool.");

@@ -1,39 +1,122 @@
 ++echo log reset to ./logs/crash_dump.log
-log reset to ./logs/crash_dump.log+thread 4
-[Switching to thread 4 (Thread 1.4)]
-#0  __panic (file_name=0x80030bb8 "kernel/per-cpu.c", line_no=0x150, 
-    func_name=0x80030ea0 <__func__.1> "pause_signal", 
-    s=0x80030d60 "timer(%llx) bind to NO.%d CPU!(valid range: 0~%d)")
-    at kernel/printf.c:566
-+bt
-#0  __panic (file_name=0x80030bb8 "kernel/per-cpu.c", line_no=0x150, 
-    func_name=0x80030ea0 <__func__.1> "pause_signal", 
-    s=0x80030d60 "timer(%llx) bind to NO.%d CPU!(valid range: 0~%d)")
-    at kernel/printf.c:566
-#1  0x0000000080024142 in pause_signal () at kernel/per-cpu.c:336
-#2  0x0000000080016848 in sys_sigalarm () at kernel/sysproc.c:241
-#3  0x0000000080015d86 in syscall () at kernel/syscall.c:234
-#4  0x00000000800149fa in usertrap () at kernel/trap.c:304
-#5  0x0000003ffffff09c in ?? ()
-+print *curr_timer
-No symbol "curr_timer" in current context.
+log reset to ./logs/crash_dump.log+bt
+#0  acquire (lk=0x80036aa0 <kvm_lock>) at kernel/spinlock.c:41
+#1  0x000000008000482c in buddy_alloc_backend (actx=0x3fffffae20, 
+    free_fn=0x80004c2a <kvmdealloc>, map_fn=0x80009070 <mappages>)
+    at kernel/vm.c:575
+#2  0x000000008000409e in kvmalloc (Kpagetable=0x87d05000, req_sz=0x1000, 
+    xperm=0x6) at kernel/vm.c:445
+#3  0x00000000800255de in load_debug_sym_vm () at kernel/printf.c:245
+#4  0x0000000080026784 in debugsym_init () at kernel/printf.c:574
+#5  0x000000008001168c in forkret () at kernel/proc.c:861
+#6  0x00000000800115d6 in yield () at kernel/proc.c:832
+Backtrace stopped: frame did not save the PC
++next
++next
++next
++next
++next
++next
++next
++next
 +frame 1
-#1  0x0000000080024142 in pause_signal () at kernel/per-cpu.c:336
-+print *curr_timer
+#1  0x000000008000482c in buddy_alloc_backend (actx=0x3fffffae20, 
+    free_fn=0x80004c2a <kvmdealloc>, map_fn=0x80009070 <mappages>)
+    at kernel/vm.c:575
++frame 0
+#0  acquire (lk=0x80036aa0 <kvm_lock>) at kernel/spinlock.c:41
++print *lk
 $1 = {
-  interval = 0x1e8480,
-  mask = 0x3,
-  repeat_left = 0x3e6,
-  bind_cpu = 0xffffffff,
-  proc_slot = 0x4,
-  proc_pid = 0x5,
-  heap_idx = 0xffffffffffffffff,
-  handler = 0x1130,
-  backup_sp = 0x6d10,
-  prev = 0x80334f00,
-  next = 0x0,
-  handling_next = 0x0
+  locked = 0x1,
+  name = 0x8002bb78 "kvm_pagetable lock",
+  cpu = 0x801a4620 <cpus+608>
 }
-+print t_state
-$2 = TIMER_RUNNING
-+q
++info threads
+  Id   Target Id                    Frame 
+* 1    Thread 1.1 (CPU#0 [running]) acquire (lk=0x80036aa0 <kvm_lock>)
+    at kernel/spinlock.c:41
+  2    Thread 1.2 (CPU#1 [running]) 0x0000000080026e12 in acquire (
+    lk=0x80036aa0 <kvm_lock>) at kernel/spinlock.c:40
+  3    Thread 1.3 (CPU#2 [running]) 0x0000000000000000 in ?? ()
+  4    Thread 1.4 (CPU#3 [running]) acquire (lk=0x80036aa0 <kvm_lock>)
+    at kernel/spinlock.c:41
++thread 4
+[Switching to thread 4 (Thread 1.4)]
+#0  acquire (lk=0x80036aa0 <kvm_lock>) at kernel/spinlock.c:41
++bt
+#0  acquire (lk=0x80036aa0 <kvm_lock>) at kernel/spinlock.c:41
+#1  0x0000000080028506 in kvminithart () at kernel/vm.c:87
+#2  0x0000000080003592 in main () at kernel/main.c:54
++thread 3
+[Switching to thread 3 (Thread 1.3)]
+#0  0x0000000000000000 in ?? ()
+=> 0x0000000000000000:	
+Cannot access memory at address 0x0
++bt
+#0  0x0000000000000000 in ?? ()
+#1  0x0000000080028528 in kvminithart () at kernel/vm.c:90
+#2  0x0000000080003592 in main () at kernel/main.c:54
++frame 0
+#0  0x0000000000000000 in ?? ()
+=> 0x0000000000000000:	
+Cannot access memory at address 0x0
++info threads
+  Id   Target Id                    Frame 
+  1    Thread 1.1 (CPU#0 [running]) acquire (lk=0x80036aa0 <kvm_lock>)
+    at kernel/spinlock.c:41
+  2    Thread 1.2 (CPU#1 [running]) 0x0000000080026e12 in acquire (
+    lk=0x80036aa0 <kvm_lock>) at kernel/spinlock.c:40
+* 3    Thread 1.3 (CPU#2 [running]) 0x0000000000000000 in ?? ()
+  4    Thread 1.4 (CPU#3 [running]) acquire (lk=0x80036aa0 <kvm_lock>)
+    at kernel/spinlock.c:41
++frame 3
+No frame at level 3.
++thread 3
+[Switching to thread 3 (Thread 1.3)]
+#0  0x0000000000000000 in ?? ()
+=> 0x0000000000000000:	
+Cannot access memory at address 0x0
++frame 2
+#2  0x0000000080003592 in main () at kernel/main.c:54
++thread 0
+Invalid thread ID: 0
++thread 1
+[Switching to thread 1 (Thread 1.1)]
+#0  acquire (lk=0x80036aa0 <kvm_lock>) at kernel/spinlock.c:41
++bt
+#0  acquire (lk=0x80036aa0 <kvm_lock>) at kernel/spinlock.c:41
+#1  0x000000008000482c in buddy_alloc_backend (actx=0x3fffffae20, 
+    free_fn=0x80004c2a <kvmdealloc>, map_fn=0x80009070 <mappages>)
+    at kernel/vm.c:575
+#2  0x000000008000409e in kvmalloc (Kpagetable=0x87d05000, req_sz=0x1000, 
+    xperm=0x6) at kernel/vm.c:445
+#3  0x00000000800255de in load_debug_sym_vm () at kernel/printf.c:245
+#4  0x0000000080026784 in debugsym_init () at kernel/printf.c:574
+#5  0x000000008001168c in forkret () at kernel/proc.c:861
+#6  0x00000000800115d6 in yield () at kernel/proc.c:832
+Backtrace stopped: frame did not save the PC
++thread 3
+[Switching to thread 3 (Thread 1.3)]
+#0  0x0000000000000000 in ?? ()
+=> 0x0000000000000000:	
+Cannot access memory at address 0x0
++frame 2
+#2  0x0000000080003592 in main () at kernel/main.c:54
++frame 3
+No frame at level 3.
++frame 2
+#2  0x0000000080003592 in main () at kernel/main.c:54
++frame 1
+#1  0x0000000080028528 in kvminithart () at kernel/vm.c:90
+
+
+Fatal signal: Segmentation fault
+----- Backtrace -----
+Backtrace unavailable
+---------------------
+A fatal error internal to GDB has been detected, further
+debugging is not possible.  GDB will now terminate.
+
+This is a bug, please report it.  For instructions, see:
+<https://www.gnu.org/software/gdb/bugs/>.
+

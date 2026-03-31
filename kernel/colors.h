@@ -21,7 +21,8 @@
 #define pr_err(fmt, ...) \
     do{     \
         printf(ANSI_BOLD_RED "[ERROR] %s:%d: " fmt ANSI_RESET "\n", __func__, __LINE__, ##__VA_ARGS__);    \
-        panic("pr_err");    \
+        /*panic("pr_err");     */ \
+        nop_func();             \
     }while(0)
 
 

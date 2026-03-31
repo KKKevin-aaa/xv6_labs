@@ -63,6 +63,7 @@ static inline void ensure_pfn_valid(uint64 pfn){
 #define GFP_NOFAIL  0X4
 #define GFP_ZERO    0X8
 #define GFP_DMA     0X10
+#define GFP_USER    0X20
 
 #define SWAP_RETRY_THRESHOLD     4
 

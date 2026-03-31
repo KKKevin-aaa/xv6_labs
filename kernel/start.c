@@ -6,6 +6,7 @@
 
 void main();
 void timerinit();
+extern volatile int online_harts;
 
 // entry.S needs one stack per CPU.
 __attribute__((aligned(16))) char stack0[4096 * NCPU];
@@ -44,6 +45,8 @@ void start() {
     int id = r_mhartid();
     w_tp(id);
 
+    // Record currently online harts before they branch into main().
+    asm volatile("amoadd.w.aqrl x0, %1, %0" : "+A"(online_harts) : "r"(1) : "memory");
     // switch to supervisor mode and jump to main().!!!!
     asm volatile("mret");
 }

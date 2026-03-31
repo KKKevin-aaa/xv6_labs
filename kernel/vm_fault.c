@@ -51,7 +51,7 @@ uint64 vm_cowfault_handler(pagetable_t pagetable, uint64 flush_va, uint64 flush_
     }
     uint64 old_pa=PTE2PA(*pte), src_flag=PTE_FLAGS(*pte), ret_pa=0;
     if(page_get_ref_wrapper((void *)old_pa)!=1){
-        ret_pa=(uint64)alloc_memory(PGSIZE, 0);
+        ret_pa=(uint64)alloc_memory(PGSIZE, GFP_USER);
         if(ret_pa==0){
             pr_warn("COW:alloc memory fail.\n");
             return 0;
@@ -157,7 +157,7 @@ uint64 vmfault(res_block *rblocks, pagetable_t pagetable, uint64 va, uint64 scau
                 .rblocks=p->rb_array
             });
         #else
-            ret_pa = (uint64)alloc_memory(PGSIZE);
+            ret_pa = (uint64)alloc_memory(PGSIZE | GFP_USER);
             if (ret_pa == 0){
                 pr_err("alloc new page fail.\n");
                 goto release_and_ret;
@@ -260,7 +260,7 @@ int process_empty_pte(struct proc *cur_proc, uint64 basepage_va, uint64 cur_va, 
     block_size=1ull<<cur_order;
     while(len < block_size && block_size>PGSIZE)
         block_size/=2;
-    mem=alloc_memory(block_size, GFP_ZERO);
+    mem=alloc_memory(block_size, GFP_ZERO | GFP_USER);
     if(mem==0)  return -1;
     int locked_by_me=0;     //Variable on stack(Process's private stack, visable for CPUs)
     //check if belong to file-backend and initiate a batch disk read request.

@@ -6,6 +6,9 @@
 
 volatile static int started = 0;
 
+volatile int online_harts = 0;
+volatile static int init_done_harts = 0;
+
 //define in main.c(absolutely would be linked with)
 //With -finstrument_function flags,force all functions convert to non-leaf functions, 
 // save ra So that we can establish a complete calling chain
@@ -43,17 +46,27 @@ void main() {
         fileinit();          // file table
         virtio_disk_init();  // emulated hard disk
         userinit();          // first user process
+        init_utils();
 
-        __sync_synchronize();
+        asm volatile("fence rw, rw" : : : "memory");
         started = 1;
+
+        // CPU0 also consumes init text in this branch, mark itself done first.
+        asm volatile("amoadd.w.aqrl x0, %1, %0" : "+A"(init_done_harts) : "r"(1) : "memory");
+        while (init_done_harts < online_harts);
+        asm volatile("fence r, rw" : : : "memory");
+        free_initmem();
     } else {    //Application Processor(Per-CPU initialization)
         while (started == 0);
-        __sync_synchronize();
+        asm volatile("fence r, rw" : : : "memory");
         printf("hart %d starting\n", cpuid());
         kvminithart();   // turn on paging
         trapinithart();  // install kernel trap vector
         plicinithart();  // ask PLIC for device interrupts
+
+        // Mark AP init-text work completion before CPU0 reclaims init memory.
+        asm volatile("amoadd.w.aqrl x0, %1, %0" : "+A"(init_done_harts) : "r"(1) : "memory");
+        fixme: reparnt test still fail, last problem is variable used in rb_test exist severe lock problem.
     }
-    free_initmem();
     scheduler();
 }

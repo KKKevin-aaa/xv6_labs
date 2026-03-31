@@ -45,8 +45,12 @@ typedef struct map_page map_page_t;
 struct rwspinlock;
 #endif
 
+// Must initlialize explicitly in kernel.ld
+// Use PROVIDE that automatically define this symbol if used.
+#define __init_code __attribute__((section(".init.text")))
+
 // bio.c
-void            binit(void);
+__init_code void binit(void);
 struct buf*     bread(uint dev, uint blockno);
 void            brelse(struct buf* b);
 void            bwrite(struct buf* b);
@@ -54,7 +58,7 @@ void            bpin(struct buf* b);
 void            bunpin(struct buf* b);
 
 // console.c
-void            consoleinit(void);
+__init_code void consoleinit(void);
 void            consoleintr(int c);
 void            consputc(int c);
 
@@ -65,7 +69,7 @@ int             kexec(char* path, char** argv);
 struct file*    filealloc(void);
 void            fileclose(struct file* f);
 struct file*    filedup(struct file* f);
-void            fileinit(void);
+__init_code void fileinit(void);
 int             fileread(struct file* f, uint64 addr, int n);
 int             filestat(struct file* f, uint64 addr);
 int             filewrite(struct file* f, uint64 addr, int n);
@@ -77,7 +81,7 @@ int             dirlink(struct inode* dp, char* name, uint inum);
 struct inode*   dirlookup(struct inode* dp, char* name, uint* poff);
 struct inode*   ialloc(uint dev, short type);
 struct inode*   idup(struct inode* ip);
-void            iinit(void);
+__init_code void iinit(void);
 void            ilock(struct inode* ip);
 void            iput(struct inode* ip);
 void            iunlock(struct inode* ip);
@@ -93,11 +97,14 @@ void            itrunc(struct inode* ip);
 void            ireclaim(int dev);
 
 // slab.c
-void            init_slab_system(void);
+__init_code void init_slab_system(void);
 struct slab_page* slab_refill(slab_cache_t *cache);
 void*           slab_alloc(slab_cache_t *cache);
 int             slab_dealloc(void *node);
 int             slab_free(void *obj);
+uint64          slab_reclaim_empty_pages(uint64 target_pages);
+slab_cache_t    *create_slab_cache_nolock(char *name, uint16 size, 
+                                uint16 align, int (*ctor)(void *), int (*dtor)(void *));
 slab_cache_t    *create_slab_cache(char *name, uint16 size, 
                                 uint16 align, int (*ctor)(void *), int (*dtor)(void *));
 uint64          get_cache_size(uint64 basic_size);
@@ -110,7 +117,7 @@ page_t*         get_page_desc_safe(uint64 pfn);
 page_t*         get_page_desc_assert(uint64 pfn);
 void*           kalloc_page(void);
 void            kfree_page(void *pa);
-void            kinit(void);
+__init_code void kinit(void);
 uint64          page2pfn(struct page * pg);
 void            free_pages(void *pa, uint64 sz); //for huge page
 void            reclaim_and_merge(uint64 head_pfn, uint64 init_order);
@@ -142,13 +149,13 @@ int             pipewrite(struct pipe* pi, uint64 addr, int n);
 int             vsnprintf(char *buf, int size, char *fmt, va_list ap);
 int             snprintf(char *buf, int size, char *fmt, ...);
 int             dummy_printf(char *fmt, ...);
-int             printf(char* fmt, ...) __attribute__ ((format (printf, 1, 2)));
-void            __panic(const char *file, int line, const char *func, char *s, ...)  __attribute__((noreturn));
+__attribute__ ((format (printf, 1, 2))) int printf(char* fmt, ...);
+__attribute__((noreturn)) void __panic(const char *file, int line, const char *func, char *s, ...);
 //A Useful macro, get more necessary info without DEBUG-mode
 #define panic(msg, ...)    __panic(__FILE__, __LINE__, __func__, (msg), ##__VA_ARGS__)
 void            find_debug_info(uint64 pa, char *buf, uint16 buf_size);
 int             safe_load_data(uint64 pa, uint64 *val, uint64 stack_start, uint64 stack_end);
-void            printfinit(void);
+__init_code void printfinit(void);
 void            backtrace(void);
 int             load_debug_sym_vm(void);
 int             load_debug_sym(void);
@@ -167,11 +174,11 @@ int             killed(struct proc* p);
 void            setkilled(struct proc* p);
 struct cpu*     mycpu(void);
 struct proc*    myproc(void);
-void            procinit(void);
-void            scheduler(void) __attribute__((noreturn));
+__init_code void procinit(void);
+__attribute__((noreturn)) void scheduler(void);
 void            scheduleProcess(void);
 void            sleep(void* chan, struct spinlock* lk);
-void            userinit(void);
+__init_code void userinit(void);
 int             kwait(uint64 addr);
 void            wakeup(void* chan);
 void            wakeup_one(void *chan);
@@ -181,10 +188,13 @@ int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
 struct proc *   kthread_create(const char *name, void (*func)(void));
 
+//utils.c
+__attribute__((noinline)) void nop_func(void);
+__init_code void init_utils(void);
 
 // per-cpu.c
-void            init_tlb_data_cache(void);
-void            init_timer_payload_cache(void);
+__init_code void init_tlb_data_cache(void);
+__init_code void init_timer_payload_cache(void);
 void tlb_shootdown_issue(pagetable_t pgdir, uint64 va, uint64 len);
 void tlb_shootdown_issue_nolock(pagetable_t pgdir, uint64 va, uint64 len);
 int             timer_less_cmp(void *data, uint64 a, uint64 b);
@@ -193,7 +203,6 @@ void            timer_swap(void *data, uint64 a, uint64 b);
 int             add_signal(int nr_ticks, void (*handler)(void), int nr_repeat);
 int             pause_signal(void);
 uint64          kreturn(void);
-
 
 // swtch.S
 void            swtch(struct context *store_to, struct context *load_from);
@@ -205,7 +214,7 @@ void            initlock(struct spinlock* lk, char* name);
 void            release(struct spinlock* lk);
 void            push_off(void);
 void            pop_off(void);
-int             atomic_read4(int *addr);
+// int             atomic_read4(int *addr);
 void            print_held_locks(void);
 #ifdef LAB_LOCK
 void            freelock(struct spinlock* lk);
@@ -244,24 +253,25 @@ extern uint     ticks;
 void            do_flush_tlb(void * args);
 uint64          cal_flush_num(struct tlb_shootdown_req **buffer, int num, uint64 threshold);
 void            tlb_flush_handler(struct tlb_shootdown_req **buferr, int num, int global_flush);
-void            software_intr_handler(void);
+void            tlb_intr_handler(void);
 void            software_intr_handler_nolock(void);
-void            trapinit(void);
-void            trapinithart(void);
+void            software_intr_handler_locked(void);
+__init_code void trapinit(void);
+__init_code void trapinithart(void);
 extern struct spinlock tickslock;
 void            prepare_return(void);
 
 // uart.c
-void            uartinit(void);
+__init_code void uartinit(void);
 void            uartintr(void);
 void            uartwrite(char buf[], int n);
 void            uartputc_sync(int c);
 int             uartgetc(void);
 
 // vm.c
-void            init_mmu_free_batch_cache(void);
-void            init_mmu_gather_cache(void);
-void            init_kheap_node_cache(void);
+__init_code void init_mmu_free_batch_cache(void);
+__init_code void init_mmu_gather_cache(void);
+__init_code void init_kheap_node_cache(void);
 int             mappages(struct map_context *ctx1);
 pagetable_t     uvmcreate(void);
 void            uvmremove(pagetable_t pagetable);
@@ -341,10 +351,8 @@ rb_node_t*      rb_search(rb_node_t *node, vm_area_struct_t **predecessor,
                         vm_area_struct_t ** successor, const rb_root_t *root);
 void *          do_mmap(mmap_context_t *ctx1);
 int             do_munmap(munmap_context_t *ctx1);
-
-//kvm.c
-void            kvminit(void);
-void            kvminithart(void);
+__init_code void kvminit(void);
+__init_code void kvminithart(void);
 
 // plic.c
 void            plicinit(void);

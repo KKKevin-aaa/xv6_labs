@@ -15,6 +15,7 @@
 static slab_cache_t boot_cache;
 extern slab_cache_t kmalloc_caches[NR_SLAB_CACHES]; //Initialize 
 //its basic_size cannot range from MIN_SIZE TO MAX_SIZE
+static struct spinlock slab_create_lock;
 
 uint64 get_cache_size(uint64 basic_size){
     if(basic_size<(1ull<<MIN_SIZE_SHIFT))   return (1ull<<MIN_SIZE_SHIFT);
@@ -109,7 +110,7 @@ static int relink_locked(slab_page_t *slab, slab_page_t **old_list,
     return 0;
 }
 
-void init_slab_system(void){
+__init_code void init_slab_system(void){
     memset(&boot_cache, 0, sizeof(boot_cache));
     boot_cache.obj_size=sizeof(slab_cache_t);
     boot_cache.basic_size=ALIGN_UP(boot_cache.obj_size, 8);
@@ -122,7 +123,7 @@ void init_slab_system(void){
     }
     safestrcpy(boot_cache.name, "boot_cache", 32);
     initlock(&boot_cache.pool_lock, boot_cache.name);
-
+    initlock(&slab_create_lock, "slab createtion lock");
     //initialize kmalloc_caches array for fixed size allocation(Dedicate Cache)
     memset(kmalloc_caches, 0, sizeof(kmalloc_caches));
     for(int i=0;i<NR_SLAB_CACHES;i++){
@@ -146,7 +147,8 @@ struct slab_page *slab_refill(slab_cache_t *cache){  //Require lock held.
         SLAB_TRACE("Requesting allocation even when free page are available.\n");
         return NULL;
     }
-    void *new_pool_mem=alloc_memory(1ull<<(cache->page_order+ORDER_BASE), GFP_ATOMIC | GFP_ZERO);
+    void *new_pool_mem=alloc_memory(1ull<<(cache->page_order+ORDER_BASE), 
+                                    GFP_ATOMIC | GFP_ZERO | GFP_NOFAIL);
     if(new_pool_mem==NULL){
         SLAB_TRACE("slab_refill fail.\n");
         return NULL;
@@ -416,8 +418,27 @@ return_to_array:
     return 0;
 }
 
-slab_cache_t *create_slab_cache(char *name, uint16 size, uint16 align,
+uint64 slab_reclaim_empty_pages(uint64 target_pages) {
+    if (target_pages == 0) return 0;
+    uint64 reclaimed = 0;
+    for (int i = 0; i < NR_SLAB_CACHES && reclaimed < target_pages; i++) {
+        slab_cache_t *cache = &kmalloc_caches[i];
+        acquire(&cache->pool_lock);
+        while (cache->empty_list != NULL && reclaimed < target_pages) {
+            slab_page_t *tmp = cache->empty_list;
+            cache->empty_list = PFN2SLAB(tmp->next_pfn);
+            if (cache->empty_list != NULL) cache->empty_list->prev_pfn = 0;
+            free_pages((void *)SLAB2PADDR(tmp), 1ull << (cache->page_order + ORDER_BASE));
+            reclaimed += (1ull << cache->page_order);
+        }
+        release(&cache->pool_lock);
+    }
+    return reclaimed;
+}
+
+slab_cache_t *create_slab_cache_nolock(char *name ,uint16 size, uint16 align,
                                 int (*ctor)(void *), int (*dtor)(void *)){
+    //no-lock, Must be invoked in uniprocessor mode prior to scheduler initialization.
     slab_cache_t *new_slab=slab_alloc(&boot_cache);
     if(new_slab==NULL){
         SLAB_TRACE("alloc slab_cache fail.\n");
@@ -440,4 +461,12 @@ slab_cache_t *create_slab_cache(char *name, uint16 size, uint16 align,
     new_slab->ctor=ctor;
     initlock(&new_slab->pool_lock, new_slab->name);
     return new_slab;
+}
+
+slab_cache_t *create_slab_cache(char *name, uint16 size, uint16 align,
+                                int (*ctor)(void *), int (*dtor)(void *)){
+    acquire(&slab_create_lock);
+    slab_cache_t *ret=create_slab_cache_nolock(name, size, align, ctor, dtor);
+    release(&slab_create_lock);
+    return ret;
 }

@@ -12,6 +12,7 @@
 #include "fs.h"
 #include "sleeplock.h"
 #include "file.h"
+#include "utils.h"
 
 struct devsw devsw[NDEV];
 struct {
@@ -21,7 +22,7 @@ struct {
 
 char tmp_addinfo[10]="[CPU ]: ";  //for output with more kernel info.
 
-void fileinit(void) { initlock(&ftable.lock, "ftable"); }
+__init_code void fileinit(void) { initlock(&ftable.lock, "ftable"); }
 
 // Allocate a file structure.
 struct file *filealloc(void) {

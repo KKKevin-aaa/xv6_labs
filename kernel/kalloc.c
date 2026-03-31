@@ -40,6 +40,7 @@ struct {                   // Anonymous structure(Single Pattern)
     struct listhead free_area[MAX_ORDER + 1];
     uint64 nr_free;  // The number of current free pages.
     uint64 low_watermark;
+    uint64 user_reserve;
 } kmem;
 
 // Some Symbol Aliaing(use extern to prevent memory allocation)
@@ -155,7 +156,7 @@ static void dec_ref_range(page_t *p, uint64 size) {
     }
 }
 
-static void init_whole_area(uint64 end_addr, uint64 maximum_addr) {
+__init_code static void init_whole_area(uint64 end_addr, uint64 maximum_addr) {
     acquire(&kmem.lock);
     end_addr = PGROUNDUP(end_addr);
     maximum_addr = PGROUNDDOWN(maximum_addr);
@@ -184,8 +185,11 @@ static void init_whole_area(uint64 end_addr, uint64 maximum_addr) {
     for (int i = _hidden_start_pfn; i < _hidden_total_pages; i++) {
         free_pages_nolock((void *)pfn2paddr(i), PGSIZE);
     }
-    kmem.low_watermark = 20;  // 32 * PGSIZE=0X20000
     kmem.nr_free = (_hidden_total_pages - _hidden_start_pfn);
+    kmem.low_watermark = 32;  // 32 * PGSIZE=0X20000
+    // Keep a small reserve for slab and kernel-internal allocations under pressure.
+    kmem.user_reserve = kmem.low_watermark + 64;
+    if (kmem.user_reserve >= kmem.nr_free) kmem.user_reserve = kmem.low_watermark;
     release(&kmem.lock);
 }
 // Ensure the element in the list are valid(in the range[start_pfn ,total_size))
@@ -279,10 +283,12 @@ void *alloc_memory(uint64 size, int flags) {
     page_t *tmp, *high_tmp;  // higher page
     uint64 step, offset;
     if (order > MAX_ORDER) {
-        pr_warn(
-            "Required size is 0x%llx.Exceeds the maximum supported order, "
-            "leading to an allocation failure.\n",
-            size);
+        pr_warn("Required size is 0x%llx.Exceeds the maximum supported order, "
+            "leading to an allocation failure.\n", size);
+        return NULL;
+    }
+    if((flags & GFP_NOFAIL) && (flags & GFP_USER)){
+        pr_warn("user request must be failable.(Conflict flags)");
         return NULL;
     }
     acquire(&kmem.lock);
@@ -292,6 +298,13 @@ void *alloc_memory(uint64 size, int flags) {
     if (size >= 0x10 * PGSIZE)
         pr_info("0x%llx allocate a massive contingous block of memory, totaling 0x%llx",
                 (uint64)ret_addr, size);
+    // Critical Memory Threshold, intercept general purpose requests, resevered for critical task.
+    if ( (kmem.nr_free <= kmem.low_watermark / 2 && !(flags & GFP_NOFAIL)) ||
+        ((flags & GFP_USER) && kmem.nr_free < kmem.user_reserve + PGROUNDUP(size)/PGSIZE)){
+        pr_info("Allocation rejected, memory below critical threshold.");
+        release(&kmem.lock);
+        return NULL;
+    }
     if (kmem.nr_free <= kmem.low_watermark * 2)
         pr_info("Current free memory lower than watermakr.Early warning!");
     // In general cases, allocating a single is sufficient.
@@ -303,33 +316,35 @@ retry:
     }
     while (split_order <= MAX_ORDER && kmem.free_area[split_order].head == NULL) split_order++;
     if (split_order > MAX_ORDER) {
-        if(flags & GFP_ATOMIC){
-            release(&kmem.lock);
-            return NULL;
-        }
-        if (mycpu()->noff > 1) {
-            if(flags & GFP_NOFAIL)
-                panic("alloc_memory: Invalid flag combination"
-                    " - sleeping function called from invalid context");
-            printf("Holding more than one lock when occur OOM.Cannot attempt to swap.\n");
-            // dump_memory_map();
-            release(&kmem.lock);
-            return NULL;
-        }
-        // dump_memory_map();
-        kswap_woken = 1;
-        acquire(&swap_lock);  // Only the kmem_lock was held prior to this.
-        // NOTE: Make the "check for out-of-memory" and "go to sleep" into a single atomic
-        // operations.
-        wakeup((void *)swap_kthread);
         release(&kmem.lock);
-        sleep((void *)&kmem, &swap_lock);
-        // Sleep safely,ensuring all wakeup signal will definitely be blocked
-        release(&swap_lock);  // release first.
-        acquire(&kmem.lock);
-        printf("Current available space isn't enough, swap starting...\n");
-        // Now after swapping to the disk, checking if current space is enough now.
-        split_order = order;
+        return NULL;
+        // if(flags & GFP_ATOMIC){
+        //     release(&kmem.lock);
+        //     return NULL;
+        // }
+        // if (mycpu()->noff > 1) {
+        //     if(flags & GFP_NOFAIL)
+        //         panic("alloc_memory: Invalid flag combination"
+        //             " - sleeping function called from invalid context");
+        //     printf("Holding more than one lock when occur OOM.Cannot attempt to swap.\n");
+        //     // dump_memory_map();
+        //     release(&kmem.lock);
+        //     return NULL;
+        // }
+        // // dump_memory_map();
+        // kswap_woken = 1;
+        // acquire(&swap_lock);  // Only the kmem_lock was held prior to this.
+        // // NOTE: Make the "check for out-of-memory" and "go to sleep" into a single atomic
+        // // operations.
+        // wakeup((void *)swap_kthread);
+        // release(&kmem.lock);
+        // sleep((void *)&kmem, &swap_lock);
+        // // Sleep safely,ensuring all wakeup signal will definitely be blocked
+        // release(&swap_lock);  // release first.
+        // acquire(&kmem.lock);
+        // printf("Current available space isn't enough, swap starting...\n");
+        // // Now after swapping to the disk, checking if current space is enough now.
+        // split_order = order;
         goto retry;
     }
     tmp = kmem.free_area[split_order].head;  // lower page
@@ -548,27 +563,6 @@ int reclaim_orphan_pages(void *pa, uint64 size) {
     return 0;
 }
 
-void *kmalloc(uint64 size) {
-    if (size >= (1ull << MAX_SIZE_SHIFT)) return alloc_memory(size, GFP_ZERO);
-    // Must smaller than (1ull<<MAX_SIZE_SHIFT)
-    uint64 size1 = get_cache_size(size);
-    if (size1 == -1) panic("Shouldn't reach here.\n");
-    int idx = i_log2(size1) - MIN_SIZE_SHIFT;
-    if (idx >= NR_SLAB_CACHES) panic("Shouldn't reach here.\n");
-    return slab_alloc(&kmalloc_caches[idx]);
-}
-
-void kfree(void *pa, uint64 size) {
-    page_t *del_page = get_page_desc_safe(paddr2pfn((uint64)pa));
-    if (del_page == NULL) {
-        KALLOC_TRACE("try to free protected area.\n");
-        return;
-    }
-    if (page_get_type(del_page) == PG_TYPE_SLAB) slab_free(pa);
-    else
-        free_pages(pa, size);
-}
-
 // Check if the pagetable is entirely vacant()
 // So that we can reclaim this pagetable.
 int is_directory_empty(pagetable_t pagetable) {
@@ -582,7 +576,7 @@ int is_directory_empty(pagetable_t pagetable) {
     return 1;
 }
 
-void kinit() {
+__init_code void kinit() {
 #ifdef DEBUG_KALLOC
     KALLOC_TRACE("initializing memory allocator\n");
 #endif

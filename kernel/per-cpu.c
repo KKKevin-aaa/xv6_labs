@@ -27,7 +27,8 @@ extern char trampoline[], sig_ret[];
 struct cpu cpus[NCPU];
 /// @brief static pcb array
 extern struct proc proc[NPROC];
-struct mailbox req_mailbox[NCPU];
+struct mailbox req_mailbox_locked[NCPU];
+struct mailbox req_mailbox_nolock[NCPU];
 static slab_cache_t * tlb_data_cache=NULL;
 
 //Below two variables are tightly coupled.
@@ -37,13 +38,52 @@ static slab_cache_t *timer_payload_cache=NULL;
 extern struct spinlock kvm_lock;
 extern pagetable_t kernel_pagetable;
 
-void init_tlb_data_cache(void){
+//Encapsulate detailed IPI metadata for the target hart.
+//Atomic access guarantees state consistency for software interrupt dispatching.
+volatile uint32 ipi_pending_reasons[NCPU];
+volatile uint32 rcu_ack_flags[NCPU];
+struct spinlock rcu_writer_lock;
+
+//rcu's writer
+void rcu_join_and_wait(){
+    if(intr_get()==1)   pr_err("should disable interrupt.");
+    acquire(&rcu_writer_lock);  //Server for one writer.
+    int cur_cpuid=cpuid();
+    for(int i=0;i<NCPU;i++){
+        if(i==cur_cpuid)    continue;
+        rcu_ack_flags[i]=0;     //clear first.
+        asm volatile(
+            "amoor.w.aq x0, %1, %0"
+            : "+A"(ipi_pending_reasons[i])
+            : "r"(IPI_REASON_RCU)
+            : "memory"
+        );
+        asm volatile("fence w, o" : : : "memory");
+        *(volatile uint32 *)(SSWI_BASE + i * 4) =1; //exist before acked.
+    }
+    uint32 rcu_acked_local[NCPU]={0}, nr_acked=0;
+    while(nr_acked + 1< NCPU){
+        asm volatile(".word 0x0100000f" : : : "memory");
+        for(int i=0;i<NCPU;i++){
+            if(i==cur_cpuid || rcu_acked_local[i])    continue;
+            if(rcu_ack_flags[i] || cpus[i].proc==NULL){
+                nr_acked++;
+                rcu_acked_local[i]=1;
+                if(nr_acked +1 >= NCPU) break;
+            }
+        }
+    }
+    release(&rcu_writer_lock);
+}
+
+__init_code void init_tlb_data_cache(void){
     tlb_data_cache=create_slab_cache("tlb_data_pool", 
         sizeof(struct tlb_shootdown_req), 8, NULL, NULL);
     if(tlb_data_cache==NULL)
         panic("init tlb_data_cache fail.Unable to establish data transport channel.");
 }
-void init_timer_payload_cache(void){
+
+__init_code void init_timer_payload_cache(void){
     timer_payload_cache=create_slab_cache("timer_payload_pool", 
         sizeof(struct timer_payload), 8, NULL, NULL);
     if(timer_payload_cache==NULL)
@@ -89,30 +129,42 @@ void tlb_shootdown_issue(pagetable_t pgdir, uint64 va, uint64 len){
     memset(check_pos, 0, sizeof(check_pos));
     uint32 nr_send_req=0;
     int ready_quit=0;
-    struct tlb_shootdown_req * ptr_buf[NCPU];
-    memset(ptr_buf, 0, sizeof(ptr_buf));
+    struct tlb_shootdown_req *shared_data=slab_alloc(tlb_data_cache);
+    if(shared_data==NULL)   panic("OOM.");
+    shared_data->len=len;
+    shared_data->start_va=va;
+    shared_data->target_pgdir=pgdir;
     struct mailbox *cur_box=NULL;
+    struct proc *slap_p;        //resolve time-of-check time-of-use problem
     for(int i=0;i<NCPU;i++){
-        if(i==cur_cpuid || cpus[i].proc==NULL)    continue;
-        if(cpus[i].proc->pagetable==pgdir){     //Optimistic Concurrency Control(OCC)
+        if(i==cur_cpuid)    continue;
+        asm volatile(
+            "ld %0, %1\n\t"
+            "fence r, rw\n\t"
+            : "=r"(slap_p)
+            : "m"(cpus[i].proc)
+            : "memory"
+        );  //No necessity to use AMO operation(casue the transitation of cache Line)
+        // Shadow copy(no deference), rewrite as "m"(*cpus[i].proc) 
+        // while want to deep copy("new_proc=*cpus[i].proc")
+        if(slap_p==NULL)    continue;
+        if(slap_p->pagetable==pgdir){     //Optimistic Concurrency Control(OCC)
             //read the statement without lock, double validate before use.
-            cur_box=&req_mailbox[i];
+            cur_box=&req_mailbox_locked[i];
             acquire(&cur_box->lock);
             uint64 free_slot = cur_box->tail % MAX_MAIL;
             while(cur_box->reqs[free_slot].status != BOX_EMPTY){
                 release(&cur_box->lock);
                 // asm volatile("nop");
                 asm volatile(".word 0x0100000f" : : : "memory");
+                if(r_sip() & SIP_SSIP)
+                    software_intr_handler_locked();
                 acquire(&cur_box->lock);    //relock and check again
             }
             if(cur_box->reqs[free_slot].status != BOX_EMPTY)
                 panic("Memory corrupted.");
             //Send one request to one mail(A single empty slot is enough)
-            ptr_buf[i]=slab_alloc(tlb_data_cache);
-            ptr_buf[i]->len=len;
-            ptr_buf[i]->start_va=va;
-            ptr_buf[i]->target_pgdir=pgdir;
-            cur_box->reqs[free_slot].args=ptr_buf[i];
+            cur_box->reqs[free_slot].args=shared_data;
             cur_box->reqs[free_slot].func=do_flush_tlb;
             cur_box->reqs[free_slot].status=BOX_PENDING;
             check_pos[nr_send_req++]=&cur_box->reqs[free_slot].status;
@@ -125,6 +177,7 @@ void tlb_shootdown_issue(pagetable_t pgdir, uint64 va, uint64 len){
         }
     }
     if(nr_send_req==0){
+        slab_free((void *)shared_data);
         pop_off();
         return;
     }
@@ -135,7 +188,7 @@ void tlb_shootdown_issue(pagetable_t pgdir, uint64 va, uint64 len){
 
     while(ready_quit==0){
         if(r_sip() & SIP_SSIP)
-            software_intr_handler();
+            software_intr_handler_locked();
         //Polling to handle incoming remote request targeted at the local hart.
         for(int i=0;i<=nr_send_req;i++){
             if(i==nr_send_req){
@@ -148,13 +201,9 @@ void tlb_shootdown_issue(pagetable_t pgdir, uint64 va, uint64 len){
                 *check_pos[i]=BOX_EMPTY;    //release the slot.
         }
     }
-    for(int i=0;i<NCPU;i++)
-        //reclaim tlb_data and its cache struct
-        if(ptr_buf[i]!=NULL)
-            slab_free((void *)ptr_buf[i]);
+    slab_free((void *)shared_data);
     pop_off();  //Cannot assume interrupts are enabled.
 }
-
 
 void tlb_shootdown_issue_nolock(pagetable_t pgdir, uint64 va, uint64 len){
     //CAS, without lock.
@@ -162,31 +211,41 @@ void tlb_shootdown_issue_nolock(pagetable_t pgdir, uint64 va, uint64 len){
     memset(check_pos, 0, sizeof(check_pos));
     uint32 nr_send_req=0;
     int ready_quit=0;
-    struct tlb_shootdown_req * data1=slab_alloc(tlb_data_cache);
-    if(data1==NULL)
-        panic("OOM.");
-    data1->len=len;
-    data1->start_va=va;
-    data1->target_pgdir=pgdir;
+    struct tlb_shootdown_req * shared_data=slab_alloc(tlb_data_cache);
+    if(shared_data==NULL)     panic("OOM.");
+    shared_data->len=len;
+    shared_data->start_va=va;
+    shared_data->target_pgdir=pgdir;
     struct mailbox *cur_box=NULL;
+    struct proc *slap_p=NULL;
     push_off();     //Inhibit preemption to ensure hartid stability during communication.
-    int cur_cpuid=cpuid(), tail=0;
+    int cur_cpuid=cpuid(), new_tail=0, free_slot;
     for(int i=0;i<NCPU;i++){
-        if(i==cur_cpuid || cpus[i].proc==NULL)    continue;
+        if(i==cur_cpuid)    continue;
         //Bypass the local hart and any harts without an active process context.
-        if(cpus[i].proc->pagetable==pgdir){
-            cur_box=&req_mailbox[i];
-            tail=atomic_add_and_ret((void *)&cur_box->tail, 1);
-            tail %= MAX_MAIL;
-            while(cur_box->reqs[tail].status != BOX_EMPTY){     //spin-wait
+        asm volatile(
+            "ld %0, %1\n\t"
+            "fence r, rw\n\t"
+            : "=r"(slap_p)
+            : "m"(cpus[i].proc)
+            : "memory"
+        );
+        if(slap_p==NULL)      continue;
+        if(slap_p->pagetable==pgdir){
+            cur_box=&req_mailbox_nolock[i];
+            new_tail=atomic_add_and_ret((void *)&cur_box->tail, 1);
+            free_slot = (new_tail -1 ) % MAX_MAIL;
+            while(cur_box->reqs[free_slot].status != BOX_EMPTY){     //spin-wait
                 asm volatile(".word 0x0100000f" : : : "memory");
+                if(r_sip() & SIP_SSIP)
+                    software_intr_handler_nolock();
             }
-            cur_box->reqs[tail].status=BOX_CLAIMED;
-            cur_box->reqs[tail].args=data1;
-            cur_box->reqs[tail].func=do_flush_tlb;
-            check_pos[nr_send_req++]=&cur_box->reqs[tail].status;
+            cur_box->reqs[free_slot].status=BOX_CLAIMED;
+            cur_box->reqs[free_slot].args=shared_data;
+            cur_box->reqs[free_slot].func=do_flush_tlb;
+            check_pos[nr_send_req++]=&cur_box->reqs[free_slot].status;
             asm volatile("fence rw, w" : : : "memory");
-            cur_box->reqs[tail].status=BOX_PENDING;
+            cur_box->reqs[free_slot].status=BOX_PENDING;
             // trigger other hart's software interrupt
             asm volatile("fence w, o" : : : "memory");
             //(make sure finish general memory writing before write to IO-device)
@@ -194,7 +253,7 @@ void tlb_shootdown_issue_nolock(pagetable_t pgdir, uint64 va, uint64 len){
         }
     }
     if(nr_send_req==0){
-        slab_free((void *)data1);
+        slab_free((void *)shared_data);
         pop_off();
         return;
     }
@@ -218,7 +277,7 @@ void tlb_shootdown_issue_nolock(pagetable_t pgdir, uint64 va, uint64 len){
                 *check_pos[i]=BOX_EMPTY;
         }
     }
-    slab_free((void *)data1);
+    slab_free((void *)shared_data);
     pop_off();
 }
 

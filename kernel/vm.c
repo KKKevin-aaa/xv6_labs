@@ -42,9 +42,6 @@ pagetable_t kernel_pagetable;
 // Two method to solve it: & ,or  using array name deacy into address automatically.
 extern char etext[];  // kernel.ld sets this to end of kernel code.
 
-// Must initlialize explicitly in kernel.ld
-// Use PROVIDE that automatically define this symbol if used.
-#define __init_code __attribute__((section(".init.text")))
 extern char _init_start;  // kernel.ld sets this to start of init.text. region
 extern char _init_end; 
 
@@ -63,7 +60,7 @@ static inline uint8 in_kernel_heap(uint64 va){
 // add a mapping to the kernel page table.
 // only used when booting.
 // does not flush TLB or enable paging.
-void __init_code kvmmap_boot_only(struct map_context *ctx) {
+__init_code void kvmmap_boot_only(struct map_context *ctx) {
     //Only this function can bypass the mappage kernel range limit
     // !!!!DON'T USE when not initialize kernel.
 #ifdef DEBUG_KVM
@@ -78,7 +75,7 @@ void __init_code kvmmap_boot_only(struct map_context *ctx) {
 
 // Switch the current CPU's h/w page table register to
 // the kernel's page table, and enable paging.
-void kvminithart() {
+__init_code void kvminithart() {
 #ifdef DEBUG_KVM
     KVM_TRACE("void\n");
 #endif
@@ -96,7 +93,7 @@ void kvminithart() {
     release(&kvm_lock);
 }
 
-void free_initmem(){
+void free_initmem(){        //NOTE: Discard one-time boot routines. 
     uint64 start=(uint64)&_init_start;
     uint64 end=(uint64)&_init_end;
     if((start & (PGSIZE-1)) || (end & (PGSIZE-1))){//check aligned
@@ -117,7 +114,7 @@ void free_initmem(){
 
 // Make a direct-map page table for the kernel.
 // Record the relavant info into global_mm
-pagetable_t kvmmake(void) {
+__init_code pagetable_t kvmmake(void) {
     //map kernel data and the physical RAM we'll use of.
     //NOTE: This create a direct mapping(Identity Map) for all physical RAM.When we later allocate pages
     //for Kernel_Heap, those page will be mapped again at a high virtual address.This create an
@@ -224,7 +221,7 @@ pagetable_t kvmmake(void) {
 // Initialize the kernel_pagetable, shared by all CPUs.
 // This function will be called by bootstraping,process has not yet been 
 // associated with the concept of a CPU, so myproc() will raise fault. 
-void __init_code kvminit(void) { 
+__init_code void kvminit(void) { 
 #ifdef DEBUG_KVM
     KVM_TRACE("void\n");
 #endif
@@ -321,8 +318,7 @@ uint64 uvmalloc(struct alloc_context * actx){
     return actx->seg_end;
 }
 
-void init_kheap_node_cache(){
-    if(kheap_node_cache!=NULL)  panic("reinitialize kernel heap_node cache");
+__init_code void init_kheap_node_cache(){
     kheap_node_cache=create_slab_cache("kheap_node_pool",
         sizeof(struct kheap_node), 8, NULL, NULL);
     if(kheap_node_cache==NULL)
@@ -511,13 +507,14 @@ int buddy_alloc_backend(struct alloc_context *actx, uint64(*free_fn)(struct allo
                 actx->seg_start, alloc_size);
             for(int i=0;i<req_cnt;i++)
                 free_pages((void *)map_request[i].pa, map_request[i].size);
-            free_fn(&(struct alloc_context){
-                .pagetable=actx->pagetable,
-                .pt_lock=actx->pt_lock,
-                .seg_start=actx->seg_start,
-                .seg_end=cur_va,
-                .do_free=1
-            });
+            if(actx->seg_start < cur_va)
+                free_fn(&(struct alloc_context){
+                    .pagetable=actx->pagetable,
+                    .pt_lock=actx->pt_lock,
+                    .seg_start=actx->seg_start,
+                    .seg_end=cur_va,
+                    .do_free=1
+                });
             goto error_quit;
         }
         memset(mem, 0, alloc_size);

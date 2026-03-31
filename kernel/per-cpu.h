@@ -45,6 +45,12 @@ struct mailbox{
 }__attribute__((aligned(64)));
 _Static_assert(sizeof(struct mailbox) % 64==0, "Unaligned to 64");
 
+#define IPI_REASON_TLB  (1 << 0)
+#define IPI_REASON_RCU  (1 << 1)
+#define IPI_REASON_SCHED    (1 << 2)
+
+
+
 // #define TIMER_RUNNING   (1ull << 1)
 // #define TIMER_PENDING   (1ULL << 2)
 // #define TIMER_EXPIRED   (1ULL << 3)

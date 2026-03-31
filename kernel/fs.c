@@ -20,6 +20,7 @@
 #include "fs.h"
 #include "buf.h"
 #include "file.h"
+#include "utils.h"
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 // there should be one superblock per disk device, but we run with
@@ -168,7 +169,7 @@ struct {
     struct inode inode[NINODE];
 } itable;
 
-void iinit() {
+__init_code void iinit() {
     int i = 0;
 
     initlock(&itable.lock, "itable");

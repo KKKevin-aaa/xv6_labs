@@ -25,12 +25,13 @@
     do { \
     } while (0)
 #endif
-#define MAX_TEST_NODE 800
-#define PER_MAX_DEPTH   64  //limit the depth of tree as 64
+#define MAX_TEST_NODE 50
+#define PER_MAX_DEPTH   32  //limit the depth of tree as 64
 #define NR_BITMAP   4
 static vm_area_struct_t *check_bts_prop[MAX_TEST_NODE];
 static rb_node_t *path_stack[PER_MAX_DEPTH*NR_BITMAP];
 static uint64 filter_array[NR_BITMAP];
+struct spinlock rbtree_debug_lock;
 void dummy_force_save_ra(void){
     asm volatile("nop");    //Solely to prevent being optimized away.
 }
@@ -73,7 +74,7 @@ void Cycle_detection(rb_root_t *root){
     if(root==NULL)
         panic("Invalid root.\n");
     if(root->rb_parent==NULL){
-        RBTREE_TRACE("empty tree.There is no eed to perform cycle detection\n");
+        RBTREE_TRACE("empty tree.There is no need to perform cycle detection\n");
         return;
     }
     memset(path_stack, 0, sizeof(path_stack));
@@ -88,29 +89,18 @@ static int mid_order_trav(rb_node_t *node, int *index, vm_area_struct_t **array)
         panic("Beyond the predefined maixmum capacity.\n");
     }
     if(node==0) return 0;
-    if(node->rb_left==NULL && node->rb_right==NULL){
-        array[(*index)++]=rb_entry(node, vm_area_struct_t, vm_rb_node);
-        if(rb_color(node)==RB_RED)  return 0;
-        else    return 1;
-    }
     int left_height __attribute__((unused))=0;
     int right_height __attribute__((unused))=0;
     if(node->rb_left!=NULL){
         if(rb_color(node)==RB_RED && rb_color(node->rb_left)==RB_RED)
             panic("double red.\n");
-        if(rb_color(node)==RB_RED)
-            left_height=mid_order_trav(node->rb_left, index, array);
-        else
-            left_height=mid_order_trav(node->rb_left, index, array);
+        left_height=mid_order_trav(node->rb_left, index, array);
     }
     array[(*index)++]=rb_entry(node, vm_area_struct_t, vm_rb_node);
     if(node->rb_right!=NULL){
         if(rb_color(node)==RB_RED && rb_color(node->rb_right)==RB_RED)
             panic("double red.\n");
-        if(rb_color(node)==RB_RED)
-            right_height=mid_order_trav(node->rb_right, index, array);
-        else
-            right_height=mid_order_trav(node->rb_right, index, array);
+        right_height=mid_order_trav(node->rb_right, index, array);
     }
     if(left_height!=right_height)
         panic("children height dismatch.\n");
@@ -143,8 +133,10 @@ void check_rbtree_integrity(rb_root_t *root){
         panic("root must be black.\n");
     memset(check_bts_prop, 0, MAX_TEST_NODE);
     int idx=0;
+    acquire(&rbtree_debug_lock);
     mid_order_trav(root->rb_parent, &idx, check_bts_prop);
     check_order(check_bts_prop, idx);
+    release(&rbtree_debug_lock);
 }
 
 
@@ -244,6 +236,7 @@ void rb_insert_color(rb_node_t *node, rb_root_t *root){
         }
     }
     rb_set_color(root->rb_parent, RB_BLACK);
+    // Conditional complie, require huge space to check.
     check_rbtree_integrity(root);
 }
 /*

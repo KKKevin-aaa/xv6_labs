@@ -16,6 +16,7 @@
 #include "slab.h"
 #include "kalloc.h"
 #include "vm.h"
+#include "utils.h"
 #include "colors.h"
 
 volatile int panicking = 0;  // printing a panic message
@@ -358,7 +359,7 @@ int load_debug_sym(){
         alloc_str_len=1ull<<(msb+1);    //Align up
     }
     void *mem0=NULL;
-    mem0=(char *)alloc_memory(alloc_str_len, GFP_ZERO);
+    mem0=(char *)alloc_memory(alloc_str_len, GFP_ZERO | GFP_NOFAIL);
     if(mem0==NULL){
         printf("Kernel: OOM!\n");
         goto cleanup;
@@ -376,7 +377,7 @@ int load_debug_sym(){
         uint32 msb=i_log2(alloc_data_len);
         alloc_data_len=1ull<<(msb+1);
     }
-    void *mem1=alloc_memory(alloc_data_len, GFP_ZERO);
+    void *mem1=alloc_memory(alloc_data_len, GFP_ZERO | GFP_NOFAIL);
     if(mem1==NULL){
         free_pages(mem0, alloc_str_len);
         printf("Kernel: OOM!\n");
@@ -566,7 +567,7 @@ void __panic(const char *file_name, int line_no, const char * func_name, char *s
     for (;;);
 }
 
-void printfinit(void) { initlock(&pr.lock, "pr"); }
+__init_code void printfinit(void) { initlock(&pr.lock, "pr"); }
 
 void debugsym_init(void){
     initsleeplock(&kernel_addr_map.load_lock, "debug sym sleeplock");

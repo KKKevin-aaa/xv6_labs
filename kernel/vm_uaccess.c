@@ -44,7 +44,11 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
         if(basepage_va>=MAXVA)      TRACKED_GOTO(error);
         int found_level=0;  //Consider hugeleaf
         pte = walk_internal(pagetable, basepage_va, 0, 0, &found_level);
-        if(*pte==0){
+        if(pte==NULL){
+            pr_warn("Illegal user address, Unmapped area.");
+            TRACKED_GOTO(error);
+        }
+        else if(*pte==0){
             if(cur_proc->mm==NULL){
                 pr_warn("lack necessary mm_struct, can't get more info about this uncontroled region.");
                 TRACKED_GOTO(error);
@@ -55,11 +59,11 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
             }
             vm_area_struct_t *cur_vma=find_contain_vma(cur_proc->mm, cur_va);
             if(cur_vma==NULL){
-                pr_err("%llx isn't recorded at current mm_struct.", cur_va);
+                pr_warn("%llx isn't recorded at current mm_struct.", cur_va);
                 TRACKED_GOTO(error);
             }
             else if((cur_vma->vm_page_prot & PTE_W)==0){
-                pr_err("Corrputed file, unable to continue.");
+                pr_warn("Corrputed file, unable to continue.");
                 TRACKED_GOTO(error);
             }
             else if(cur_vma->vm_file==NULL)
@@ -79,11 +83,11 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
             valid_len=MIN(empty_pte_len, valid_len);
             while(block_size > valid_len && block_size>PGSIZE)
                 block_size/=2;
-            mem=alloc_memory(block_size, GFP_ZERO);
+            mem=alloc_memory(block_size, GFP_ZERO | GFP_USER);
             if(mem==0)  TRACKED_GOTO(error);
             //check if belong to file-backend and initiate a batch disk read request.
             if(cur_vma->vm_file!=NULL && vmfile_load(cur_vma, basepage_va, (uint64)mem, block_size)!=0){
-                pr_err("Corrputed file, unable to continue.");
+                pr_warn("Corrputed file, unable to continue.");
                 free_pages(mem, block_size);
                 TRACKED_GOTO(error);
             }
@@ -123,7 +127,7 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
             }
             vm_area_struct_t *cur_vma=find_contain_vma(cur_proc->mm, cur_va);
             if(cur_vma==NULL){
-                pr_err("%llx isn't recorded at current mm_struct.", cur_va);
+                pr_warn("%llx isn't recorded at current mm_struct.", cur_va);
                 TRACKED_GOTO(error);
             }
             if((*pte & PTE_COW) && (cur_vma->vm_flags & VM_WRITE) && (*pte & PTE_W)==0){
@@ -132,7 +136,7 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
                 if(cur_pa==0)   TRACKED_GOTO(error);
             }
             else{
-                pr_err("%llx exist valid pte, but it's not writable.", cur_va);
+                pr_warn("%llx exist valid pte, but it's not writable.", cur_va);
                 TRACKED_GOTO(error);
             }
             //COW.
@@ -160,8 +164,7 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) {
     //Must call the TLB flush before reback to user's process,
     return 0;
 error:
-    pr_err("Jump from No.%d", goto_source_line);
-    panic("1");
+    pr_warn("Jump from No.%d", goto_source_line);
     if(locked_by_me==1){
         releasesleep(&cur_proc->mm->mm_lock);
         locked_by_me=0;
@@ -189,7 +192,11 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
         if(basepage_va>=MAXVA)      TRACKED_GOTO(error);
         int found_level=0;  //Consider hugeleaf
         pte = walk_internal(pagetable, basepage_va, 0, 0, &found_level);
-        if(*pte==0){
+        if(pte==NULL){
+            pr_warn("Illegal user address, Unmapped area.");
+            TRACKED_GOTO(error);
+        }
+        else if(*pte==0){
             //check if belong to file-backend and initiate a batch disk read request.
             if(cur_proc->mm==NULL){
                 pr_warn("lack necessary mm_struct, can't get more info about this uncontroled region.");
@@ -201,11 +208,11 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
             }
             vm_area_struct_t *cur_vma=find_contain_vma(cur_proc->mm, cur_va);
             if(cur_vma==NULL){
-                pr_err("%llx isn't record at current mm_struct.", cur_va);
+                pr_warn("%llx isn't record at current mm_struct.", cur_va);
                 TRACKED_GOTO(error);
             }
             else if((cur_vma->vm_page_prot & PTE_R)==0){
-                pr_err("%llx isn't readable.", cur_va);
+                pr_warn("%llx isn't readable.", cur_va);
                 TRACKED_GOTO(error);
             }
             else if(cur_vma->vm_file==NULL)
@@ -218,11 +225,11 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
             while(len < block_size && block_size>PGSIZE)
                 block_size/=2;  //Before enter block is power of 2 already, divide 2 simply.
             // VM_TRACE("copyin needs alloc for basepage_va=0x%llx size=0x%llx\n", basepage_va, alloc_size);
-            mem=alloc_memory(block_size, GFP_ZERO);
+            mem=alloc_memory(block_size, GFP_ZERO | GFP_USER);
             if(mem==0)  TRACKED_GOTO(error);
             //check if belong to file-backend and initiate a batch disk read request.
             if(cur_vma->vm_file!=NULL && vmfile_load(cur_vma, basepage_va, (uint64)mem, block_size)!=0){
-                pr_err("Corrputed file, unable to continue.");
+                pr_warn("Corrputed file, unable to continue.");
                 free_pages(mem, block_size);
                 TRACKED_GOTO(error);
             }
@@ -269,7 +276,7 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len) {
     }
     return 0;
 error:
-    pr_err("Jump from No.%d", goto_source_line);
+    pr_warn("Jump from No.%d", goto_source_line);
     if(locked_by_me==1){
         releasesleep(&cur_proc->mm->mm_lock);
         locked_by_me=0;
@@ -293,7 +300,11 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max) {
         if(basepage_va>=MAXVA)      TRACKED_GOTO(error);
         int found_level=0;  //Consider hugeleaf
         pte = walk_internal(pagetable, basepage_va, 0, 0, &found_level);
-        if(*pte==0){
+        if(pte==NULL){
+            pr_warn("Illegal user address, Unmapped area.");
+            TRACKED_GOTO(error);
+        }
+        else if(*pte==0){
             //check if belong to file-backend and initiate a batch disk read request.
             if(cur_proc->mm==NULL){
                 pr_warn("lack necessary mm_struct, can't get more info about uncontroled region.");
@@ -306,7 +317,7 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max) {
             vm_area_struct_t *cur_vma=find_contain_vma(cur_proc->mm, srcva);
             if(cur_vma==NULL)       TRACKED_GOTO(error);
             if(!(cur_vma->vm_page_prot & PTE_R)){
-                pr_err("Invalid page prot, while trying to write to %llx", srcva);
+                pr_warn("Invalid page prot, while trying to write to %llx", srcva);
                 TRACKED_GOTO(error);
             }
             else if(cur_vma->vm_file==NULL)
@@ -320,11 +331,11 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max) {
             while(max < block_size && block_size>PGSIZE)
                 block_size/=2;
             // VM_TRACE("copyin needs alloc for basepage_va=0x%llx size=0x%llx\n", basepage_va, alloc_size);
-            mem=(uint64)alloc_memory(block_size, GFP_ZERO);
+            mem=(uint64)alloc_memory(block_size, GFP_ZERO | GFP_USER);
             if(mem==0)  TRACKED_GOTO(error);
             if(cur_vma->vm_file!=NULL && vmfile_load(cur_vma, basepage_va, mem, block_size)!=0){
                 //handle the file-backend seperately.
-                pr_err("Corrputed file, unable to continue.");
+                pr_warn("Corrputed file, unable to continue.");
                 free_pages((void *)mem, block_size);
                 TRACKED_GOTO(error);
             }
@@ -356,7 +367,7 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max) {
             if(found_level!=0)  cur_pa+=(basepage_va % get_step_size(found_level));
             block_size=cross_scan_cont_map(pagetable, basepage_va, (uint64)-1);
         }
-        if(pte==0 || (*pte & PTE_R)==0) TRACKED_GOTO(error);
+        if(pte==NULL || (*pte & PTE_R)==0) TRACKED_GOTO(error);
         copy_size=block_size-(srcva-basepage_va);
         if(copy_size>max)   copy_size=max;  
         //modified the size according to the actual amount successfully copied!
@@ -381,7 +392,7 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max) {
     }
     if (got_null)   return 0;
 error:
-    pr_err("Jump from No.%d", goto_source_line);
+    pr_warn("Jump from No.%d", goto_source_line);
     if(locked_by_me==1){
         releasesleep(&cur_proc->mm->mm_lock);
         locked_by_me=0;

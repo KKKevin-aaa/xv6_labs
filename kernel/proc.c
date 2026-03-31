@@ -68,7 +68,7 @@ void proc_mapstacks(pagetable_t kpgtbl) {
 }
 
 // initialize the proc table.
-void procinit(void) {
+__init_code void procinit(void) {
     struct proc *p;
 
     initlock(&pid_lock, "nextpid");
@@ -158,6 +158,9 @@ found:
         release(&p->lock);
         return 0;
     }
+    char lock_name[32]="proc's uvm lock";
+    snprintf(lock_name, 32, "proc's uvm_lock(pid=%d)", p->pid);
+    initlock(&p->uvm_lock, lock_name);
     // Build the relationship between mm_struct and pagetable
     p->mm->pagetable=p->pagetable;  //An empty pagetable.
 
@@ -301,7 +304,7 @@ void proc_freepagetable(struct spinlock *pt_lock, pagetable_t pagetable) {
 }
 
 // Set up first user process.
-void userinit(void) {
+__init_code void userinit(void) {
     struct proc *p;
 
     p = allocproc();
@@ -421,9 +424,9 @@ int growproc(int n) {       //Ensure enter this function holding two locks(uvmlo
             .seg_end=heap_end + n,
             .xperm=cur_proc->mm->heap_vma->vm_page_prot
         }))==0){
-            pr_err("Uvmalloc fail.");
+            pr_warn("Uvmalloc fail.");
             if(shrink_vma(cur_proc->mm->heap_vma, 
-                cur_proc->mm->heap_vma->vm_start, heap_end)==-1)
+                cur_proc->mm->heap_vma->vm_start, cur_proc->mm->heap_vma->vm_end)==-1)
                 panic("Unhandled error while reseting vma.");
             return -1;
         }
@@ -710,8 +713,8 @@ int kwait(uint64 addr) {
                     // Found one.
                     pid = tmp_p->pid;
                     acquire(&p->uvm_lock);      //for copyout;
-                    if (addr != 0 &&
-                        copyout(p->pagetable, addr, (char *)&tmp_p->xstate, sizeof(tmp_p->xstate)) < 0) {
+                    if (addr != 0 && copyout(p->pagetable, addr, (char *)&tmp_p->xstate, 
+                                                sizeof(tmp_p->xstate)) < 0) {
                         release(&p->uvm_lock);
                         release(&tmp_p->lock);
                         release(&wait_lock);

@@ -20,8 +20,10 @@ uint ticks;
 
 // NOTE: some Per-CPU variable
 //IPI relevant variables
-extern struct mailbox req_mailbox[NCPU];
-
+extern struct mailbox req_mailbox_locked[NCPU];
+extern struct mailbox req_mailbox_nolock[NCPU];
+extern volatile uint32 rcu_ack_flags[NCPU];
+extern volatile uint32 ipi_pending_reasons[NCPU];
 //Sigalarm relevant variables
 extern struct timer_root pcpu_timers[NCPU];
 
@@ -41,7 +43,7 @@ void kernelvec();
 
 extern int devintr();
 
-void trapinit(void) { initlock(&tickslock, "time"); }
+__init_code void trapinit(void) { initlock(&tickslock, "time"); }
 
 // set up to take exceptions and traps while in the kernel.
 void trapinithart(void) { w_stvec((uint64)kernelvec); }
@@ -98,25 +100,32 @@ void tlb_flush_handler(struct tlb_shootdown_req **buffer, int num, int global_fl
     else    sfence_vma(0, 0);
 }
 
-void software_intr_handler(){
+void tlb_intr_handler(){
     //Interrupt(Unpreditable, caused by external hardware)
-    acquire(&req_mailbox[cpuid()].lock);
-    struct mailbox *cur_mailbox=&req_mailbox[cpuid()];
+    acquire(&req_mailbox_locked[cpuid()].lock);
+    struct mailbox *cur_mailbox=&req_mailbox_locked[cpuid()];
     //NOTE: for aggregate type, use {} to initialize instead "=" directly.
     struct tlb_shootdown_req *batched_tlb_req[NCPU]={NULL};
     int tlb_req_idx=0;
     uint64 accu_npages=0, tlb_thresh=64, cur_idx=cur_mailbox->head;
     int batch_slots[NCPU]={0};
+    struct proc *p=myproc();
+    pagetable_t cur_pg=(p == NULL) ? NULL : p->pagetable;
     if(unlikely(cur_mailbox->tail < cur_mailbox->head))
         panic("Wrapped, slot index has exhausted!");
     for(;cur_idx!=cur_mailbox->tail;cur_idx++){
         if(cur_mailbox->reqs[cur_idx % MAX_MAIL].status==BOX_CLAIMED)
             panic("Unsupported now.");  //FIXME: 
         else if(cur_mailbox->reqs[cur_idx % MAX_MAIL].status!=BOX_PENDING)
-            continue;
+            panic("Lock-based queue state machine corrupted.");
         if(cur_mailbox->reqs[cur_idx % MAX_MAIL].func==do_flush_tlb){    //request batching
             //extract valid element and concatenate valid data element.
-            struct tlb_shootdown_req *tlb_req=(struct tlb_shootdown_req *)cur_mailbox->reqs[cur_idx % MAX_MAIL].args;
+            struct tlb_shootdown_req *tlb_req=
+                (struct tlb_shootdown_req *)cur_mailbox->reqs[cur_idx % MAX_MAIL].args;
+            if(tlb_req->target_pgdir!=cur_pg){
+                cur_mailbox->reqs[cur_idx % MAX_MAIL].status=BOX_DONE;
+                continue;
+            }
             batched_tlb_req[tlb_req_idx]=tlb_req;
             batch_slots[tlb_req_idx++]=cur_idx;
         }
@@ -136,23 +145,21 @@ void software_intr_handler(){
             cur_mailbox->reqs[batch_slots[i] % MAX_MAIL].status=BOX_DONE;
         }
     }
-    //Clear the SSIP(Supervisor Software Interrupt Pending) bit to acknowledge
-    //the interrupt and prevent re-triggerring(Infinite loops)
-    asm volatile("csrc sip, %0" : : "r"(SIP_SSIP));
-    //CSR read and clear bits(read first, then &= ~mask, write back)
 
     cur_mailbox->head=cur_idx;    // Index adjustment.
     release(&cur_mailbox->lock);
 }
 
-void software_intr_handler_nolock(){
+void tlb_intr_handler_nolock(){
     push_off();
     int cur_cpuid=cpuid();
-    struct mailbox *cur_mailbox=&req_mailbox[cur_cpuid];
+    struct mailbox *cur_mailbox=&req_mailbox_nolock[cur_cpuid];
     struct tlb_shootdown_req *batched_tlb_req[NCPU]={NULL};
     int tlb_req_idx=0;
     uint64 cur_tail=*(volatile uint64 *)&cur_mailbox->tail;
     uint64 accu_npages=0, tlb_thresh=64, cur_idx=cur_mailbox->head;
+    struct proc *p=myproc();
+    pagetable_t cur_pg=(p ==NULL) ? NULL : p->pagetable;
     int batch_slots[NCPU]={0};
     if(unlikely(cur_tail < cur_mailbox->head))
         panic("Wrapped, slot index has exhausted!");
@@ -164,7 +171,12 @@ void software_intr_handler_nolock(){
         asm volatile("fence r, rw" : : : "memory");
         if(cur_mailbox->reqs[cur_idx % MAX_MAIL].func==do_flush_tlb){    //request batching
             //extract valid element and concatenate valid data element.
-            struct tlb_shootdown_req *tlb_req=(struct tlb_shootdown_req *)cur_mailbox->reqs[cur_idx % MAX_MAIL].args;
+            struct tlb_shootdown_req *tlb_req=
+                (struct tlb_shootdown_req *)cur_mailbox->reqs[cur_idx % MAX_MAIL].args;
+            if(tlb_req->target_pgdir !=cur_pg){
+                cur_mailbox->reqs[cur_idx % MAX_MAIL].status=BOX_DONE;
+                continue;       //Got the outdated info, false wakeup.
+            }
             batched_tlb_req[tlb_req_idx]=tlb_req;
             //Acknowledge completion to the initiator by resetting the request status.
             batch_slots[tlb_req_idx++]=cur_idx;
@@ -185,11 +197,6 @@ void software_intr_handler_nolock(){
             cur_mailbox->reqs[batch_slots[i] % MAX_MAIL].status=BOX_DONE;
         }
     }
-
-    //Clear the SSIP(Supervisor Software Interrupt Pending) bit to acknowledge
-    //the interrupt and prevent re-triggerring(Infinite loops)
-    asm volatile("csrc sip, %0" : : "r"(SIP_SSIP));
-    //CSR read and clear bits(read first, then &= ~mask, write back)
 
     cur_mailbox->head=cur_idx;    // Index adjustment.
     pop_off();
@@ -274,6 +281,62 @@ void timer_intr_handler(void){
     release(&pcpu_timers[cur_id].lock);
 }
 
+void software_intr_handler_locked(void){
+    uint32 pending_reason, clear_val=0;
+    //Clear the SSIP(Supervisor Software Interrupt Pending) bit,ready for next intr.
+    asm volatile("csrc sip, %0" : : "r"(SIP_SSIP) : "memory");
+    //CSR read and clear bits(read first, then &= ~mask, write back)
+
+    // have turned off interrupt, safe to access cpuid.
+    // Spurious interrupt: the IPI payload was already consumed by a previous 
+    // handler, but the physical signal arrived with latency.
+    asm volatile(
+        "amoswap.w.aqrl %0, %2, %1"
+        : "=&r"(pending_reason), "+A"(ipi_pending_reasons[cpuid()])
+        : "r"(clear_val)
+        : "memory"
+    );
+    //another method:
+    //__atomic_exchange_n(&rcu_ack_flags[cpuid()], clear_val, __ATOMIC_SEQ_CST);
+    if(pending_reason & IPI_REASON_TLB)    tlb_intr_handler();
+    if(pending_reason & IPI_REASON_RCU)
+        asm volatile(
+            "fence rw, w \n\t"
+            "sw %1, %0  \n\t"
+            : "=m"(rcu_ack_flags[cpuid()])
+            : "r"(1)
+            : "memory"
+        );
+}
+
+void software_intr_handler_nolock(void){
+    uint32 pending_reason, clear_val=0;
+    //Clear the SSIP(Supervisor Software Interrupt Pending) bit,ready for next intr.
+    asm volatile("csrc sip, %0" : : "r"(SIP_SSIP) : "memory");
+    //CSR read and clear bits(read first, then &= ~mask, write back)
+
+    // have turned off interrupt, safe to access cpuid.
+    // Spurious interrupt: the IPI payload was already consumed by a previous 
+    // handler, but the physical signal arrived with latency.
+    asm volatile(
+        "amoswap.w.aqrl %0, %2, %1"
+        : "=&r"(pending_reason), "+A"(ipi_pending_reasons[cpuid()])
+        : "r"(clear_val)
+        : "memory"
+    );
+    //another method:
+    //__atomic_exchange_n(&rcu_ack_flags[cpuid()], clear_val, __ATOMIC_SEQ_CST);
+    if(pending_reason & IPI_REASON_TLB)    tlb_intr_handler_nolock();
+    if(pending_reason & IPI_REASON_RCU)
+        asm volatile(
+            "fence rw, w \n\t"
+            "sw %1, %0  \n\t"
+            : "=m"(rcu_ack_flags[cpuid()])
+            : "r"(1)
+            : "memory"
+        );
+}
+
 //
 // handle an interrupt, exception, or system call from user space.
 // called from, and returns to, trampoline.S
@@ -317,7 +380,8 @@ uint64 usertrap(void) { //NOTE: already in Supervisor-mode!!!!!!!!!!
                 if(vmfault(p->rb_array, p->pagetable, r_stval(), scause) != 0){
                     //Post-fix Verification
                     pte_t *new_pte=walk(p->pagetable, stval, 0, 0);
-                    if((*new_pte & PTE_V)==0){
+                    if(new_pte==NULL)   setkilled(p);
+                    else if((*new_pte & PTE_V)==0){
                         pr_err("After page_fault handler, pte still invalid!");
                         setkilled(p);
                     }
@@ -346,7 +410,8 @@ uint64 usertrap(void) { //NOTE: already in Supervisor-mode!!!!!!!!!!
                 setkilled(p);
             }
         }
-        else if(scause == (1ull << 63 | SIE_SSIE))     software_intr_handler_nolock();
+        else if(scause == (1ull << 63 | SIE_SSIE))
+            software_intr_handler_nolock();
         else{
             // interrupt or trap from an unknown source
             printf("scause=0x%llx sepc=0x%llx stval=0x%llx\n", scause, r_sepc(), r_stval());
@@ -479,13 +544,12 @@ void kerneltrap() {
         }
     }
     else{
-        if(scause == (1ull << 63 | SIE_SSIE))
-            software_intr_handler_nolock();
+        if(scause == (1ull << 63 | SIE_SSIE))   software_intr_handler_nolock();
         else if(scause == 13 || scause==15){
             //Only permit some reversed-area, which saved for continuity access.
             uint64 stval=PGROUNDDOWN(r_stval());        //aligned first.
             if(stval >= KRESERVED_START && stval + PGSIZE < KRESERVED_END){
-                uint64 new_page=(uint64)alloc_memory(PGSIZE, GFP_ZERO);
+                uint64 new_page=(uint64)alloc_memory(PGSIZE, GFP_ZERO | GFP_NOFAIL);
                 if(new_page==0){
                     pr_err("Unable alloc physical memory for kernel reversed-area.");
                     panic("kerneltrap.");

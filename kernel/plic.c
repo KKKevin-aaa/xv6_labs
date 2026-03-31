@@ -14,7 +14,7 @@ void plicinit(void) {
     *(uint32 *)(PLIC + VIRTIO0_IRQ * 4) = 1;
 }
 
-void plicinithart(void) {
+__init_code void plicinithart(void) {
     int hart = cpuid();
 
     // set enable bits for this hart's S-mode

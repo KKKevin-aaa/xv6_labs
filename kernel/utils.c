@@ -7,12 +7,17 @@
 #include "defs.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "per-cpu.h"
 #include "fs.h"
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
 #include "colors.h"
 #include "utils.h"
+
+extern struct spinlock rbtree_debug_lock;
+extern struct spinlock rcu_writer_lock;
+extern struct mailbox req_mailbox_locked[NCPU];
 
 //Use a single-byte repetitive pattern to verify and set poison.
 int check_poison(void *ptr, uint64 size){
@@ -78,4 +83,17 @@ int is_all_same_swar(const uint8 *data, uint64 len){    //SIMD Within A Register
         len--;ptr++;
     }
     return 1;
+}
+
+__attribute__((noinline)) void nop_func(void) {}
+
+__init_code void init_utils(void){
+    //initialize relevant lock
+    initlock(&rbtree_debug_lock, "rbtree_debug_lock");
+    initlock(&rcu_writer_lock, "rcu_writer_lock");
+    char tmp_name[40];
+    for(int i=0;i<NCPU;i++){
+        snprintf(tmp_name, 40, "req_mailbox_locked lock(NO.%d)", i);
+        initlock(&req_mailbox_locked->lock, tmp_name);
+    }
 }

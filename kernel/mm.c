@@ -141,13 +141,13 @@ static int mm_ctor(void *ptr){
 void init_mm(void){ //Init the system(alloc prepare, )
     //Deferred reclaimation of slab object,typicall occuring long after their lifecycle.
     //And the slab destructor is predominatly a nop in standard configuration.
-    vma_cache=create_slab_cache("vma_pool", sizeof(vm_area_struct_t), 8, vma_ctor, NULL);
+    vma_cache=create_slab_cache_nolock("vma_pool", sizeof(vm_area_struct_t), 8, vma_ctor, NULL);
     if(vma_cache==NULL){
         panic("init vma_cache fail.\n");
         return;
     }
     else    MM_TRACE("init vma_cache succeed.\n");
-    mm_cache=create_slab_cache("mm_pool", sizeof(mm_struct_t), 8, mm_ctor, NULL);
+    mm_cache=create_slab_cache_nolock("mm_pool", sizeof(mm_struct_t), 8, mm_ctor, NULL);
     if(mm_cache==NULL){
         panic("init mm_cache fail.\n");
         return;
@@ -523,7 +523,7 @@ int shrink_vma(vm_area_struct_t *vma, uint64 new_start, uint64 new_end){
     //shrink one vma to [new_start, new_end) in-place, with its current span.
     // new_start must >= current_start and new_end must <= current_end
     // (Terminate immediately upon rule violation.)
-    if(vma==NULL || new_start >= new_end || vma->vm_start > new_start || vma->vm_end < new_end){
+    if(vma==NULL || new_start > new_end || vma->vm_start > new_start || vma->vm_end < new_end){
         pr_warn("Invariant violation: shrink targets [0x%llx, 0x%llx) out of current VMA bounds.", 
             new_start, new_end);
         return -1;

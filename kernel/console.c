@@ -11,6 +11,7 @@
 #include "proc.h"
 #include "defs.h"
 #include "ioctl.h"
+#include "utils.h"
 #define BACKSPACE 0x100
 #define CONTROL_KEY(x) ((x) - '@')
 
@@ -326,7 +327,7 @@ int console_ioctl(int requset, uint64 user_addr){
     return 0;   
 }
 
-void consoleinit(void) {
+__init_code void consoleinit(void) {
     initlock(&console_buf.lock, "cons");
 
     uartinit();

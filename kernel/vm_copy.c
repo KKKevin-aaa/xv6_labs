@@ -20,13 +20,6 @@
 #include "utils.h"
 #include "colors.h"
 
-void *alloc_memory_assert(uint64 size){
-    if(size==0) panic("Invalid argument.");
-    void *ret=alloc_memory(size, GFP_ZERO);
-    if(ret==NULL)   panic("OOM");
-    return ret;
-}
-
 //Input dst_pg is newly allocated, as lower-level of src_pg.
 //Deal with partial copy in leaf pte.!!!
 int copy_partial_leaf_private(struct vm_sub_copy_ctx *p1){   //Reuse ret_va as src
@@ -59,7 +52,7 @@ int copy_partial_leaf_private(struct vm_sub_copy_ctx *p1){   //Reuse ret_va as s
                 commit_len /= 2;
             void *mem=alloc_memory(commit_len, 0);
             if(mem==NULL){
-                pr_err("OOM.");
+                pr_warn("OOM.");
                 retval=-1;
                 goto exit;
             }
@@ -78,7 +71,7 @@ int copy_partial_leaf_private(struct vm_sub_copy_ctx *p1){   //Reuse ret_va as s
                 //Or it is an intermidate node.(alloc one pagetable and enter sub-level recursively.)
                 pte_t *new_dst_pt=(pte_t *)alloc_memory(PGSIZE, GFP_ZERO);
                 if(new_dst_pt==NULL){
-                    pr_err("alloc failed,");
+                    pr_warn("alloc failed,");
                     retval=-1;
                     goto exit;
                 }

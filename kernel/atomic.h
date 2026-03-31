@@ -11,9 +11,9 @@ static inline int atomic_read(atomic_t *ptr){
 
 static inline void atomic_add(atomic_t *ptr, int addend){
     __asm__ volatile(
-        "amoadd.w zero, %1, (%0)"
-        :
-        : "r" (&ptr->count), "r" (addend)
+        "amoadd.w x0, %1, %0"
+        : "+A"(ptr->count)
+        : "r" (addend)
         : "memory"
     );
 }
@@ -23,16 +23,16 @@ static inline int atomic_inc_not_zero(atomic_t *ptr){
     int old, tmp;
     __asm__ volatile(
         "1: \n"
-        "lr.w.aq %0, (%2)    \n"    //read value and store into old
-        "beqz %0, 2f         \n"    //old==0, jump and return(don't add)
-        "addi %1, %0, 1      \n"    //tmp=old+1
-        "sc.w.rl %0, %1, (%2)    \n" //try to write back to ptr.count
-        "bnez %0, 1b          \n"   //if write failed(return 0),retry it
-        "li %0, 1             \n"   //set the success flag
-        "j  3f                \n"   //jump out
-        "2:                   \n"
-        "li %0, 0             \n"   //set the failure flag
-        "3:                   \n"
+        "lr.w.aq %0, (%2)    \n\t"    //read value and store into old
+        "beqz %0, 2f         \n\t"    //old==0, jump and return(don't add)
+        "addi %1, %0, 1      \n\t"    //tmp=old+1
+        "sc.w.rl %0, %1, (%2)    \n\t" //try to write back to ptr.count
+        "bnez %0, 1b          \n\t"   //if write failed(return 0),retry it
+        "li %0, 1             \n\t"   //set the success flag
+        "j  3f                \n\t"   //jump out
+        "2:                   \n\t"
+        "li %0, 0             \n\t"   //set the failure flag
+        "3:                   \n\t"
         : "=&r" (old), "=&r"(tmp)
         : "r" (&ptr->count)
         : "memory"
@@ -47,10 +47,9 @@ static inline int atomic_add_and_ret(atomic_t *ptr, int addend){
     //While: "aqrl" define hardware-level memory ordering,"aq" barrier guarantees that
     //subsequent cannot be reordered before it, "rl" ensures preceding cannot be reordered after it 
     __asm__ volatile(
-        "amoadd.w.aqrl %0, %2, (%1)"    //() indicate that value can be dereferenced
-        :  "=r" (ret)       // (%0)
-        :  "r" (&ptr->count),   // %(1)
-            "r" (addend)    //(%2)
+        "amoadd.w.aqrl %0, %2, %1"    //() indicate that value can be dereferenced
+        :  "=&r" (ret), "+A"(ptr->count)
+        :   "r" (addend)
         : "memory"
     );
     return ret+addend;

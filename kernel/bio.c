@@ -21,6 +21,7 @@
 #include "defs.h"
 #include "fs.h"
 #include "buf.h"
+#include "utils.h"
 
 struct {
     struct spinlock lock;
@@ -32,7 +33,7 @@ struct {
     struct buf head;
 } bcache;
 
-void binit(void) {
+__init_code void binit(void) {
     struct buf *b;
 
     initlock(&bcache.lock, "bcache");

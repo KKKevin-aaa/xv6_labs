@@ -63,6 +63,7 @@ void walk_all_page(uint64 start_va, pagetable_t pagetable, int level){
         start_va+=va_step;
     }
 }
+
 void vmprint(pagetable_t pagetable) {
     // your code here'
     printf("page table %p\n", (void *)pagetable);

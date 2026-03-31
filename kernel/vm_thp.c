@@ -27,7 +27,8 @@ int in_res_area(uint64 va, res_block *rblocks){
         pr_err("Invalid argument:rblocks require a non-NULL pointer.");
         return -1;
     }
-    if(va >= rblocks[0].va && va < rblocks[MAX_RES_BLOCK-1].va +SUPERPGSIZE)
+    //can be boundary, start and end constraints cannot be satisfied simultaneously.
+    if(va >= rblocks[0].va && va <= rblocks[MAX_RES_BLOCK-1].va +SUPERPGSIZE)
         return 1;
     return 0;
 }
@@ -52,7 +53,7 @@ void split_into_blocks(res_block * rblocks, pagetable_t pagetable, uint64 va, ui
     pte_t *old_pte=walk(pagetable, va, 0, cur_level);
     if(old_pte==NULL || *old_pte==0)
         panic("Incomplete or missing page table structure for the given address");
-    pagetable_t new_pagetable=alloc_memory(PGSIZE, GFP_ZERO);
+    pagetable_t new_pagetable=alloc_memory(PGSIZE, GFP_ZERO | GFP_NOFAIL);
     if(new_pagetable==NULL) panic("Split-into-blocks:OOM");
     uint64 cur_pa=PTE2PA(*old_pte), basic_stride=get_step_size(cur_level-1), delete_pa=cur_pa;
     void *new_block_pa;
@@ -62,7 +63,7 @@ void split_into_blocks(res_block * rblocks, pagetable_t pagetable, uint64 va, ui
     for(int i=0;i<512;i++){
         if(rblocks[idx].bitmap[i]!=0){
             //Inherits RXW permissions from the original huge page, becoming a new small leaf.
-            new_block_pa=alloc_memory(basic_stride, 0);
+            new_block_pa=alloc_memory(basic_stride, GFP_NOFAIL);
             if(new_block_pa==NULL){
                 panic("out-of-memory!");
             }
@@ -179,7 +180,7 @@ int move_and_aggregate(res_block *rblocks, pagetable_t pagetable, uint64 va, uin
     }
     uint64 rb_idx=(va-rblocks[0].va)/SUPERPGSIZE;
     pte_t *old_pte=walk(pagetable, rblocks[rb_idx].va, 0, 0);
-    if(*old_pte==0)   return -1;
+    if(old_pte==NULL)   return -1;
     uint64 bp_idx=0 ,tmp_pa, step=0;
     while(bp_idx<512){
         if(rblocks[rb_idx].bitmap[bp_idx]!=0){
@@ -285,8 +286,9 @@ uint64 uvmalloc_thp_region(struct alloc_context *ctx1){    //Consider reserved a
         cur_size=cur_size-cur_va;
         if(ctx1->rblocks[idx].is_scattered==1){
             if(ctx1->rblocks[idx].alloc_attempts<MAX_ALLOWED_ALLOCATIONS){
-                new_heap_block=(uint64)alloc_memory(SUPERPGSIZE, GFP_ZERO);
+                new_heap_block=(uint64)alloc_memory(SUPERPGSIZE, GFP_ZERO | GFP_USER);
                 if(new_heap_block!=0){
+                    pr_info("alloc one hugepage for thp region successfully.");
                     // update the pte Only when new memory is ready 
                     // to avoid handling intermediate states.
                     if(mappages(&(struct map_context){
@@ -327,7 +329,7 @@ uint64 uvmalloc_thp_region(struct alloc_context *ctx1){    //Consider reserved a
                 }
                 ctx1->rblocks[idx].alloc_attempts++;
             }
-discrete_alloc:
+discrete_alloc:     //Exceed the max_allowed_allocations
             if(buddy_alloc_backend(&(struct alloc_context){
                 .pagetable=ctx1->pagetable,
                 .seg_start=cur_va,
@@ -425,7 +427,7 @@ uint64 uvmalloc_thp_region(struct alloc_context *ctx1){    //Consider reserved a
             continue;   //Exist the leaf_pte already.
         }
         if(THRESHLOD==0 || ctx1->rblocks[idx].pop_count>=THRESHLOD-cur_size/PGSIZE){
-            new_heap_block=(uint64)alloc_memory(SUPERPGSIZE);
+            new_heap_block=(uint64)alloc_memory(SUPERPGSIZE, GFP_USER);
             if(new_heap_block!=0){
                 memset((void *)new_heap_block, 0, SUPERPGSIZE);
                 if(merge_into_hugepages_Out(ctx1->rblocks, ctx1->pagetable, 
